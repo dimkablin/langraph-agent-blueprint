@@ -36,3 +36,11 @@ test("API client calls graph-facing backend endpoints only", () => {
   assert.match(api, /\/approval/);
   assert.doesNotMatch(api, /\/tools\/execute/);
 });
+
+test("JSX modules import React for Vite classic JSX runtime", () => {
+  const app = readFileSync(join(root, "frontend", "src", "App.jsx"), "utf8");
+  const components = readFileSync(join(root, "frontend", "src", "components.jsx"), "utf8");
+
+  assert.match(app, /import React,\s*\{/);
+  assert.match(components, /import React from "react"/);
+});

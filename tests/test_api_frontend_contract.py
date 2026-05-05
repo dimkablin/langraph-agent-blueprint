@@ -38,3 +38,18 @@ def test_chat_api_exposes_permission_and_approval_resume(tmp_path):
     assert resumed["thread_id"] == "frontend-permission"
     assert "rejected" in resumed["final_response"].lower()
 
+
+def test_api_allows_vite_frontend_origin(tmp_path):
+    app = create_app(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
+    client = TestClient(app)
+
+    response = client.options(
+        "/skills",
+        headers={
+            "Origin": "http://127.0.0.1:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"

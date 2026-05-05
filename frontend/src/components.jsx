@@ -1,3 +1,4 @@
+import React from "react";
 import { Check, CircleHelp, Command, KeyRound, Send, ShieldAlert, Sparkles, Terminal, X } from "lucide-react";
 import { filterHints, keyboardHints, skillHints, slashCommands, toolHints } from "./commandHints.js";
 
@@ -130,4 +131,3 @@ function mergeLive(fallback, live) {
   }));
   return liveItems.length ? liveItems : fallback;
 }
-

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from claude_code_langgraph.config import AppConfig
 from claude_code_langgraph.dependencies import build_dependencies
@@ -16,8 +17,16 @@ from .routes_tools import router as tools_router
 
 
 def create_app(config: AppConfig | None = None) -> FastAPI:
+    config = config or AppConfig.from_env()
     api = FastAPI(title="claude-code-langgraph")
-    runtime = AssistantGraphRuntime(build_dependencies(config or AppConfig.from_env()))
+    api.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.cors_allowed_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
+    )
+    runtime = AssistantGraphRuntime(build_dependencies(config))
     api.state.runtime = runtime
 
     @api.post("/chat", response_model=ChatResponse)

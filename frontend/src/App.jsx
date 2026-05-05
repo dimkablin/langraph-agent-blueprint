@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { fetchCommands, fetchSkills, fetchTools, sendApproval, sendChat } from "./api.js";
 import { EmptyState, HintPanel, PermissionPrompt, StatusBar, TerminalShell } from "./components.jsx";
 
@@ -103,4 +103,3 @@ export default function App() {
     </main>
   );
 }
-

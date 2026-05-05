@@ -28,6 +28,14 @@ class AppConfig(BaseModel):
     skills_paths: list[Path] = Field(default_factory=list)
     plugin_paths: list[Path] = Field(default_factory=list)
     mcp_config: dict[str, Any] = Field(default_factory=dict)
+    cors_allowed_origins: list[str] = Field(
+        default_factory=lambda: [
+            "http://127.0.0.1:5173",
+            "http://localhost:5173",
+            "http://127.0.0.1:4173",
+            "http://localhost:4173",
+        ]
+    )
 
     anthropic_api_key: str | None = None
     anthropic_model: str | None = None
@@ -61,9 +69,24 @@ class AppConfig(BaseModel):
             "openai_compatible_base_url": os.getenv("OPENAI_COMPATIBLE_BASE_URL"),
             "openai_compatible_api_key": os.getenv("OPENAI_COMPATIBLE_API_KEY"),
             "openai_compatible_model": os.getenv("OPENAI_COMPATIBLE_MODEL"),
+            "cors_allowed_origins": cls._split_csv(
+                os.getenv("CORS_ALLOWED_ORIGINS"),
+                [
+                    "http://127.0.0.1:5173",
+                    "http://localhost:5173",
+                    "http://127.0.0.1:4173",
+                    "http://localhost:4173",
+                ],
+            ),
         }
         values.update(overrides)
         return cls(**values)
+
+    @staticmethod
+    def _split_csv(value: str | None, default: list[str]) -> list[str]:
+        if not value:
+            return default
+        return [item.strip() for item in value.split(",") if item.strip()]
 
     def effective_model(self) -> str:
         """Return the model name for the selected provider."""
@@ -86,4 +109,3 @@ class AppConfig(BaseModel):
             if "key" in key.lower() or "token" in key.lower():
                 data[key] = "***" if data[key] else None
         return data
-
