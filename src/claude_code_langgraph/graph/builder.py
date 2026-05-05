@@ -61,7 +61,13 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
     graph.add_conditional_edges(
         "command_router",
         route_after_command,
-        {"persist_session": "persist_session", "context_builder": "context_builder", "skill_graph": "skill_graph", "error_recovery": "error_recovery"},
+        {
+            "persist_session": "persist_session",
+            "context_builder": "context_builder",
+            "skill_graph": "skill_graph",
+            "compact_decision": "compact_decision",
+            "error_recovery": "error_recovery",
+        },
     )
     graph.add_edge("skill_graph", "context_builder")
     graph.add_edge("context_builder", "model_call")
@@ -124,6 +130,8 @@ class AssistantGraphRuntime:
             session_id=session_id,
             thread_id=thread_id,
         )
+        if session_id:
+            self._hydrate_session_state(state)
         config = {"configurable": {"thread_id": state["thread_id"]}}
         return self.app.invoke(state, config)
 
@@ -131,6 +139,43 @@ class AssistantGraphRuntime:
         return self.app.invoke(Command(resume=decision), {"configurable": {"thread_id": thread_id}})
 
     def stream(self, input_text: str, input_kind: str = "headless") -> Iterable[dict[str, Any]]:
-        result = self.invoke(input_text, input_kind=input_kind)
-        yield from result.get("ui_events", [])
+        previous_count = 0
+        state = create_initial_state(
+            input_text,
+            project_root=self.dependencies.config.project_root or Path.cwd(),
+            cwd=self.dependencies.config.cwd or self.dependencies.config.project_root or Path.cwd(),
+            input_kind=input_kind,
+        )
+        for chunk in self.app.stream(
+            state,
+            {"configurable": {"thread_id": state["thread_id"]}},
+            stream_mode="values",
+        ):
+            events = chunk.get("ui_events", [])
+            for item in events[previous_count:]:
+                yield item
+            previous_count = len(events)
 
+    def _hydrate_session_state(self, state: dict[str, Any]) -> None:
+        try:
+            loaded = self.dependencies.session_storage.load_session(state["project_root"], state["session_id"])
+        except (FileNotFoundError, OSError):
+            return
+        state["messages"] = loaded.get("messages", [])
+        state["todos"] = loaded.get("todos", [])
+        state["memory"] = loaded.get("memory", {})
+        state["usage"] = loaded.get("usage", {})
+        metadata = {**loaded.get("metadata", {}), **state.get("metadata", {})}
+        metadata["resumed_from_session"] = state["session_id"]
+        for key in [
+            "input_normalized",
+            "graph_finished",
+            "tool_route",
+            "compact_route",
+            "compact_requested",
+            "clear_messages",
+            "export_requested",
+            "doctor_requested",
+        ]:
+            metadata.pop(key, None)
+        state["metadata"] = metadata

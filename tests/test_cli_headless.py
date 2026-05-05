@@ -30,3 +30,13 @@ def test_headless_query_json_output_uses_graph(tmp_path):
     assert payload["final_response"] == "Fake response: hello"
     assert payload["session_id"]
 
+
+def test_headless_stream_json_outputs_runtime_events(tmp_path):
+    result = run_cli(tmp_path, "query", "--output", "stream-json", 'tool:read_file {"path":"README.md"}')
+    events = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+    event_types = [event["type"] for event in events]
+
+    assert len(events) > 3
+    assert "tool_call_started" in event_types
+    assert "tool_call_finished" in event_types
+    assert event_types[-1] == "final_response"

@@ -82,5 +82,23 @@ Rejection creates a structured rejected tool result and returns to the model loo
 
 ## Streaming Event Flow
 
-Graph nodes append shared `ui_events`. Events include session, node, model, tool, permission, skill, subagent, compact, memory, persistence, final response, and error events. CLI/API consume these events instead of calling services directly for workflow.
+Graph nodes append shared `ui_events` through LangGraph reducers. Events include session, node, model, tool, permission, skill, subagent, compact, memory, persistence, final response, and error events. CLI/API consume these events instead of calling services directly for workflow.
 
+`AssistantGraphRuntime.stream()` uses LangGraph value streaming and yields only newly appended events from each state delta. `query --output stream-json` writes those events as plain JSON lines.
+
+## Tool Message Loop
+
+Tool calling now follows provider-compatible message order:
+
+```text
+HumanMessage
+AIMessage(tool_calls=[...])
+ToolMessage(tool_call_id=...)
+AIMessage(final answer)
+```
+
+This is the path used by fake-provider tests and the Ollama `qwen3:14b` manual smoke.
+
+## Skill Runtime
+
+`/skill` and `SkillTool` enter the graph skill route. The skill route resolves `SKILL.md`, emits skill lifecycle events, applies `allowed_tools_override`, and then returns to the shared context/model/tool loop. `model_call` filters provider-bound tools to the active skill scope, and `tool_router` rejects any disallowed tool as a policy violation.

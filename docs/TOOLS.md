@@ -32,3 +32,11 @@ Core tools:
 
 Tool workflow is graph-owned: UI/API call the graph, the graph routes to permission and execution nodes, and services perform low-level operations.
 
+Runtime status after fixes:
+
+- Provider tool schemas are bound to supported models with registry names preserved.
+- Tool results are returned as `ToolMessage` and then routed back to `model_call`.
+- File/search/shell/notebook/todo tools have end-to-end fake-provider tests.
+- Ollama `qwen3:14b` was manually verified for native `read_file` tool calling.
+- `web_fetch` remains disabled unless network is enabled and approved.
+- `web_search` reports unavailable when no provider is configured.

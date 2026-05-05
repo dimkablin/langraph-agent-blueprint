@@ -36,7 +36,7 @@ def query(
     runtime = _runtime()
     if output == "stream-json":
         for event in runtime.stream(message, input_kind="headless"):
-            console.print(json.dumps(event, ensure_ascii=False))
+            print(json.dumps(event, ensure_ascii=False))
         return
     result = runtime.invoke(message, input_kind="headless")
     if "__interrupt__" in result:

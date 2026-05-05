@@ -7,8 +7,17 @@ from .base import Command, CommandResult
 
 def _help(args: str, state: dict[str, Any]) -> CommandResult:
     commands = state.get("available_commands", {})
-    names = ", ".join(f"/{name}" for name in sorted(commands)) or "/help"
-    return CommandResult(True, f"Available commands: {names}")
+    enabled = []
+    unsupported = []
+    for name, meta in sorted(commands.items()):
+        if meta.get("status") == "unsupported":
+            unsupported.append(f"/{name}")
+        else:
+            enabled.append(f"/{name}")
+    response = f"Available commands: {', '.join(enabled) or '/help'}"
+    if unsupported:
+        response += f"\nUnsupported commands: {', '.join(unsupported)}"
+    return CommandResult(True, response)
 
 
 def _clear(args: str, state: dict[str, Any]) -> CommandResult:
@@ -29,28 +38,63 @@ def _export(args: str, state: dict[str, Any]) -> CommandResult:
 
 def _skills(args: str, state: dict[str, Any]) -> CommandResult:
     skills = state.get("available_skills", {})
-    names = ", ".join(sorted(skills)) or "none"
-    return CommandResult(True, f"Available skills: {names}")
+    lines = ["Available skills:"]
+    for name, meta in sorted(skills.items()):
+        allowed = ", ".join(meta.get("allowed_tools", []) or [])
+        lines.append(f"- {name}: {meta.get('description', '')} (allowed_tools: {allowed or 'none'})")
+    disabled = state.get("disabled_skills", {})
+    if disabled:
+        lines.append("Disabled skills:")
+        for name, reason in sorted(disabled.items()):
+            lines.append(f"- {name}: {reason}")
+    if len(lines) == 1:
+        lines.append("- none")
+    return CommandResult(True, "\n".join(lines))
 
 
 def _status(args: str, state: dict[str, Any]) -> CommandResult:
-    return CommandResult(True, f"Session {state.get('session_id')} using model {state.get('metadata', {}).get('model_name', 'unknown')}")
+    metadata = state.get("metadata", {})
+    return CommandResult(
+        True,
+        "\n".join(
+            [
+                f"session_id: {state.get('session_id')}",
+                f"provider/model: {metadata.get('config', {}).get('llm_provider', 'unknown')}/{metadata.get('model_name', 'unknown')}",
+                f"project_root: {state.get('project_root')}",
+                f"cwd: {state.get('cwd')}",
+                f"storage_dir: {metadata.get('config', {}).get('storage_dir', 'unknown')}",
+                f"tools: {len(state.get('available_tools', {}))}",
+                f"skills: {len(state.get('available_skills', {}))}",
+                f"commands: {len(state.get('available_commands', {}))}",
+            ]
+        ),
+    )
 
 
 def _cost(args: str, state: dict[str, Any]) -> CommandResult:
-    return CommandResult(True, f"Usage: {state.get('usage', {})}")
+    usage = state.get("usage", {})
+    cost = usage.get("cost") if isinstance(usage, dict) else None
+    return CommandResult(True, f"Usage: {usage}\nCost: {cost if cost is not None else 'unavailable'}")
 
 
 def _config(args: str, state: dict[str, Any]) -> CommandResult:
-    return CommandResult(True, f"Config: {state.get('metadata', {}).get('config', {})}")
+    config = state.get("metadata", {}).get("config", {})
+    lines = [f"{key}: {value}" for key, value in sorted(config.items())]
+    return CommandResult(True, "Config:\n" + "\n".join(lines))
 
 
 def _doctor(args: str, state: dict[str, Any]) -> CommandResult:
-    return CommandResult(True, "Doctor command is available. Use the diagnostics tool for detailed checks.")
+    return CommandResult(True, "Doctor requested.", metadata={"doctor_requested": True})
 
 
 def _memory(args: str, state: dict[str, Any]) -> CommandResult:
-    return CommandResult(True, f"Memory scopes: {', '.join(state.get('memory', {}).keys()) or 'none'}")
+    memory = state.get("memory", {})
+    lines = []
+    for scope in ["user", "project", "session"]:
+        content = str(memory.get(scope, "")).strip()
+        if content:
+            lines.append(f"{scope}:\n{content}")
+    return CommandResult(True, "\n\n".join(lines) if lines else "Memory scopes: none")
 
 
 def _todo(args: str, state: dict[str, Any]) -> CommandResult:
@@ -99,4 +143,3 @@ def builtins() -> list[Command]:
         Command("plugins", "List plugins", "local", _not_implemented("plugins")),
         Command("mcp", "List MCP state", "local", _not_implemented("mcp")),
     ]
-

@@ -11,8 +11,8 @@ def load_registries_node(state: dict, deps: AppDependencies) -> dict:
         "available_tools": deps.tool_registry.snapshot(),
         "available_commands": deps.command_registry.snapshot(),
         "available_skills": deps.skill_registry.snapshot(),
+        "disabled_skills": dict(deps.skill_registry.disabled),
         "plugin_state": plugin_state,
         "mcp_state": {"tools": list(mcp_state["tools"]), "resources": mcp_state["resources"], "prompts": mcp_state["prompts"]},
         "ui_events": [event("node_finished", node="load_registries")],
     }
-

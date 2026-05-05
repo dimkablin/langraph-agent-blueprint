@@ -27,13 +27,22 @@ class SessionStorage:
         ensure_dir(session_dir / "exports")
         ensure_dir(session_dir / "large_outputs")
         metadata_path = session_dir / "metadata.json"
-        current = {
-            "session_id": session_id,
-            "project_root": str(Path(project_root).resolve()),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
+        now = datetime.now(timezone.utc).isoformat()
+        if metadata_path.exists():
+            try:
+                current = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                current = {}
+        else:
+            current = {
+                "session_id": session_id,
+                "project_root": str(Path(project_root).resolve()),
+                "created_at": now,
+            }
+        current.setdefault("session_id", session_id)
+        current.setdefault("project_root", str(Path(project_root).resolve()))
         current.update(metadata)
+        current["updated_at"] = now
         metadata_path.write_text(json.dumps(current, indent=2), encoding="utf-8")
         (session_dir / "events.jsonl").touch(exist_ok=True)
         (session_dir / "tool_calls.jsonl").touch(exist_ok=True)
@@ -41,6 +50,11 @@ class SessionStorage:
 
     def append_event(self, project_root: str | Path, session_id: str, event: dict[str, Any]) -> None:
         session_dir = self.create_session(project_root, session_id, {})
+        event_id = event.get("id")
+        if event_id:
+            for existing in self._read_jsonl(session_dir / "events.jsonl"):
+                if existing.get("id") == event_id:
+                    return
         with (session_dir / "events.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
@@ -69,7 +83,19 @@ class SessionStorage:
             messages = [message_from_dict(item) for item in json.loads(messages_path.read_text(encoding="utf-8"))]
         events = self._read_jsonl(session_dir / "events.jsonl")
         tool_calls = self._read_jsonl(session_dir / "tool_calls.jsonl")
-        return {"metadata": metadata, "messages": messages, "events": events, "tool_calls": tool_calls}
+        todos_path = session_dir / "todos.json"
+        memory_refs_path = session_dir / "memory_refs.json"
+        todos = json.loads(todos_path.read_text(encoding="utf-8")) if todos_path.exists() else []
+        memory_refs = json.loads(memory_refs_path.read_text(encoding="utf-8")) if memory_refs_path.exists() else {}
+        return {
+            "metadata": metadata,
+            "messages": messages,
+            "events": events,
+            "tool_calls": tool_calls,
+            "todos": todos,
+            "memory": memory_refs,
+            "usage": metadata.get("usage", {}),
+        }
 
     def list_sessions(self, project_root: str | Path | None = None) -> list[dict[str, Any]]:
         roots = [project_storage_dir(self.storage_dir, project_root)] if project_root else list((self.storage_dir / "projects").glob("*"))
@@ -103,4 +129,3 @@ class SessionStorage:
             if line.strip():
                 rows.append(json.loads(line))
         return rows
-

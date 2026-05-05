@@ -31,3 +31,10 @@ Implemented:
 
 Resume loads stored metadata/messages and can continue with the same `session_id`.
 
+Runtime status after fixes:
+
+- Session metadata is merged instead of overwritten by event/tool append operations.
+- Stored messages preserve `AIMessage.tool_calls` and `ToolMessage.tool_call_id`.
+- Todos, memory refs, usage, and durable read history metadata are restored for later turns.
+- `/resume <session_id>` restores state inside the graph command route.
+- `/export` creates transcript files and records `exported_outputs`.

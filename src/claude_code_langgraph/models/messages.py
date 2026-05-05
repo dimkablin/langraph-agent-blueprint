@@ -5,11 +5,17 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from claude_code_langgraph.utils.ids import new_id
+
 
 class StreamEvent(BaseModel):
     """Client-visible event emitted from graph nodes and adapters."""
 
+    id: str = Field(default_factory=lambda: new_id("event"))
     type: str
+    session_id: str | None = None
+    node: str | None = None
+    severity: str | None = None
     data: dict[str, Any] = Field(default_factory=dict)
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -49,5 +55,10 @@ class ToolResultRecord(BaseModel):
 def event(event_type: str, **data: Any) -> dict[str, Any]:
     """Return a serializable stream event dictionary."""
 
-    return StreamEvent(type=event_type, data=data).model_dump(mode="json")
-
+    return StreamEvent(
+        type=event_type,
+        session_id=data.get("session_id"),
+        node=data.get("node"),
+        severity=data.get("severity"),
+        data=data,
+    ).model_dump(mode="json")

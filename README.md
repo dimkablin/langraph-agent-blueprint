@@ -96,6 +96,16 @@ python -m claude_code_langgraph query "Explain this project."
 
 You can also use OpenAI-compatible Ollama endpoints through `LLM_PROVIDER=openai_compatible`.
 
+Manual verification was also run with:
+
+```bash
+set LLM_PROVIDER=ollama
+set OLLAMA_MODEL=qwen3:14b
+python -m claude_code_langgraph query "Use read_file to read README.md and answer with its first line."
+```
+
+`qwen3:14b` successfully emitted a native `read_file` tool call through LangGraph, the graph executed the tool, appended a `ToolMessage`, and the model produced the final answer from the file content.
+
 ## Tests
 
 ```bash
@@ -118,9 +128,27 @@ Tool-use loops, permission flow, skill invocation, subagents, compaction, memory
 
 Core tools include file read/write/edit, notebook read/edit, glob, grep, bash, PowerShell, web fetch/search, todo write, agent, skill, MCP adapter, and diagnostics. Risky tools require permission unless policy allows them.
 
+Examples with the fake provider:
+
+```bash
+python -m claude_code_langgraph query "tool:read_file {\"path\":\"README.md\"}"
+python -m claude_code_langgraph query --output stream-json "tool:read_file {\"path\":\"README.md\"}"
+```
+
+Write/edit/shell/network tools request approval through LangGraph interrupt/resume. API and frontend receive `permission_required`; the CLI prompts interactively in `chat` mode.
+
 ## Skills
 
 Skills are first-class `skill-name/SKILL.md` capabilities with frontmatter metadata. Built-ins include `debug`, `remember`, `simplify`, `skillify`, `stuck`, `update-config`, `verify`, and `batch`.
+
+Skills can be invoked explicitly:
+
+```bash
+python -m claude_code_langgraph query "/skill remember project: Prefer pytest."
+python -m claude_code_langgraph query "/memory"
+```
+
+Skill invocation goes through the graph skill route, emits `skill_started` / `skill_finished`, filters provider-bound tools to the skill's `allowed_tools`, and enforces that scope in `tool_router`.
 
 ## Commands
 
@@ -140,6 +168,8 @@ Slash commands are routed through `CommandRegistry` and `command_router`:
 - `/todo`
 
 Optional commands such as `/plugins`, `/mcp`, `/context`, `/rewind`, `/branch`, `/rename`, and `/tag` are recognized with documented limitations.
+
+Required commands now perform real runtime work: `/compact` compacts context, `/export` writes a transcript, `/resume` restores session state, `/doctor` runs diagnostics, `/todo` reads persisted todos, and `/memory` reads durable memory.
 
 ## Permissions
 
@@ -171,5 +201,8 @@ Sessions are stored under `.storage/projects/{project_hash}/sessions/{session_id
 - MCP is an architectural/service abstraction with mockable registration and disabled-by-default behavior when no config exists.
 - Plugin support validates local manifests and exposes contributions; marketplace install/update is not implemented.
 - IDE/LSP is documented as architectural/minimal.
-- Provider JSON repair is minimal; fake provider is the tested provider.
+- Provider JSON repair is minimal. Native tool calling is tested through fake provider and manually verified with Ollama `qwen3:14b`.
+- `web_search` is unavailable unless a real search provider is configured. It no longer returns empty success when no provider exists.
+- `web_fetch` is disabled unless `NETWORK_ENABLED=true` and still requires permission.
+- Subagent execution remains limited/synthetic compared with the rest of the graph runtime.
 - Data analyst capabilities are optional extensions, not direct-port behavior.

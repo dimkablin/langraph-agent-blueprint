@@ -29,5 +29,4 @@ class WebService:
     def search(self, query: str) -> dict[str, Any]:
         if not self.enabled:
             raise PermissionError("Web search is disabled by configuration")
-        return {"query": query, "results": [], "warning": "No web search provider is configured."}
-
+        raise RuntimeError("Web search provider is not configured")

@@ -5,7 +5,7 @@ import re
 import time
 from typing import Any
 
-from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
 from claude_code_langgraph.config import AppConfig
 from claude_code_langgraph.models.llm import ModelRequest, ModelResponse
@@ -40,15 +40,19 @@ class ModelProviderService:
 
     def _fake_generate(self, request: ModelRequest) -> ModelResponse:
         text = self._last_human_text(request.messages)
-        if request.metadata.get("tool_results"):
-            result = request.metadata["tool_results"][-1]
+        if request.metadata.get("tool_results") or self._last_message_is_tool_result(request.messages):
+            result = (request.metadata.get("tool_results") or [{"name": "tool", "status": "ok", "content": str(request.messages[-1].content)}])[-1]
             status = result.get("status", "ok")
             content = result.get("content", "")
-            return ModelResponse(content=f"Tool {result.get('name')} {status}: {content}".strip(), usage=self._usage(text))
+            response_text = f"Tool {result.get('name')} {status}: {content}".strip()
+            return ModelResponse(content=response_text, raw=AIMessage(content=response_text), usage=self._usage(text))
         tool_call = self._parse_fake_tool_call(text)
         if tool_call:
-            return ModelResponse(content=f"Calling tool {tool_call['name']}", tool_calls=[tool_call], usage=self._usage(text))
-        return ModelResponse(content=f"Fake response: {text}", usage=self._usage(text))
+            content = f"Calling tool {tool_call['name']}"
+            message = AIMessage(content=content, tool_calls=[tool_call])
+            return ModelResponse(content=content, tool_calls=[tool_call], raw=message, usage=self._usage(text))
+        response_text = f"Fake response: {text}"
+        return ModelResponse(content=response_text, raw=AIMessage(content=response_text), usage=self._usage(text))
 
     def _parse_fake_tool_call(self, text: str) -> dict[str, Any] | None:
         if not text.startswith("tool:"):
@@ -58,7 +62,7 @@ class ModelProviderService:
             return {"id": new_id("tool"), "name": "fail", "args": {}}
         if command.startswith("bash "):
             return {"id": new_id("tool"), "name": "bash", "args": {"command": command[5:]}}
-        if command.startswith("write_file "):
+        if command.startswith("write_file ") and not command[len("write_file ") :].lstrip().startswith("{"):
             parts = command.split(" ", 2)
             content = parts[2] if len(parts) > 2 else ""
             return {"id": new_id("tool"), "name": "write_file", "args": {"path": parts[1], "content": content}}
@@ -77,11 +81,91 @@ class ModelProviderService:
 
     def _langchain_generate(self, request: ModelRequest, provider: str) -> ModelResponse:
         model = self._build_chat_model(provider)
-        messages: list[BaseMessage] = list(request.messages)
-        response = model.invoke(messages)
+        messages = self._messages_with_system(request)
+        tools = self._langchain_tool_schemas(request.tools)
+        bound_model = model
+        if tools and hasattr(model, "bind_tools"):
+            bound_model = model.bind_tools(tools)
+        response = bound_model.invoke(messages)
         content = str(getattr(response, "content", ""))
-        tool_calls = list(getattr(response, "tool_calls", []) or [])
+        tool_calls = self._normalize_tool_calls(list(getattr(response, "tool_calls", []) or []))
+        if not tool_calls:
+            tool_calls = self._parse_json_tool_calls(content)
         return ModelResponse(content=content, tool_calls=tool_calls, raw=response, usage=self._usage(content))
+
+    @staticmethod
+    def _messages_with_system(request: ModelRequest) -> list[BaseMessage]:
+        messages: list[BaseMessage] = list(request.messages)
+        if request.system_context and not any(isinstance(message, SystemMessage) for message in messages):
+            return [SystemMessage(content=request.system_context), *messages]
+        return messages
+
+    @staticmethod
+    def _langchain_tool_schemas(tools: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+        schemas: list[dict[str, Any]] = []
+        for name, metadata in sorted(tools.items()):
+            input_schema = metadata.get("input_schema") or {"type": "object", "properties": {}}
+            if not isinstance(input_schema, dict):
+                input_schema = {"type": "object", "properties": {}}
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": str(metadata.get("description") or ""),
+                        "parameters": input_schema,
+                    },
+                }
+            )
+        return schemas
+
+    @staticmethod
+    def _normalize_tool_calls(tool_calls: list[Any]) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        for call in tool_calls:
+            if not isinstance(call, dict):
+                continue
+            name = call.get("name") or call.get("function", {}).get("name")
+            args = call.get("args")
+            if args is None:
+                args = call.get("arguments") or call.get("function", {}).get("arguments") or {}
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {"value": args}
+            if not name:
+                continue
+            normalized.append(
+                {
+                    "id": call.get("id") or new_id("tool"),
+                    "name": str(name),
+                    "args": args if isinstance(args, dict) else {},
+                    "raw": call,
+                    "status": "pending",
+                }
+            )
+        return normalized
+
+    def _parse_json_tool_calls(self, content: str) -> list[dict[str, Any]]:
+        stripped = content.strip()
+        if not stripped:
+            return []
+        candidates = [stripped]
+        fenced = re.search(r"```(?:json)?\s*(.*?)```", stripped, re.DOTALL)
+        if fenced:
+            candidates.insert(0, fenced.group(1).strip())
+        for candidate in candidates:
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            raw_calls = parsed.get("tool_calls") if isinstance(parsed, dict) else parsed
+            if isinstance(raw_calls, dict):
+                raw_calls = [raw_calls]
+            if isinstance(raw_calls, list):
+                return self._normalize_tool_calls(raw_calls)
+        return []
 
     def _build_chat_model(self, provider: str) -> Any:
         if provider == "ollama":
@@ -115,7 +199,10 @@ class ModelProviderService:
         return ""
 
     @staticmethod
+    def _last_message_is_tool_result(messages: list[Any]) -> bool:
+        return bool(messages and isinstance(messages[-1], ToolMessage))
+
+    @staticmethod
     def _usage(text: str) -> Usage:
         tokens = max(1, len(text) // 4)
         return Usage(input_tokens=tokens, output_tokens=tokens, total_tokens=tokens * 2)
-

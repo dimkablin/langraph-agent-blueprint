@@ -10,6 +10,16 @@ from typing_extensions import TypedDict
 from claude_code_langgraph.utils.ids import new_id
 
 
+def append_list(current: list[Any] | None, update: list[Any] | None) -> list[Any]:
+    """Append LangGraph list deltas while preserving prior state."""
+
+    if not current:
+        current = []
+    if not update:
+        return list(current)
+    return [*current, *update]
+
+
 class AssistantState(TypedDict, total=False):
     session_id: str
     thread_id: str
@@ -24,25 +34,26 @@ class AssistantState(TypedDict, total=False):
     available_tools: dict[str, dict[str, Any]]
     available_commands: dict[str, dict[str, Any]]
     available_skills: dict[str, dict[str, Any]]
+    disabled_skills: dict[str, str]
     pending_tool_calls: list[dict[str, Any]]
-    tool_results: list[dict[str, Any]]
+    tool_results: Annotated[list[dict[str, Any]], append_list]
     pending_confirmation: dict[str, Any] | None
     permissions: dict[str, Any]
-    permission_decisions: list[dict[str, Any]]
+    permission_decisions: Annotated[list[dict[str, Any]], append_list]
     plan_mode: dict[str, Any]
     todos: list[dict[str, Any]]
-    tasks: list[dict[str, Any]]
+    tasks: Annotated[list[dict[str, Any]], append_list]
     memory: dict[str, Any]
     context_status: dict[str, Any]
     usage: dict[str, Any]
     mcp_state: dict[str, Any]
     plugin_state: dict[str, Any]
     hooks_state: dict[str, Any]
-    child_runs: list[dict[str, Any]]
-    artifacts: list[dict[str, Any]]
-    exported_outputs: list[dict[str, Any]]
-    errors: list[dict[str, Any]]
-    ui_events: list[dict[str, Any]]
+    child_runs: Annotated[list[dict[str, Any]], append_list]
+    artifacts: Annotated[list[dict[str, Any]], append_list]
+    exported_outputs: Annotated[list[dict[str, Any]], append_list]
+    errors: Annotated[list[dict[str, Any]], append_list]
+    ui_events: Annotated[list[dict[str, Any]], append_list]
     final_response: str | None
     metadata: dict[str, Any]
 
@@ -71,6 +82,7 @@ def create_initial_state(
         available_tools={},
         available_commands={},
         available_skills={},
+        disabled_skills={},
         pending_tool_calls=[],
         tool_results=[],
         pending_confirmation=None,
@@ -93,4 +105,3 @@ def create_initial_state(
         final_response=None,
         metadata={},
     )
-

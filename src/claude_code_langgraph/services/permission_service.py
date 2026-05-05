@@ -16,12 +16,12 @@ class PermissionService:
             return {"decision": "ask", "reason": "plan mode blocks side effects until approval"}
         if self.mode == "strict" and getattr(tool, "requires_permission", False):
             return {"decision": "ask", "reason": "strict mode requires approval"}
-        if getattr(tool, "is_read_only", False) and self.mode in {"default", "bypass_read_only", "accept_edits"}:
-            return {"decision": "allow", "reason": "read-only tool allowed"}
         if self.mode == "accept_edits" and getattr(tool, "safety", "") == "write":
             return {"decision": "allow", "reason": "accept_edits allows file edits"}
         if getattr(tool, "requires_permission", False):
             return {"decision": "ask", "reason": f"{tool.name} requires approval"}
+        if getattr(tool, "is_read_only", False) and self.mode in {"default", "bypass_read_only", "accept_edits"}:
+            return {"decision": "allow", "reason": "read-only tool allowed"}
         return {"decision": "allow", "reason": "tool allowed by policy"}
 
     @staticmethod
@@ -33,4 +33,3 @@ class PermissionService:
             "args": tool_call.get("args", {}),
             "reason": reason,
         }
-

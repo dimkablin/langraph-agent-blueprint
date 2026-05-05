@@ -57,8 +57,9 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
     """Build all registries and services for a graph runtime."""
 
     config = config or AppConfig.from_env()
-    project_root = Path(config.project_root or config.storage_dir or Path.cwd()).resolve()
-    config = config.model_copy(update={"project_root": project_root, "cwd": config.cwd or project_root})
+    project_root = Path(config.project_root or Path.cwd()).resolve()
+    cwd = Path(config.cwd or project_root).resolve()
+    config = config.model_copy(update={"project_root": project_root, "cwd": cwd, "storage_dir": Path(config.storage_dir).resolve()})
     skill_registry = build_builtin_skill_registry()
     if config.skills_paths:
         skill_registry.load_from_paths(config.skills_paths)

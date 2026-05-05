@@ -27,7 +27,16 @@ class CommandRegistry:
         return dict(self._commands)
 
     def snapshot(self) -> dict[str, dict[str, Any]]:
-        return {name: {"name": command.name, "description": command.description, "type": command.type} for name, command in self._commands.items()}
+        unsupported = {"rewind", "branch", "rename", "tag", "context", "plugins", "mcp"}
+        return {
+            name: {
+                "name": command.name,
+                "description": command.description,
+                "type": command.type,
+                "status": "unsupported" if name in unsupported else "enabled",
+            }
+            for name, command in self._commands.items()
+        }
 
 
 def build_builtin_command_registry() -> CommandRegistry:
@@ -35,4 +44,3 @@ def build_builtin_command_registry() -> CommandRegistry:
     for command in builtins():
         registry.register(command)
     return registry
-

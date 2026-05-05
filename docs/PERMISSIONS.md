@@ -21,3 +21,9 @@ Policy:
 
 Human approval uses LangGraph interrupt/resume. `pending_confirmation` is stored in graph state before `permission_gate` interrupts.
 
+Runtime status after fixes:
+
+- `permission_required` and `permission_resolved` events survive to CLI/API/frontend responses.
+- Decisions append to `permission_decisions` and persist with session events.
+- Rejected tool calls append a structured `ToolMessage` so the model can explain the rejection.
+- Network tools with `requires_permission=True` are no longer auto-allowed just because they are read-only.

@@ -28,9 +28,12 @@ class ShellService:
             workdir.relative_to(self.project_root)
         except ValueError as exc:
             raise PermissionError(f"Shell cwd is outside project root: {workdir}") from exc
-        if powershell or is_windows():
-            args: list[str] | str = ["powershell", "-NoProfile", "-Command", command] if not is_windows() else command
-            shell = is_windows()
+        if powershell:
+            args: list[str] | str = ["powershell", "-NoProfile", "-Command", command]
+            shell = False
+        elif is_windows():
+            args = command
+            shell = True
         else:
             args = command if isinstance(command, str) else shlex.join(command)
             shell = True
@@ -44,4 +47,3 @@ class ShellService:
             "truncated": stdout_truncated or stderr_truncated,
             "classification": self.classify(command),
         }
-

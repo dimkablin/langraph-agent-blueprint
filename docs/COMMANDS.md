@@ -23,3 +23,11 @@ Implemented commands:
 
 Recognized but minimal commands: `/rewind`, `/branch`, `/rename`, `/tag`, `/context`, `/plugins`, `/mcp`.
 
+Runtime status after fixes:
+
+- `/compact` routes to compaction and emits compact events.
+- `/resume` loads latest/specific session state.
+- `/export` writes a transcript file.
+- `/doctor` calls diagnostics.
+- `/memory` and `/todo` read durable restored state.
+- `/help` separates enabled commands from unsupported optional commands.

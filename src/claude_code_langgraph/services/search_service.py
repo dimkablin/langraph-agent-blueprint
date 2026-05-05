@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import json
 import re
 import shutil
 import subprocess
@@ -39,17 +40,28 @@ class SearchService:
         exclude: str | None,
         max_results: int,
     ) -> list[dict[str, Any]]:
-        command = ["rg", "--line-number", "--no-heading", pattern, str(root)]
+        command = ["rg", "--json", pattern, str(root)]
         if include:
             command[1:1] = ["--glob", include]
         if exclude:
             command[1:1] = ["--glob", f"!{exclude}"]
         completed = subprocess.run(command, text=True, capture_output=True, timeout=10)
         matches: list[dict[str, Any]] = []
-        for line in completed.stdout.splitlines()[:max_results]:
-            parts = line.split(":", 2)
-            if len(parts) == 3:
-                matches.append({"path": parts[0], "line": int(parts[1]), "text": parts[2]})
+        for line in completed.stdout.splitlines():
+            if len(matches) >= max_results:
+                break
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if payload.get("type") != "match":
+                continue
+            data = payload.get("data", {})
+            path_data = data.get("path", {})
+            lines_data = data.get("lines", {})
+            path = path_data.get("text", "") if isinstance(path_data, dict) else str(path_data)
+            text = lines_data.get("text", "") if isinstance(lines_data, dict) else str(lines_data)
+            matches.append({"path": path, "line": int(data.get("line_number", 0)), "text": text.rstrip("\r\n")})
         return matches
 
     def _grep_python(
@@ -80,4 +92,3 @@ class SearchService:
                     if len(matches) >= max_results:
                         return matches
         return matches
-
