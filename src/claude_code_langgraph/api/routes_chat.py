@@ -1,3 +1,5 @@
+"""FastAPI chat streaming routes that expose graph events to HTTP clients."""
+
 from fastapi import APIRouter, Request
 
 from .schemas import ApprovalRequest, ChatRequest

@@ -1,3 +1,5 @@
+"""Logging setup helpers for the assistant runtime and adapters."""
+
 from __future__ import annotations
 
 import logging

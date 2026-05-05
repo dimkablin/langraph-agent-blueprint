@@ -1,3 +1,5 @@
+"""Pytest coverage for skill registry behavior in the Python/LangGraph assistant."""
+
 from claude_code_langgraph.skills.registry import build_builtin_skill_registry
 
 

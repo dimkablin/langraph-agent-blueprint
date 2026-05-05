@@ -1,3 +1,5 @@
+"""Core skill metadata and definition models parsed from SKILL.md files."""
+
 from __future__ import annotations
 
 from pathlib import Path

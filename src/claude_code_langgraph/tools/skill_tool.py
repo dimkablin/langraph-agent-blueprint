@@ -1,3 +1,5 @@
+"""Model-callable tool module exposing typed operations through the central ToolRegistry."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -8,16 +10,19 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 
 
 class SkillToolInput(BaseModel):
+    """Pydantic input schema for the skill tool operation."""
     skill: str
     args: str = ""
 
 
 class SkillToolOutput(ToolOutput):
+    """Pydantic output schema for the skill tool operation."""
     skill: str
     allowed_tools: list[str] = Field(default_factory=list)
 
 
 class SkillTool(BaseTool[SkillToolInput, SkillToolOutput]):
+    """Model-callable tool that routes named skill invocations back into the graph skill runtime."""
     name = "skill"
     description = "Invoke a named skill with arguments through the skill graph."
     input_schema = SkillToolInput

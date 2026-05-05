@@ -1,3 +1,5 @@
+"""Pytest coverage for search tools behavior in the Python/LangGraph assistant."""
+
 from claude_code_langgraph.services.search_service import SearchService
 from claude_code_langgraph.tools.base import ToolExecutionContext
 from claude_code_langgraph.tools.search_tools import GlobInput, GlobTool, GrepInput, GrepTool

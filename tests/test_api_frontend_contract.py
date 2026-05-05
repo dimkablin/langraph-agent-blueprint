@@ -1,3 +1,5 @@
+"""Pytest coverage for api frontend contract behavior in the Python/LangGraph assistant."""
+
 from fastapi.testclient import TestClient
 
 from claude_code_langgraph.api.server import create_app

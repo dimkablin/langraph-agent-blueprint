@@ -1,3 +1,5 @@
+"""Central permission policy service for read, write, shell, network, MCP, plugin, and plan-mode decisions."""
+
 from __future__ import annotations
 
 from typing import Any

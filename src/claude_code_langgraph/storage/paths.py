@@ -1,3 +1,5 @@
+"""Storage-layer module for persisting sessions, memory, config, transcripts, and capability caches."""
+
 from __future__ import annotations
 
 import hashlib

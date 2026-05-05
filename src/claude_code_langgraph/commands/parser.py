@@ -1,3 +1,5 @@
+"""Slash-command parser that separates command names from their argument text."""
+
 from __future__ import annotations
 
 

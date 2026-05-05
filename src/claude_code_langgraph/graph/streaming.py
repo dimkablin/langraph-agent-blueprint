@@ -1,3 +1,5 @@
+"""Helpers for turning graph event deltas into JSON-line friendly streams."""
+
 from __future__ import annotations
 
 import json

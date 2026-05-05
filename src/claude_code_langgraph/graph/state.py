@@ -1,3 +1,5 @@
+"""TypedDict state contract and reducers for the LangGraph assistant runtime."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -21,6 +23,7 @@ def append_list(current: list[Any] | None, update: list[Any] | None) -> list[Any
 
 
 class AssistantState(TypedDict, total=False):
+    """TypedDict state contract carried through every LangGraph node in the assistant runtime."""
     session_id: str
     thread_id: str
     project_root: str

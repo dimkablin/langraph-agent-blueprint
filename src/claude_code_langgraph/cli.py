@@ -1,3 +1,5 @@
+"""Typer-based CLI adapter that sends interactive and headless requests into the shared LangGraph runtime."""
+
 from __future__ import annotations
 
 import json

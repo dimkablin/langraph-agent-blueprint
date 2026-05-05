@@ -1,3 +1,5 @@
+"""Pytest coverage for state schema behavior in the Python/LangGraph assistant."""
+
 from langchain_core.messages import HumanMessage
 from langgraph.graph.message import add_messages
 

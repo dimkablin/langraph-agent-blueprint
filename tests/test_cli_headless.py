@@ -1,3 +1,5 @@
+"""Pytest coverage for cli headless behavior in the Python/LangGraph assistant."""
+
 import json
 import os
 import subprocess

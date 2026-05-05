@@ -1,3 +1,5 @@
+"""Serialization helpers for converting LangChain messages to and from persisted JSON records."""
+
 from __future__ import annotations
 
 from typing import Any

@@ -1,3 +1,5 @@
+"""FastAPI session routes for listing and loading persisted graph sessions."""
+
 from fastapi import APIRouter, Request
 
 router = APIRouter()

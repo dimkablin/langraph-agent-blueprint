@@ -1,3 +1,5 @@
+"""Built-in slash command handlers that update graph state or request graph workflows."""
+
 from __future__ import annotations
 
 from typing import Any

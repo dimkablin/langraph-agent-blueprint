@@ -1,3 +1,5 @@
+"""LangGraph subgraph module that packages a focused workflow for reuse by the main graph."""
+
 from __future__ import annotations
 
 from langgraph.graph import END, START, StateGraph

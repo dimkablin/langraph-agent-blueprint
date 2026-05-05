@@ -1,3 +1,5 @@
+"""LangGraph node module responsible for one thin state-transition step in the assistant runtime."""
+
 from __future__ import annotations
 
 from claude_code_langgraph.dependencies import AppDependencies

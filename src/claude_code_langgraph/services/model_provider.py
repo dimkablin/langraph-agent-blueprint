@@ -1,3 +1,5 @@
+"""Provider abstraction that adapts fake, Ollama, OpenAI-compatible, OpenAI, and Anthropic chat models."""
+
 from __future__ import annotations
 
 import json

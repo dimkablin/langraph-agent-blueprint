@@ -1,3 +1,5 @@
+"""Executable example showing how to run streaming with the assistant runtime."""
+
 from claude_code_langgraph.config import AppConfig
 from claude_code_langgraph.dependencies import build_dependencies
 from claude_code_langgraph.graph.builder import AssistantGraphRuntime

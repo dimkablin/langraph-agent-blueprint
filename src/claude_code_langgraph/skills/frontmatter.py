@@ -1,3 +1,5 @@
+"""Skill-system module for loading, parsing, registering, or invoking file-based assistant skills."""
+
 from __future__ import annotations
 
 from typing import Any

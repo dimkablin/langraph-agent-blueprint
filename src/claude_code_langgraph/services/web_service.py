@@ -1,3 +1,5 @@
+"""Network service for guarded URL fetch and configured web search behavior."""
+
 from __future__ import annotations
 
 from typing import Any

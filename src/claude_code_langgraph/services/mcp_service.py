@@ -1,3 +1,5 @@
+"""Service-layer module that implements concrete operations behind graph nodes and tools."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -7,6 +9,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class MCPToolDefinition:
+    """Internal description of an MCP-provided tool before it is wrapped as a BaseTool."""
     name: str
     description: str
     handler: Callable[[dict[str, Any]], dict[str, Any]]

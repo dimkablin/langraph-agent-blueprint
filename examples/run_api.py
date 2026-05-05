@@ -1,3 +1,5 @@
+"""Executable example showing how to run api with the assistant runtime."""
+
 from __future__ import annotations
 
 import sys

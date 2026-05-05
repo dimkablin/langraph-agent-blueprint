@@ -1,3 +1,5 @@
+"""Pytest coverage for file tools behavior in the Python/LangGraph assistant."""
+
 import pytest
 
 from claude_code_langgraph.services.file_service import FileService

@@ -1,3 +1,5 @@
+"""Filesystem-backed persistence for sessions, messages, events, tool calls, todos, and memory refs."""
+
 from __future__ import annotations
 
 import json

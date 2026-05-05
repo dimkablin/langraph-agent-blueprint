@@ -1,3 +1,5 @@
+"""Pytest coverage for skill invocation behavior in the Python/LangGraph assistant."""
+
 from claude_code_langgraph.config import AppConfig
 from claude_code_langgraph.dependencies import build_dependencies
 from claude_code_langgraph.graph.subgraphs.skill_graph import build_skill_graph

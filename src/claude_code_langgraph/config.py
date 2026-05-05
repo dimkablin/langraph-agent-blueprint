@@ -1,3 +1,5 @@
+"""Typed runtime configuration loaded from environment, CLI overrides, and project settings."""
+
 from __future__ import annotations
 
 import os

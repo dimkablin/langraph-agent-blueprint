@@ -1,3 +1,5 @@
+"""FastAPI routes exposing MCP discovery status and metadata."""
+
 from fastapi import APIRouter, Request
 
 router = APIRouter()

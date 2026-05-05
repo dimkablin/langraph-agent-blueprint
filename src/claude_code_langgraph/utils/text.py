@@ -1,3 +1,5 @@
+"""Utility module containing small reusable helpers used across the runtime."""
+
 from __future__ import annotations
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage

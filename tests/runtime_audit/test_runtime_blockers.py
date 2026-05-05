@@ -1,3 +1,5 @@
+"""Runtime-audit regression tests proving end-to-end graph behavior for commands, skills, providers, and tools."""
+
 from __future__ import annotations
 
 import inspect

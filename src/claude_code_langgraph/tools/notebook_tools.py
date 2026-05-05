@@ -1,3 +1,5 @@
+"""Model-callable tool module exposing typed operations through the central ToolRegistry."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel
@@ -8,14 +10,17 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 
 
 class NotebookReadInput(BaseModel):
+    """Pydantic input schema for the notebook read operation."""
     path: str
 
 
 class NotebookReadOutput(ToolOutput):
+    """Pydantic output schema for the notebook read operation."""
     cells: list[dict[str, object]]
 
 
 class NotebookReadTool(BaseTool[NotebookReadInput, NotebookReadOutput]):
+    """Model-callable tool that reads Jupyter notebook cells and metadata."""
     name = "notebook_read"
     description = "Read Jupyter notebook cells and metadata."
     input_schema = NotebookReadInput
@@ -33,17 +38,20 @@ class NotebookReadTool(BaseTool[NotebookReadInput, NotebookReadOutput]):
 
 
 class NotebookEditInput(BaseModel):
+    """Pydantic input schema for the notebook edit operation."""
     path: str
     index: int
     source: str
 
 
 class NotebookEditOutput(ToolOutput):
+    """Pydantic output schema for the notebook edit operation."""
     path: str
     index: int
 
 
 class NotebookEditTool(BaseTool[NotebookEditInput, NotebookEditOutput]):
+    """Model-callable tool that edits a Jupyter notebook cell after approval."""
     name = "notebook_edit"
     description = "Edit a Jupyter notebook cell."
     input_schema = NotebookEditInput

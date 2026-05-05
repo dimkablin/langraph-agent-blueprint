@@ -1,3 +1,5 @@
+"""Pytest coverage for error recovery behavior in the Python/LangGraph assistant."""
+
 from claude_code_langgraph.config import AppConfig
 from claude_code_langgraph.dependencies import build_dependencies
 from claude_code_langgraph.graph.builder import AssistantGraphRuntime
@@ -6,14 +8,20 @@ from pydantic import BaseModel
 
 
 class FailingInput(BaseModel):
+    """Input schema for a test tool that always raises."""
+
     value: str = "x"
 
 
 class FailingOutput(BaseModel):
+    """Output schema placeholder for the failing test tool."""
+
     ok: bool
 
 
 class FailingTool(BaseTool[FailingInput, FailingOutput]):
+    """Test-only tool used to verify graph error recovery behavior."""
+
     name = "fail"
     description = "Fails for tests"
     input_schema = FailingInput

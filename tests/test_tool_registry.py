@@ -1,3 +1,5 @@
+"""Pytest coverage for tool registry behavior in the Python/LangGraph assistant."""
+
 from claude_code_langgraph.tools.registry import build_core_tool_registry
 
 

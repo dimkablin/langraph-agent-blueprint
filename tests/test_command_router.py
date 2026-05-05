@@ -1,3 +1,5 @@
+"""Pytest coverage for command router behavior in the Python/LangGraph assistant."""
+
 from langchain_core.messages import HumanMessage
 
 from claude_code_langgraph.config import AppConfig

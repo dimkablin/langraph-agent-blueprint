@@ -1,3 +1,5 @@
+"""Terminal UI module that renders graph events and chat output for human operators."""
+
 from __future__ import annotations
 
 from .event_renderer import render_event

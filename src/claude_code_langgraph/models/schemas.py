@@ -1,3 +1,5 @@
+"""Shared placeholder schema module for future cross-layer DTOs."""
+
 from __future__ import annotations
 
 from typing import Any

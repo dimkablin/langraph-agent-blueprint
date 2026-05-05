@@ -1,3 +1,5 @@
+"""Service-layer module that implements concrete operations behind graph nodes and tools."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,6 +11,7 @@ from claude_code_langgraph.utils.text import render_messages
 
 
 class ExportResult(BaseModel):
+    """Structured result for transcript export operations."""
     path: Path
     text: str
 

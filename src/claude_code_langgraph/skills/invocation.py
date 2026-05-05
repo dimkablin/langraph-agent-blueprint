@@ -1,3 +1,5 @@
+"""Skill invocation service that resolves skills and renders their prompt templates."""
+
 from __future__ import annotations
 
 from typing import Any

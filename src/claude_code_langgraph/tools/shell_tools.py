@@ -1,3 +1,5 @@
+"""Model-callable tool module exposing typed operations through the central ToolRegistry."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel
@@ -8,11 +10,13 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 
 
 class ShellInput(BaseModel):
+    """Pydantic input schema for the shell operation."""
     command: str
     cwd: str | None = None
 
 
 class ShellOutput(ToolOutput):
+    """Pydantic output schema for the shell operation."""
     stdout: str = ""
     stderr: str = ""
     exit_code: int = 0
@@ -20,6 +24,7 @@ class ShellOutput(ToolOutput):
 
 
 class BashTool(BaseTool[ShellInput, ShellOutput]):
+    """Model-callable shell tool that executes commands behind permission and timeout policy."""
     name = "bash"
     description = "Execute a shell command with timeout and output truncation."
     input_schema = ShellInput
@@ -45,6 +50,7 @@ class BashTool(BaseTool[ShellInput, ShellOutput]):
 
 
 class PowerShellTool(BashTool):
+    """Windows PowerShell variant of the shell tool with the same permission model."""
     name = "powershell"
     description = "Execute a Windows PowerShell command with the same permission model as BashTool."
 

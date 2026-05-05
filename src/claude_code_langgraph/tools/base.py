@@ -1,3 +1,5 @@
+"""Base tool protocol, safety classes, shared output schema, and execution context."""
+
 from __future__ import annotations
 
 from enum import StrEnum
@@ -8,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ToolSafety(StrEnum):
+    """Safety classification enum used by permission policy and tool metadata."""
     READ_ONLY = "read_only"
     WRITE = "write"
     SHELL = "shell"
@@ -18,6 +21,7 @@ class ToolSafety(StrEnum):
 
 
 class ToolOutput(BaseModel):
+    """Common structured output payload returned by concrete tools."""
     ok: bool = True
     content: str = ""
     metadata: dict[str, object] = Field(default_factory=dict)

@@ -1,3 +1,5 @@
+"""Model-callable tool module exposing typed operations through the central ToolRegistry."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -10,14 +12,17 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 
 
 class MCPInput(BaseModel):
+    """Pydantic input schema for the m c p operation."""
     data: dict[str, Any] = Field(default_factory=dict)
 
 
 class MCPOutput(ToolOutput):
+    """Pydantic output schema for the m c p operation."""
     result: dict[str, Any] = Field(default_factory=dict)
 
 
 class MCPToolAdapter(BaseTool[MCPInput, MCPOutput]):
+    """Model-callable adapter that exposes an MCP tool definition through the BaseTool interface."""
     description = "Adapter around an MCP-provided tool."
     input_schema = MCPInput
     output_schema = MCPOutput

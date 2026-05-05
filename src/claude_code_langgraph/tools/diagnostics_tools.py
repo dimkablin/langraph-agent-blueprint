@@ -1,3 +1,5 @@
+"""Model-callable tool module exposing typed operations through the central ToolRegistry."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel
@@ -8,14 +10,17 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 
 
 class DiagnosticsInput(BaseModel):
+    """Pydantic input schema for the diagnostics operation."""
     verbose: bool = False
 
 
 class DiagnosticsOutput(ToolOutput):
+    """Pydantic output schema for the diagnostics operation."""
     diagnostics: dict[str, object]
 
 
 class DiagnosticsTool(BaseTool[DiagnosticsInput, DiagnosticsOutput]):
+    """Model-callable tool that reports runtime and environment diagnostics."""
     name = "diagnostics"
     description = "Run project and environment diagnostics."
     input_schema = DiagnosticsInput

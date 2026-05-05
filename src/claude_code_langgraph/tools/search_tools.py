@@ -1,3 +1,5 @@
+"""Model-callable tool module exposing typed operations through the central ToolRegistry."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel
@@ -8,15 +10,18 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 
 
 class GlobInput(BaseModel):
+    """Pydantic input schema for the glob operation."""
     pattern: str
     path: str | None = None
 
 
 class GlobOutput(ToolOutput):
+    """Pydantic output schema for the glob operation."""
     matches: list[str]
 
 
 class GlobTool(BaseTool[GlobInput, GlobOutput]):
+    """Model-callable tool that finds files by glob pattern inside the project root."""
     name = "glob"
     description = "Find files by glob pattern under the project root."
     input_schema = GlobInput
@@ -35,6 +40,7 @@ class GlobTool(BaseTool[GlobInput, GlobOutput]):
 
 
 class GrepInput(BaseModel):
+    """Pydantic input schema for the grep operation."""
     pattern: str
     path: str | None = None
     include: str | None = None
@@ -43,10 +49,12 @@ class GrepInput(BaseModel):
 
 
 class GrepOutput(ToolOutput):
+    """Pydantic output schema for the grep operation."""
     matches: list[dict[str, object]]
 
 
 class GrepTool(BaseTool[GrepInput, GrepOutput]):
+    """Model-callable tool that searches file contents with ripgrep or Python fallback."""
     name = "grep"
     description = "Search file contents under the project root."
     input_schema = GrepInput

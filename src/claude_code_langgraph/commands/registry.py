@@ -1,3 +1,5 @@
+"""CommandRegistry implementation for built-in, plugin, skill, and MCP command metadata."""
+
 from __future__ import annotations
 
 from typing import Any

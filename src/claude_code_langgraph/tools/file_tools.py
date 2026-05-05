@@ -1,3 +1,5 @@
+"""Model-callable tool module exposing typed operations through the central ToolRegistry."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -9,16 +11,19 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 
 
 class FileReadInput(BaseModel):
+    """Pydantic input schema for the file read operation."""
     path: str
     offset: int | None = None
     limit: int | None = None
 
 
 class FileReadOutput(ToolOutput):
+    """Pydantic output schema for the file read operation."""
     path: str
 
 
 class FileReadTool(BaseTool[FileReadInput, FileReadOutput]):
+    """Model-callable tool that reads text files under the configured project root."""
     name = "read_file"
     description = "Read a text file under the project root, optionally with a line range."
     input_schema = FileReadInput
@@ -39,16 +44,19 @@ class FileReadTool(BaseTool[FileReadInput, FileReadOutput]):
 
 
 class FileWriteInput(BaseModel):
+    """Pydantic input schema for the file write operation."""
     path: str
     content: str = ""
 
 
 class FileWriteOutput(ToolOutput):
+    """Pydantic output schema for the file write operation."""
     path: str
     diff: str = ""
 
 
 class FileWriteTool(BaseTool[FileWriteInput, FileWriteOutput]):
+    """Model-callable tool that creates or overwrites project files after permission approval."""
     name = "write_file"
     description = "Create or overwrite a file under the project root."
     input_schema = FileWriteInput
@@ -66,6 +74,7 @@ class FileWriteTool(BaseTool[FileWriteInput, FileWriteOutput]):
 
 
 class FileEditInput(BaseModel):
+    """Pydantic input schema for the file edit operation."""
     path: str
     old_text: str
     new_text: str
@@ -73,11 +82,13 @@ class FileEditInput(BaseModel):
 
 
 class FileEditOutput(ToolOutput):
+    """Pydantic output schema for the file edit operation."""
     path: str
     diff: str = ""
 
 
 class FileEditTool(BaseTool[FileEditInput, FileEditOutput]):
+    """Model-callable tool that applies exact-text edits with prior-read and permission safeguards."""
     name = "edit_file"
     description = "Replace exact text in a file after it has been read or explicitly approved."
     input_schema = FileEditInput

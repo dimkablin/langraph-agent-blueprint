@@ -1,3 +1,5 @@
+"""Prompt construction helpers for the assistant system context."""
+
 from __future__ import annotations
 
 

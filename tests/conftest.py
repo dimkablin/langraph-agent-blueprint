@@ -1,3 +1,5 @@
+"""Pytest fixtures and test-run isolation helpers for the assistant runtime suite."""
+
 from __future__ import annotations
 
 from pathlib import Path

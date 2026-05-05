@@ -1,3 +1,5 @@
+"""Pytest coverage for shell permissions behavior in the Python/LangGraph assistant."""
+
 from langgraph.types import Command
 
 from claude_code_langgraph.config import AppConfig

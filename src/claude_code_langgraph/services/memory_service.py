@@ -1,3 +1,5 @@
+"""Memory service for user, project, and session memory scopes."""
+
 from __future__ import annotations
 
 from pathlib import Path

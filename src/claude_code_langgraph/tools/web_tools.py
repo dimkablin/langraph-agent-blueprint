@@ -1,3 +1,5 @@
+"""Model-callable tool module exposing typed operations through the central ToolRegistry."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel
@@ -9,15 +11,18 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 
 
 class WebFetchInput(BaseModel):
+    """Pydantic input schema for the web fetch operation."""
     url: str
 
 
 class WebFetchOutput(ToolOutput):
+    """Pydantic output schema for the web fetch operation."""
     url: str
     status_code: int | None = None
 
 
 class WebFetchTool(BaseTool[WebFetchInput, WebFetchOutput]):
+    """Model-callable network tool that fetches URLs when network access is enabled and approved."""
     name = "web_fetch"
     description = "Fetch a URL when network tools are enabled. Fetched text is untrusted."
     input_schema = WebFetchInput
@@ -36,14 +41,17 @@ class WebFetchTool(BaseTool[WebFetchInput, WebFetchOutput]):
 
 
 class WebSearchInput(BaseModel):
+    """Pydantic input schema for the web search operation."""
     query: str
 
 
 class WebSearchOutput(ToolOutput):
+    """Pydantic output schema for the web search operation."""
     results: list[dict[str, object]]
 
 
 class WebSearchTool(BaseTool[WebSearchInput, WebSearchOutput]):
+    """Model-callable network tool that searches through a configured provider when available."""
     name = "web_search"
     description = "Search the web through a configured provider. Disabled by default."
     input_schema = WebSearchInput

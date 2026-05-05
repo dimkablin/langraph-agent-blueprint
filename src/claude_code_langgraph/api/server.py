@@ -1,3 +1,5 @@
+"""FastAPI application factory that mounts graph-facing routes and shared runtime state."""
+
 from __future__ import annotations
 
 from fastapi import FastAPI

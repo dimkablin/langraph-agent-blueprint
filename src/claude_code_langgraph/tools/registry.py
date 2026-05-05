@@ -1,3 +1,5 @@
+"""ToolRegistry implementation and core tool registration factory."""
+
 from __future__ import annotations
 
 from pathlib import Path

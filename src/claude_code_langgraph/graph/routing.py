@@ -1,3 +1,5 @@
+"""Conditional-edge routing functions for command, tool, permission, and compaction paths."""
+
 from __future__ import annotations
 
 from typing import Any

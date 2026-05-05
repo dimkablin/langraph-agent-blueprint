@@ -1,3 +1,5 @@
+"""Pytest coverage for skill loader behavior in the Python/LangGraph assistant."""
+
 import pytest
 
 from claude_code_langgraph.skills.loader import SkillLoader

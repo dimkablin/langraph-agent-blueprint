@@ -1,3 +1,5 @@
+"""SkillRegistry implementation for bundled, file-based, plugin, and MCP skills."""
+
 from __future__ import annotations
 
 from pathlib import Path

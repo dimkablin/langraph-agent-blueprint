@@ -1,3 +1,5 @@
+"""FastAPI routes exposing registered slash command metadata."""
+
 from fastapi import APIRouter, Request
 
 router = APIRouter()

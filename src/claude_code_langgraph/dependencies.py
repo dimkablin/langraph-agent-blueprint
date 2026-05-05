@@ -1,3 +1,5 @@
+"""Dependency container factory that wires registries, services, storage, providers, and graph nodes."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

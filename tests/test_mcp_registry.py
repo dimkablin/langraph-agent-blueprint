@@ -1,3 +1,5 @@
+"""Pytest coverage for mcp registry behavior in the Python/LangGraph assistant."""
+
 from claude_code_langgraph.services.mcp_service import MCPService
 from claude_code_langgraph.tools.mcp_tools import MCPToolAdapter
 

@@ -1,3 +1,5 @@
+"""Provider-agnostic model request and response DTOs used by graph model nodes."""
+
 from __future__ import annotations
 
 from typing import Any

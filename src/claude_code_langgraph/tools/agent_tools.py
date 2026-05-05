@@ -1,3 +1,5 @@
+"""Model-callable tool module exposing typed operations through the central ToolRegistry."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel
@@ -8,15 +10,18 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 
 
 class AgentInput(BaseModel):
+    """Pydantic input schema for the agent operation."""
     prompt: str
     agent_type: str = "default"
 
 
 class AgentOutput(ToolOutput):
+    """Pydantic output schema for the agent operation."""
     child_run: dict[str, object]
 
 
 class AgentTool(BaseTool[AgentInput, AgentOutput]):
+    """Model-callable tool that delegates a prompt to the subagent service."""
     name = "agent"
     description = "Run a child graph/subagent and merge its result into parent state."
     input_schema = AgentInput

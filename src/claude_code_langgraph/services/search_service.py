@@ -1,3 +1,5 @@
+"""Search service implementing glob and grep through ripgrep or Python fallback."""
+
 from __future__ import annotations
 
 import fnmatch

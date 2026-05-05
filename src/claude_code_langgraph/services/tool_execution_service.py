@@ -1,3 +1,5 @@
+"""Tool execution service that validates input, runs tools, formats records, and emits tool events."""
+
 from __future__ import annotations
 
 from pathlib import Path

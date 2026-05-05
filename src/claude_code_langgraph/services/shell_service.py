@@ -1,3 +1,5 @@
+"""Shell execution service with cwd confinement, timeout, output limits, and risk classification."""
+
 from __future__ import annotations
 
 import shlex

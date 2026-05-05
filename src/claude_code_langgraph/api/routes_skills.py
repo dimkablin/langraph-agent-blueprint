@@ -1,3 +1,5 @@
+"""FastAPI routes exposing loaded and disabled skill metadata."""
+
 from fastapi import APIRouter, Request
 
 router = APIRouter()

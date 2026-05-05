@@ -1,3 +1,5 @@
+"""Pytest coverage for command registry behavior in the Python/LangGraph assistant."""
+
 from claude_code_langgraph.commands.registry import build_builtin_command_registry
 
 

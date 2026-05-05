@@ -1,3 +1,5 @@
+"""Runtime-audit regression tests proving end-to-end graph behavior for commands, skills, providers, and tools."""
+
 from __future__ import annotations
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -8,6 +10,8 @@ from claude_code_langgraph.services.model_provider import ModelProviderService
 
 
 class DummyBindableModel:
+    """Minimal bind_tools-capable chat model used to assert provider integration."""
+
     def __init__(self) -> None:
         self.bound_tools = None
         self.invoked_messages = None

@@ -1,3 +1,5 @@
+"""FastAPI routes exposing registered model-callable tool metadata."""
+
 from fastapi import APIRouter, Request
 
 router = APIRouter()
