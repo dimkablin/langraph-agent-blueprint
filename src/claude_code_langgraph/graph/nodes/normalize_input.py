@@ -9,6 +9,8 @@ from claude_code_langgraph.models.messages import event
 
 
 def normalize_input_node(state: dict, deps: AppDependencies) -> dict:
+    """Convert raw turn input into a HumanMessage exactly once per graph invocation."""
+
     if state.get("metadata", {}).get("input_normalized"):
         return {}
     metadata = {**state.get("metadata", {}), "input_normalized": True}

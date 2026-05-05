@@ -14,6 +14,8 @@ class SkillLoader:
     """Loads file-based skills from `skill-name/SKILL.md` directories."""
 
     def load_skill_dir(self, skill_dir: str | Path) -> SkillDefinition:
+        """Load one `skill-name/SKILL.md` directory into a SkillDefinition."""
+
         directory = Path(skill_dir)
         skill_path = directory / "SKILL.md"
         if not skill_path.exists():
@@ -32,6 +34,8 @@ class SkillLoader:
         return SkillDefinition(metadata=metadata, prompt_template=body, source_path=skill_path, references=references)
 
     def load_root(self, root: str | Path) -> list[SkillDefinition]:
+        """Load all immediate child skill directories from a configured skills root."""
+
         base = Path(root)
         if not base.exists():
             return []

@@ -29,6 +29,8 @@ class SkillRegistry:
         return dict(self._skills)
 
     def load_from_paths(self, roots: list[str | Path]) -> None:
+        """Load configured skill roots and split enabled skills from disabled definitions."""
+
         for root in roots:
             for skill in self.loader.load_root(root):
                 if skill.metadata.enabled:
@@ -41,6 +43,8 @@ class SkillRegistry:
 
 
 def build_builtin_skill_registry() -> SkillRegistry:
+    """Register bundled skills and record optional audited skills as disabled."""
+
     registry = SkillRegistry()
     for skill in load_bundled_skills():
         registry.register(skill)

@@ -25,6 +25,8 @@ class SessionStorage:
         return project_storage_dir(self.storage_dir, project_root) / "sessions" / session_id
 
     def create_session(self, project_root: str | Path, session_id: str, metadata: dict[str, Any]) -> Path:
+        """Create or update a session directory while preserving existing metadata fields."""
+
         session_dir = ensure_dir(self.session_dir(project_root, session_id))
         ensure_dir(session_dir / "exports")
         ensure_dir(session_dir / "large_outputs")
@@ -51,6 +53,8 @@ class SessionStorage:
         return session_dir
 
     def append_event(self, project_root: str | Path, session_id: str, event: dict[str, Any]) -> None:
+        """Append a session event once, deduplicating by event id when available."""
+
         session_dir = self.create_session(project_root, session_id, {})
         event_id = event.get("id")
         if event_id:
@@ -77,6 +81,8 @@ class SessionStorage:
         (session_dir / name).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def load_session(self, project_root: str | Path, session_id: str) -> dict[str, Any]:
+        """Load persisted session metadata, messages, events, tool calls, todos, memory, and usage."""
+
         session_dir = self.session_dir(project_root, session_id)
         metadata = json.loads((session_dir / "metadata.json").read_text(encoding="utf-8"))
         messages_path = session_dir / "messages.json"
@@ -100,6 +106,8 @@ class SessionStorage:
         }
 
     def list_sessions(self, project_root: str | Path | None = None) -> list[dict[str, Any]]:
+        """List session metadata for one project root or every stored project, newest first."""
+
         roots = [project_storage_dir(self.storage_dir, project_root)] if project_root else list((self.storage_dir / "projects").glob("*"))
         sessions: list[dict[str, Any]] = []
         for root in roots:
@@ -124,6 +132,8 @@ class SessionStorage:
 
     @staticmethod
     def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+        """Read a JSONL file into dictionaries, ignoring absent files."""
+
         if not path.exists():
             return []
         rows = []

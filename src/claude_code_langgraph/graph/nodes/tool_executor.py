@@ -10,6 +10,12 @@ from claude_code_langgraph.dependencies import AppDependencies
 
 
 def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
+    """Execute approved pending tool calls and append provider-compatible tool results.
+
+    Tool records are persisted immediately, state updates from tools are merged into graph state,
+    and each result receives a matching ToolMessage for the next model turn.
+    """
+
     calls = list(state.get("pending_tool_calls", []))
     events = []
     results = []
@@ -47,6 +53,8 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
 
 
 def _tool_message(record: dict) -> ToolMessage:
+    """Serialize a tool execution record into a compact ToolMessage payload."""
+
     content = json.dumps(
         {
             "name": record.get("name"),

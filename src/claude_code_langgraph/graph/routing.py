@@ -6,6 +6,8 @@ from typing import Any
 
 
 def route_after_command(state: dict[str, Any]) -> str:
+    """Choose the next graph node after command routing based on command side effects."""
+
     if state.get("errors"):
         return "error_recovery"
     if state.get("metadata", {}).get("compact_requested"):

@@ -10,6 +10,12 @@ from claude_code_langgraph.models.messages import event
 
 
 def model_call_node(state: dict, deps: AppDependencies) -> dict:
+    """Call the configured model provider and translate its response into graph state.
+
+    The node narrows tool schemas for active skills, preserves assistant tool calls on the
+    AIMessage, and leaves actual tool execution to the downstream tool router.
+    """
+
     if state.get("final_response") and not state.get("pending_tool_calls"):
         return {}
     available_tools = state.get("available_tools", {})

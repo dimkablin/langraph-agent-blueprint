@@ -19,6 +19,12 @@ from .routes_tools import router as tools_router
 
 
 def create_app(config: AppConfig | None = None) -> FastAPI:
+    """Create the FastAPI adapter and attach a shared graph runtime to application state.
+
+    Route handlers delegate chat, approval, registry, and session operations to the same
+    AssistantGraphRuntime used by CLI/headless modes.
+    """
+
     config = config or AppConfig.from_env()
     api = FastAPI(title="claude-code-langgraph")
     api.add_middleware(

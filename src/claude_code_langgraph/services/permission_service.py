@@ -14,6 +14,8 @@ class PermissionService:
         self.mode = mode
 
     def decide(self, tool: Any, state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
+        """Return allow/ask/deny for a tool call under the active permission mode and plan state."""
+
         if state.get("plan_mode", {}).get("enabled") and not getattr(tool, "is_read_only", False):
             return {"decision": "ask", "reason": "plan mode blocks side effects until approval"}
         if self.mode == "strict" and getattr(tool, "requires_permission", False):

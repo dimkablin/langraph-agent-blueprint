@@ -14,6 +14,8 @@ class SkillInvocationService:
         self.registry = registry
 
     def invoke(self, name: str, args: str, state: dict[str, Any]) -> dict[str, Any]:
+        """Resolve a skill, render its prompt with arguments, and return invocation metadata."""
+
         skill = self.registry.get(name)
         prompt = skill.render(args, state)
         return {

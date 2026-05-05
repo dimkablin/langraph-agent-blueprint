@@ -22,6 +22,8 @@ class HookService:
         self._hooks.setdefault(name, []).append(hook)
 
     def run(self, name: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        """Run hooks for a lifecycle point and convert failures into structured events."""
+
         results: list[dict[str, Any]] = []
         for hook in self._hooks.get(name, []):
             try:

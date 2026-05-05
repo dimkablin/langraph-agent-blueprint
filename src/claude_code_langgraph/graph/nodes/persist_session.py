@@ -7,6 +7,12 @@ from claude_code_langgraph.models.messages import event
 
 
 def persist_session_node(state: dict, deps: AppDependencies) -> dict:
+    """Persist the current graph turn without changing workflow routing.
+
+    Metadata, messages, todos, memory references, and all accumulated UI events are written through
+    SessionStorage; storage-level event ids prevent duplicate event rows.
+    """
+
     metadata = {
         **state.get("metadata", {}),
         "session_id": state["session_id"],

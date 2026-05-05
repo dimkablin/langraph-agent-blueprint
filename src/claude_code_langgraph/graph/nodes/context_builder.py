@@ -8,6 +8,8 @@ from claude_code_langgraph.models.messages import event
 
 
 def context_builder_node(state: dict, deps: AppDependencies) -> dict:
+    """Build the model-facing system context from project state, memory, tools, skills, and todos."""
+
     memory = deps.memory_service.load_memory(state.get("project_root"), state.get("session_id"))
     tools_summary = "Tools: " + ", ".join(sorted(state.get("available_tools", {})))
     skills_summary = "Skills: " + ", ".join(sorted(state.get("available_skills", {})))

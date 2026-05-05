@@ -12,6 +12,12 @@ from claude_code_langgraph.models.messages import event
 
 
 def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
+    """Interrupt for human approval and convert the resumed decision into graph updates.
+
+    Approved calls proceed to execution; rejected calls append a structured ToolMessage so the
+    model can explain the denial in the normal tool-result loop.
+    """
+
     pending = state.get("pending_confirmation")
     if not pending:
         return {}

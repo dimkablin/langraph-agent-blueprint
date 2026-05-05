@@ -23,6 +23,8 @@ class CompactionService:
         return len(state.get("messages", [])) > self.max_messages_before_compact
 
     def compact_state(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Summarize older messages and return a state update preserving recent work and todos."""
+
         messages = list(state.get("messages", []))
         keep_count = min(self.keep_recent, max(1, len(messages) // 2))
         recent = messages[-keep_count:]

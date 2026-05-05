@@ -9,6 +9,8 @@ from claude_code_langgraph.models.messages import event
 
 
 def finalize_response_node(state: dict, deps: AppDependencies) -> dict:
+    """Choose the user-visible final response from explicit output, tool results, or AI messages."""
+
     final = state.get("final_response")
     if not final:
         for result in reversed(state.get("tool_results", [])):

@@ -69,6 +69,8 @@ def create_initial_state(
     session_id: str | None = None,
     thread_id: str | None = None,
 ) -> AssistantState:
+    """Create the complete default graph state for a new user/API/CLI turn."""
+
     root = Path(project_root or Path.cwd()).resolve()
     current = Path(cwd or root).resolve()
     return AssistantState(

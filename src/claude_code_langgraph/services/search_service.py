@@ -29,6 +29,8 @@ class SearchService:
         exclude: str | None = None,
         max_results: int = 100,
     ) -> list[dict[str, Any]]:
+        """Search text under a root with ripgrep when available and Python fallback otherwise."""
+
         root_path = Path(root).resolve()
         if not self.force_python and shutil.which("rg"):
             return self._grep_rg(root_path, pattern, include, exclude, max_results)
@@ -42,6 +44,8 @@ class SearchService:
         exclude: str | None,
         max_results: int,
     ) -> list[dict[str, Any]]:
+        """Run ripgrep in JSON mode so Windows drive-letter paths parse safely."""
+
         command = ["rg", "--json", pattern, str(root)]
         if include:
             command[1:1] = ["--glob", include]
@@ -74,6 +78,8 @@ class SearchService:
         exclude: str | None,
         max_results: int,
     ) -> list[dict[str, Any]]:
+        """Pure-Python grep fallback used when ripgrep is unavailable or disabled."""
+
         compiled = re.compile(pattern)
         matches: list[dict[str, Any]] = []
         for path in root.rglob("*"):

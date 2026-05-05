@@ -16,6 +16,8 @@ class PluginService:
         self.plugin_paths = [Path(path) for path in plugin_paths]
 
     def discover(self) -> dict[str, Any]:
+        """Load plugin manifests and flatten their declared capability contributions."""
+
         plugins: list[PluginManifest] = []
         errors: list[dict[str, str]] = []
         for root in self.plugin_paths:

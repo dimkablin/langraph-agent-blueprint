@@ -8,6 +8,8 @@ from .base import Command, CommandResult
 
 
 def _help(args: str, state: dict[str, Any]) -> CommandResult:
+    """Render enabled commands separately from optional unsupported command placeholders."""
+
     commands = state.get("available_commands", {})
     enabled = []
     unsupported = []
@@ -39,6 +41,8 @@ def _export(args: str, state: dict[str, Any]) -> CommandResult:
 
 
 def _skills(args: str, state: dict[str, Any]) -> CommandResult:
+    """Render enabled skills with allowed tools and disabled skills with reasons."""
+
     skills = state.get("available_skills", {})
     lines = ["Available skills:"]
     for name, meta in sorted(skills.items()):
@@ -55,6 +59,8 @@ def _skills(args: str, state: dict[str, Any]) -> CommandResult:
 
 
 def _status(args: str, state: dict[str, Any]) -> CommandResult:
+    """Return compact runtime status for provider, paths, and registry sizes."""
+
     metadata = state.get("metadata", {})
     return CommandResult(
         True,
@@ -90,6 +96,8 @@ def _doctor(args: str, state: dict[str, Any]) -> CommandResult:
 
 
 def _memory(args: str, state: dict[str, Any]) -> CommandResult:
+    """Render loaded memory scopes, omitting empty scopes for readability."""
+
     memory = state.get("memory", {})
     lines = []
     for scope in ["user", "project", "session"]:
@@ -108,6 +116,8 @@ def _prompt(args: str, state: dict[str, Any]) -> CommandResult:
 
 
 def _skill(args: str, state: dict[str, Any]) -> CommandResult:
+    """Parse `/skill name args` into an active skill request for the graph skill route."""
+
     parts = args.split(maxsplit=1)
     name = parts[0] if parts else ""
     skill_args = parts[1] if len(parts) > 1 else ""
@@ -122,6 +132,8 @@ def _not_implemented(name: str):
 
 
 def builtins() -> list[Command]:
+    """Build the static list of built-in slash-command descriptors."""
+
     return [
         Command("help", "List commands", "local", _help),
         Command("clear", "Clear conversation", "local", _clear),

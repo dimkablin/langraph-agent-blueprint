@@ -11,6 +11,12 @@ from claude_code_langgraph.models.messages import event
 
 
 def tool_router_node(state: dict, deps: AppDependencies) -> dict:
+    """Route the next pending tool call to execution, permission, skill, agent, MCP, or recovery.
+
+    This node only classifies and prepares state. It does not execute tools; side effects remain
+    behind `permission_gate` and `tool_executor`.
+    """
+
     calls = list(state.get("pending_tool_calls", []))
     metadata = dict(state.get("metadata", {}))
     if not calls:
@@ -82,6 +88,8 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
 
 
 def _tool_message(record: dict) -> ToolMessage:
+    """Build a provider-compatible ToolMessage for rejected tool calls."""
+
     return ToolMessage(
         content=json.dumps(
             {"name": record.get("name"), "status": record.get("status"), "content": record.get("content", "")},

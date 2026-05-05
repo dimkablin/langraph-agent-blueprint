@@ -20,6 +20,8 @@ class ToolExecutionService:
         self.output_limit = output_limit
 
     def execute(self, tool_call: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+        """Validate one tool call, run the tool, and format a graph/persistence record."""
+
         tool = self.registry.get(tool_call["name"])
         context = ToolExecutionContext(
             project_root=Path(state["project_root"]),

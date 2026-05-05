@@ -102,6 +102,8 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
 
 
 def build_skill_node(deps: AppDependencies):
+    """Wrap the skill router as a graph node closure with injected dependencies."""
+
     def node(state: dict) -> dict:
         return skill_router_node(state, deps)
 
@@ -124,6 +126,8 @@ class AssistantGraphRuntime:
         thread_id: str | None = None,
         project_root: str | Path | None = None,
     ) -> dict[str, Any]:
+        """Run one graph turn, hydrating persisted session state when a session id is supplied."""
+
         state = create_initial_state(
             input_text,
             project_root=project_root or self.dependencies.config.project_root or Path.cwd(),
@@ -141,6 +145,8 @@ class AssistantGraphRuntime:
         return self.app.invoke(Command(resume=decision), {"configurable": {"thread_id": thread_id}})
 
     def stream(self, input_text: str, input_kind: str = "headless") -> Iterable[dict[str, Any]]:
+        """Yield newly appended UI events from LangGraph value-stream state updates."""
+
         previous_count = 0
         state = create_initial_state(
             input_text,
@@ -159,6 +165,8 @@ class AssistantGraphRuntime:
             previous_count = len(events)
 
     def _hydrate_session_state(self, state: dict[str, Any]) -> None:
+        """Mutate initial state with persisted session messages, todos, memory, usage, and metadata."""
+
         try:
             loaded = self.dependencies.session_storage.load_session(state["project_root"], state["session_id"])
         except (FileNotFoundError, OSError):

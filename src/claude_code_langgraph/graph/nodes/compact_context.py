@@ -10,6 +10,8 @@ from claude_code_langgraph.models.messages import event
 
 
 def compact_context_node(state: dict, deps: AppDependencies) -> dict:
+    """Replace older message history with a compact summary while preserving recent context."""
+
     update = deps.compaction_service.compact_state(state)
     update["messages"] = [RemoveMessage(id=REMOVE_ALL_MESSAGES), *update.get("messages", [])]
     update["final_response"] = "Context compacted."

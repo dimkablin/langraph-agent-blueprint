@@ -25,6 +25,8 @@ class ShellService:
         return "dangerous" if any(token in lowered for token in self.risky_tokens) else "shell"
 
     def run(self, command: str, cwd: str | Path | None = None, powershell: bool = False) -> dict[str, object]:
+        """Run a shell command inside the project root with timeout and output truncation."""
+
         workdir = Path(cwd or self.project_root).resolve()
         try:
             workdir.relative_to(self.project_root)

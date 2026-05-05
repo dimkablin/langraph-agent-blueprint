@@ -20,6 +20,8 @@ class FileService:
         return resolve_under_root(path, self.project_root)
 
     def read_text(self, path: str | Path, offset: int | None = None, limit: int | None = None) -> str:
+        """Read UTF-8-ish text with binary-file guard and optional one-based line slicing."""
+
         target = self.resolve(path)
         if target.is_dir():
             raise IsADirectoryError(str(target))
@@ -43,6 +45,8 @@ class FileService:
         return {"path": str(target), "diff": self.diff(old, content, str(target))}
 
     def edit_text(self, path: str | Path, old_text: str, new_text: str) -> dict[str, Any]:
+        """Replace the first exact occurrence of old text and return a unified diff."""
+
         target = self.resolve(path)
         content = target.read_text(encoding="utf-8")
         if old_text not in content:

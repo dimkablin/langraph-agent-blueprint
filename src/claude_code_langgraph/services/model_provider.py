@@ -22,6 +22,8 @@ class ModelProviderService:
         self.config = config
 
     def generate(self, request: ModelRequest) -> ModelResponse:
+        """Dispatch a provider-agnostic request to the configured chat provider and attach usage."""
+
         start = time.perf_counter()
         if self.config.llm_provider == "fake":
             response = self._fake_generate(request)
@@ -41,6 +43,8 @@ class ModelProviderService:
         return response
 
     def _fake_generate(self, request: ModelRequest) -> ModelResponse:
+        """Implement deterministic fake-provider behavior for tests and local smoke runs."""
+
         text = self._last_human_text(request.messages)
         if request.metadata.get("tool_results") or self._last_message_is_tool_result(request.messages):
             result = (request.metadata.get("tool_results") or [{"name": "tool", "status": "ok", "content": str(request.messages[-1].content)}])[-1]
@@ -57,6 +61,8 @@ class ModelProviderService:
         return ModelResponse(content=response_text, raw=AIMessage(content=response_text), usage=self._usage(text))
 
     def _parse_fake_tool_call(self, text: str) -> dict[str, Any] | None:
+        """Parse `tool:<name> ...` fake prompts into normalized tool-call dictionaries."""
+
         if not text.startswith("tool:"):
             return None
         command = text[5:].strip()
@@ -82,6 +88,8 @@ class ModelProviderService:
         return None
 
     def _langchain_generate(self, request: ModelRequest, provider: str) -> ModelResponse:
+        """Invoke a LangChain chat model with system context and bound tool schemas."""
+
         model = self._build_chat_model(provider)
         messages = self._messages_with_system(request)
         tools = self._langchain_tool_schemas(request.tools)
@@ -97,6 +105,8 @@ class ModelProviderService:
 
     @staticmethod
     def _messages_with_system(request: ModelRequest) -> list[BaseMessage]:
+        """Prepend request system context unless the message list already contains a SystemMessage."""
+
         messages: list[BaseMessage] = list(request.messages)
         if request.system_context and not any(isinstance(message, SystemMessage) for message in messages):
             return [SystemMessage(content=request.system_context), *messages]
@@ -104,6 +114,8 @@ class ModelProviderService:
 
     @staticmethod
     def _langchain_tool_schemas(tools: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+        """Convert internal ToolRegistry metadata into LangChain/OpenAI-style tool schemas."""
+
         schemas: list[dict[str, Any]] = []
         for name, metadata in sorted(tools.items()):
             input_schema = metadata.get("input_schema") or {"type": "object", "properties": {}}
@@ -123,6 +135,8 @@ class ModelProviderService:
 
     @staticmethod
     def _normalize_tool_calls(tool_calls: list[Any]) -> list[dict[str, Any]]:
+        """Normalize provider-specific tool-call shapes into the graph's pending-call schema."""
+
         normalized: list[dict[str, Any]] = []
         for call in tool_calls:
             if not isinstance(call, dict):
@@ -150,6 +164,8 @@ class ModelProviderService:
         return normalized
 
     def _parse_json_tool_calls(self, content: str) -> list[dict[str, Any]]:
+        """Fallback parser for local models that emit JSON tool calls as message text."""
+
         stripped = content.strip()
         if not stripped:
             return []
@@ -170,6 +186,8 @@ class ModelProviderService:
         return []
 
     def _build_chat_model(self, provider: str) -> Any:
+        """Construct the concrete LangChain chat model for the requested provider name."""
+
         if provider == "ollama":
             from langchain_ollama import ChatOllama
 

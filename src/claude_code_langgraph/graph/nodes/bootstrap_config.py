@@ -7,6 +7,8 @@ from claude_code_langgraph.models.messages import event
 
 
 def bootstrap_config_node(state: dict, deps: AppDependencies) -> dict:
+    """Seed config-derived metadata, workspace paths, and permission mode at graph start."""
+
     config = deps.config
     metadata = dict(state.get("metadata", {}))
     metadata.setdefault("config", config.redacted())

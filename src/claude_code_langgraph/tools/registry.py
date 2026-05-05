@@ -53,6 +53,8 @@ def build_core_tool_registry(
     output_limit: int = 12000,
     skill_service: Any | None = None,
 ) -> ToolRegistry:
+    """Instantiate core services and register the built-in model-callable tools."""
+
     root = Path(project_root).resolve()
     file_service = FileService(root)
     search_service = SearchService()

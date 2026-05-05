@@ -13,6 +13,12 @@ from claude_code_langgraph.models.messages import event
 
 
 def command_router_node(state: dict, deps: AppDependencies) -> dict:
+    """Parse and execute slash commands, translating command results into graph state updates.
+
+    Local commands finish the turn, prompt commands append a user message, skill commands set
+    `active_skill`, and session-style commands can trigger storage/export/diagnostic side effects.
+    """
+
     parsed = parse_slash_command(state.get("input_text", ""))
     if not parsed:
         return {"command_handled": False}

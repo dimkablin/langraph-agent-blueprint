@@ -7,6 +7,8 @@ from claude_code_langgraph.models.messages import event
 
 
 def error_recovery_node(state: dict, deps: AppDependencies) -> dict:
+    """Turn the latest recoverable graph error into a final user-visible response."""
+
     errors = state.get("errors", [])
     latest = errors[-1] if errors else {"message": "Unknown error"}
     final = f"Recovered from error: {latest.get('message')}"

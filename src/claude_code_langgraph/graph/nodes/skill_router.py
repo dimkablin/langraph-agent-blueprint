@@ -11,6 +11,12 @@ from claude_code_langgraph.models.messages import event
 
 
 def skill_router_node(state: dict, deps: AppDependencies) -> dict:
+    """Resolve the active skill and prepare graph state for skill-scoped model/tool execution.
+
+    Explicit `/skill` calls become a rendered prompt; model-invoked SkillTool calls also receive a
+    matching ToolMessage. The `remember` skill has a direct durable-memory path.
+    """
+
     active = state.get("active_skill")
     if not active:
         return {}
@@ -64,6 +70,8 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
 
 
 def _parse_memory_args(args: str) -> tuple[str, str]:
+    """Parse optional `scope: text` syntax for memory writes, defaulting to project memory."""
+
     stripped = args.strip()
     if ":" in stripped:
         maybe_scope, text = stripped.split(":", 1)
