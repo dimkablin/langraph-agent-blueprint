@@ -1,0 +1,38 @@
+from claude_code_langgraph.config import AppConfig
+from claude_code_langgraph.dependencies import build_dependencies
+from claude_code_langgraph.graph.builder import AssistantGraphRuntime
+from claude_code_langgraph.tools.base import BaseTool, ToolExecutionContext, ToolSafety
+from pydantic import BaseModel
+
+
+class FailingInput(BaseModel):
+    value: str = "x"
+
+
+class FailingOutput(BaseModel):
+    ok: bool
+
+
+class FailingTool(BaseTool[FailingInput, FailingOutput]):
+    name = "fail"
+    description = "Fails for tests"
+    input_schema = FailingInput
+    output_schema = FailingOutput
+    safety = ToolSafety.READ_ONLY
+    is_read_only = True
+    requires_permission = False
+
+    def run(self, data: FailingInput, context: ToolExecutionContext) -> FailingOutput:
+        raise RuntimeError("boom")
+
+
+def test_tool_exception_goes_to_error_recovery_without_crashing(tmp_path):
+    deps = build_dependencies(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
+    deps.tool_registry.register(FailingTool())
+    runtime = AssistantGraphRuntime(deps)
+
+    result = runtime.invoke("tool:fail", input_kind="headless")
+
+    assert result["errors"][0]["message"] == "boom"
+    assert "boom" in result["final_response"]
+

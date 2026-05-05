@@ -1,0 +1,42 @@
+from langchain_core.messages import HumanMessage
+
+from claude_code_langgraph.config import AppConfig
+from claude_code_langgraph.dependencies import build_dependencies
+from claude_code_langgraph.graph.nodes.command_router import command_router_node
+from claude_code_langgraph.graph.state import create_initial_state
+
+
+def test_help_routes_locally(tmp_path):
+    deps = build_dependencies(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
+    state = create_initial_state("/help", project_root=tmp_path)
+    state["available_commands"] = deps.command_registry.snapshot()
+
+    update = command_router_node(state, deps)
+
+    assert update["command_handled"] is True
+    assert "Available commands" in update["final_response"]
+
+
+def test_prompt_command_continues_to_model(tmp_path):
+    deps = build_dependencies(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
+    state = create_initial_state("/prompt explain this", project_root=tmp_path)
+    state["available_commands"] = deps.command_registry.snapshot()
+
+    update = command_router_node(state, deps)
+
+    assert update["command_handled"] is False
+    assert update["active_command"]["type"] == "prompt"
+    assert isinstance(update["messages"][0], HumanMessage)
+    assert "explain this" in update["messages"][0].content
+
+
+def test_unknown_command_returns_helpful_error(tmp_path):
+    deps = build_dependencies(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
+    state = create_initial_state("/missing", project_root=tmp_path)
+    state["available_commands"] = deps.command_registry.snapshot()
+
+    update = command_router_node(state, deps)
+
+    assert update["command_handled"] is True
+    assert "Unknown command" in update["final_response"]
+

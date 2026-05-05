@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-code-langgraph"
+version = "0.1.0"
+description = "Python/LangGraph Claude Code-like coding assistant runtime"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "langgraph",
+  "langchain-core",
+  "pydantic>=2",
+  "typer",
+  "rich",
+  "httpx",
+  "pyyaml",
+]
+
+[project.optional-dependencies]
+api = ["fastapi", "uvicorn"]
+openai = ["langchain-openai"]
+ollama = ["langchain-ollama"]
+anthropic = ["langchain-anthropic"]
+test = ["pytest"]
+
+[project.scripts]
+claude-code-langgraph = "claude_code_langgraph.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+claude_code_langgraph = ["skills/definitions/*/SKILL.md"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q -p no:cacheprovider"
+filterwarnings = [
+  "ignore:Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.:UserWarning",
+]

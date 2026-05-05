@@ -1,0 +1,13 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def write_transcript(path: str | Path, text: str) -> Path:
+    """Write a transcript to disk."""
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    return target
+

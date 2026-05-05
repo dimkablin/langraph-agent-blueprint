@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+from enum import StrEnum
+from pathlib import Path
+from typing import Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ToolSafety(StrEnum):
+    READ_ONLY = "read_only"
+    WRITE = "write"
+    SHELL = "shell"
+    NETWORK = "network"
+    MCP = "mcp"
+    AGENT = "agent"
+    SKILL = "skill"
+
+
+class ToolOutput(BaseModel):
+    ok: bool = True
+    content: str = ""
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class ToolExecutionContext(BaseModel):
+    """Runtime context passed to tools by the graph tool executor."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    project_root: Path
+    cwd: Path
+    read_files: set[str] = Field(default_factory=set)
+    state: dict[str, object] = Field(default_factory=dict)
+
+
+InputT = TypeVar("InputT", bound=BaseModel)
+OutputT = TypeVar("OutputT", bound=BaseModel)
+
+
+class BaseTool(Generic[InputT, OutputT]):
+    """Base protocol for model-callable tools."""
+
+    name: str
+    description: str
+    input_schema: type[InputT]
+    output_schema: type[OutputT]
+    safety: ToolSafety = ToolSafety.READ_ONLY
+    is_read_only: bool = True
+    requires_permission: bool = False
+    timeout_seconds: float | None = None
+    output_limit: int = 12000
+
+    def parse_input(self, data: dict[str, object]) -> InputT:
+        return self.input_schema.model_validate(data)
+
+    def run(self, data: InputT, context: ToolExecutionContext) -> OutputT:
+        raise NotImplementedError
+
+    async def arun(self, data: InputT, context: ToolExecutionContext) -> OutputT:
+        return self.run(data, context)
+
+    def metadata(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "safety": str(self.safety),
+            "is_read_only": self.is_read_only,
+            "requires_permission": self.requires_permission,
+            "input_schema": self.input_schema.model_json_schema(),
+            "output_schema": self.output_schema.model_json_schema(),
+        }
+

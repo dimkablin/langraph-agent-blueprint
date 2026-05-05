@@ -1,0 +1,87 @@
+# Feature Traceability Matrix
+
+## Scope Notes
+
+Audited source: `C:\Users\dimka\Documents\PROJECTS\llm-data-analyst\claude-code-like-project`.
+
+The audited source is a Claude Code-like terminal assistant. It is not a React web data analyst app. Therefore several user-requested data analyst features are recorded as absent from source and cannot be direct ports.
+
+Allowed statuses used:
+
+- `direct_port`: preserve behavior with a close Python equivalent.
+- `redesigned_as_langgraph`: preserve behavior as graph node/subgraph.
+- `redesigned_as_skill`: preserve behavior as skill/prompt-driven capability.
+- `ui_replacement`: source behavior is UI-only and should be rebuilt for the target UI.
+- `removed_with_reason`: not present or not appropriate for the target core.
+- `unclear_needs_assumption`: retained only with explicit assumption.
+
+## Matrix
+
+| Original feature | Source location | User scenario | Current implementation | New LangGraph equivalent | New Skill equivalent | New Python service/tool | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Interactive chat / REPL | `src/main.tsx`, `src/replLauncher.tsx`, `src/screens/REPL.tsx` | User opens CLI and chats with assistant. | React+Ink REPL, message state, prompt input, query loop. | Session graph with input -> model -> tools -> persistence. | None by default. | ChatSessionService, MessageService. | `redesigned_as_langgraph` |
+| Headless print/SDK query | `src/main.tsx`, `src/QueryEngine.ts`, `src/entrypoints/sdk/coreSchemas.ts` | User sends prompt noninteractively and gets text/json/stream-json. | QueryEngine wraps same model/tool loop with SDK schemas. | Headless graph runner. | None. | SDK/API DTO service. | `direct_port` |
+| Model streaming | `src/query.ts`, `src/services/api/claude.ts`, `src/screens/REPL.tsx` | Assistant streams text/thinking/tool events. | Async generator events, UI event handler. | Streaming graph event bus. | None. | ModelProviderService. | `redesigned_as_langgraph` |
+| Tool-call loop | `src/query.ts`, `src/services/tools/toolOrchestration.ts`, `src/services/tools/toolExecution.ts` | Model calls one or more tools; results return to model. | Tool batching, permission checks, hooks, result mapping. | Tool router and tool executor nodes. | None. | ToolRegistry, ToolExecutor. | `redesigned_as_langgraph` |
+| Tool registry | `src/tools.ts`, `src/Tool.ts` | Runtime decides which tools are available. | Built-in, MCP, feature-gated, simple-mode tools. | Tool registry snapshot in graph state. | None. | ToolRegistry service. | `direct_port` |
+| Slash commands | `src/commands.ts`, `src/commands/*`, `src/utils/processUserInput/processSlashCommand.tsx` | User types `/resume`, `/export`, `/skills`, etc. | Command registry and slash parser dispatch local/prompt/UI commands. | Command router node. | Prompt commands become skills. | CommandRegistry service. | `redesigned_as_langgraph` |
+| Skill loading | `src/skills/loadSkillsDir.ts`, `src/skills/bundledSkills.ts`, `src/commands.ts` | System discovers user/project/bundled/plugin/MCP skills. | Loads `SKILL.md`, bundled registrations, plugin/MCP skills, conditional paths. | Skill discovery/reload node. | All skill definitions. | SkillRegistry, SkillLoader. | `redesigned_as_skill` |
+| Skill invocation | `src/tools/SkillTool/SkillTool.ts`, `src/tools/SkillTool/prompt.ts` | Model invokes specialized capability by name. | SkillTool loads prompt; may execute inline or in forked agent. | Skill invocation subgraph. | Direct Skill execution. | SkillService, AgentService. | `redesigned_as_skill` |
+| Bundled skills | `src/skills/bundled/*` | User/model invokes built-in workflows such as verify/debug/remember. | Programmatic bundled skill registry. | Skill node/subgraph per retained skill. | Keep names and behavior categories. | BuiltinSkillPackage. | `redesigned_as_skill` |
+| File upload/download from remote Files API | `src/services/api/filesApi.ts`, bridge/brief flows | Remote session receives or uploads files. | Files API download/upload with OAuth, retry, session upload dirs. | Optional attachment-ingestion node. | None. | RemoteFilesService. | `direct_port` |
+| Local file attachments / at-mentions | `src/utils/attachments.ts`, `src/utils/processUserInput/processUserInput.ts` | User references files/images/PDFs/tasks/memory in prompt. | Converts refs to attachment messages and system context. | Attachment ingestion node. | Could trigger skills by path. | AttachmentService, FileReferenceResolver. | `redesigned_as_langgraph` |
+| Read file | `src/tools/FileReadTool/*` | Assistant reads code/text/image/PDF/notebook. | Read tool with offsets, limits, PDF pages, image handling, notebook cells. | Tool executor node. | None. | FileReadTool, PDFService, NotebookService. | `direct_port` |
+| Write file | `src/tools/FileWriteTool/*` | Assistant creates or overwrites a file. | File write tool with permission UI and file history. | Tool executor node. | None. | FileWriteTool, FileHistoryService. | `direct_port` |
+| Edit file | `src/tools/FileEditTool/*` | Assistant patches an existing file. | String replacement/diff permission flow. | Tool executor node. | None. | FileEditTool. | `direct_port` |
+| Notebook editing | `src/tools/NotebookEditTool/*`, `src/utils/notebook.ts` | Assistant modifies `.ipynb` cells. | Notebook edit tool with permissions. | Tool executor node. | None. | NotebookEditTool. | `direct_port` |
+| Glob search | `src/tools/GlobTool/*` | Assistant finds files by pattern. | Glob tool. | Tool executor node. | None. | GlobTool/SearchService. | `direct_port` |
+| Grep search | `src/tools/GrepTool/*` | Assistant searches file content. | ripgrep-backed tool. | Tool executor node. | None. | GrepTool/SearchService. | `direct_port` |
+| Shell execution | `src/tools/BashTool/*`, `src/tools/PowerShellTool/*` | Assistant runs commands. | Bash/PowerShell tools with parsing, read-only validation, permission checks, output limits. | Tool executor node. | None. | ShellService. | `direct_port` |
+| Web fetch | `src/tools/WebFetchTool/*` | Assistant fetches a URL and reads/summarizes content. | URL validation, fetch, markdown conversion, optional secondary prompt. | Tool executor node. | None. | WebFetchTool. | `direct_port` |
+| Web search | `src/tools/WebSearchTool/*` | Assistant searches web. | Search tool. | Tool executor node. | None. | WebSearchTool. | `direct_port` |
+| MCP tools | `src/services/mcp/client.ts`, `src/tools/MCPTool`, `src/tools/ListMcpResourcesTool`, `src/tools/ReadMcpResourceTool` | User connects external MCP servers and assistant calls their tools/resources. | MCP transports, OAuth, tool/resource/prompt discovery. | MCP router node. | MCP prompts/resources can become skills. | MCPService. | `redesigned_as_langgraph` |
+| MCP resources | `src/services/mcp/client.ts`, resource tools | Assistant lists/reads external resources. | MCP resource tools and storage/truncation handling. | Tool/resource node. | None. | MCPResourceService. | `direct_port` |
+| Plugins | `src/utils/plugins/*`, `src/plugins/builtinPlugins.ts`, `src/types/plugin.ts`, `src/commands/plugin/*` | User installs/enables plugin marketplaces and plugin components. | Plugin manifest validation, cache, marketplace, commands/skills/hooks/MCP/LSP. | Plugin reload/config node. | Plugin skills retained. | PluginService. | `redesigned_as_langgraph` |
+| User confirmations / permissions | `src/utils/permissions/*`, `src/hooks/useCanUseTool.tsx`, `src/components/permissions/*` | Risky tool call asks user to allow/deny/save rule. | Permission modes/rules, interactive dialogs, hooks, classifiers. | Permission gate node with interrupt/resume. | Ask-user skill-like capability. | PermissionService, ConfirmationService. | `redesigned_as_langgraph` |
+| Ask user question | `src/tools/AskUserQuestionTool/*`, permission request components | Model asks structured clarification/confirmation. | Tool plus permission/UI preview. | Human-in-the-loop node. | Clarification skill. | QuestionService. | `redesigned_as_langgraph` |
+| Plan mode | `src/tools/EnterPlanModeTool/*`, `ExitPlanModeTool/*`, `components/permissions/ExitPlanModePermissionRequest/*` | Assistant plans before edits and requests approval. | Permission mode switch and plan approval UI. | Planning subgraph with approval edge. | Planning skill. | PlanService, PermissionService. | `redesigned_as_langgraph` |
+| Todo management | `src/tools/TodoWriteTool/*`, `src/hooks/useTasksV2.ts` | Assistant maintains task/todo list. | AppState todos/tasks and tool updates. | State mutation node. | None. | TodoService. | `direct_port` |
+| Background/local/remote tasks | `src/tasks/*`, `src/tools/Task*Tool/*`, `src/hooks/useTaskListWatcher.ts` | Assistant creates/list/updates/stops tasks. | Task tools and task state implementations. | Task subgraph/service node. | None. | TaskService. | `redesigned_as_langgraph` |
+| Subagents | `src/tools/AgentTool/*`, `src/tasks/*`, `src/coordinator/*` | Assistant delegates work to agent/teammate/sidechain. | AgentTool, runAgent, sidechain transcripts, team/swarm helpers. | Agent subgraph. | Agent definitions are skill-like. | AgentService. | `redesigned_as_langgraph` |
+| Worktree isolation | `src/tools/EnterWorktreeTool/*`, `ExitWorktreeTool/*`, `src/utils/worktree.ts` | Assistant creates/enters/exits git worktree. | Tool and session state persistence. | Project action node. | Project-level action skill if user-facing. | ProjectService. | `direct_port` |
+| Session persistence | `src/utils/sessionStorage.ts`, `src/hooks/useLogMessages.ts`, `src/types/logs.ts` | Conversation persists across runs. | JSONL transcripts under config project dirs with metadata sidecars. | Persistence node after events. | None. | SessionStorage. | `direct_port` |
+| Resume session | `src/commands/resume/*`, `src/screens/ResumeConversation.tsx`, `src/utils/sessionRestore.ts` | User resumes prior conversation. | Session picker/search/full log restore. | Resume bootstrap node. | None. | SessionStorage, SessionRestoreService. | `redesigned_as_langgraph` |
+| Clear/rewind conversation | `src/commands/clear/*`, REPL rewind handlers | User clears or rewinds context. | Message list mutation, state reset, caches reset. | State mutation node. | None. | ConversationStateService. | `direct_port` |
+| Compact conversation | `src/services/compact/*`, `src/commands/compact/*`, `src/services/compact/prompt.ts` | Long chat is summarized manually/automatically. | Full/partial/microcompact prompts, hooks, boundary messages. | Compaction node/subgraph. | Compact skill-like prompt. | CompactionService. | `redesigned_as_langgraph` |
+| Context usage visualization | `src/commands/context/*`, `src/utils/analyzeContext.ts`, `src/components/ContextVisualization.tsx` | User sees token/context breakdown. | Token counting and Ink visualization. | Optional context analysis node. | None. | ContextAnalysisService. | `ui_replacement` |
+| Memory / remember | `src/memdir/*`, `src/services/extractMemories/*`, `src/services/SessionMemory/*`, `src/skills/bundled/remember.ts` | Assistant remembers user/team/session information. | Memory dirs, extraction prompts, skill, compact memory. | Memory extraction subgraph. | `remember` skill. | MemoryService. | `redesigned_as_skill` |
+| Hooks | `src/services/tools/toolHooks.ts`, `src/utils/hooks.ts`, `src/types/hooks.ts`, SDK schemas | User/project plugins run hooks on events. | Pre/post tool, session, compact, prompt hooks with outputs. | Hook execution nodes around graph events. | None. | HookService. | `redesigned_as_langgraph` |
+| Error handling and retry | `src/services/api/withRetry.ts`, `src/services/api/errors.ts`, `src/query.ts`, message components | API/tool errors are shown or retried/fallback. | Retry policies, fallback models, error classifications, UI messages. | Error edges and retry policy. | Error recovery skill only for prompt-driven cases. | ErrorRecoveryService. | `redesigned_as_langgraph` |
+| Loading/progress states | `src/screens/REPL.tsx`, `src/components/Spinner.tsx`, tool UIs, streaming progress | User sees running tool/model status. | React state and streaming events. | Graph emits progress events. | None. | EventStreamService. | `ui_replacement` |
+| Export/download transcript | `src/commands/export/export.tsx`, `src/components/ExportDialog.tsx`, `src/utils/exportRenderer.tsx` | User exports conversation to clipboard or `.txt`. | Static render to plain text; save/copy. | Optional export command node. | None. | ExportService. | `direct_port` |
+| Insights HTML report | `src/commands/insights.ts` | User generates usage insights over Claude Code session logs. | Reads transcripts, aggregates, model-assisted insights, HTML charts. | Report-generation subgraph if retained. | Insights/report skill. | ReportService. | `redesigned_as_skill` |
+| State persistence for settings | `src/utils/config.ts`, settings utilities | User/project settings persist. | JSON config with global/project/local/user/policy scope. | Config load node. | None. | ConfigService. | `direct_port` |
+| Model/provider configuration | `src/services/api/client.ts`, `src/utils/model/*`, `src/main.tsx` | User selects model/provider via CLI/env/settings. | Model aliases/defaults, provider detection, Bedrock/Vertex/Foundry/OAuth. | Model config node before LLM call. | None. | ModelProviderService. | `direct_port` |
+| Cost/status/stats | `src/cost-tracker.ts`, `src/costHook.ts`, `/cost`, `/status`, `/stats` commands | User views usage/cost/status. | Token/cost counters and UI commands. | Usage state update node. | None. | UsageService. | `direct_port` |
+| IDE/LSP integration | `src/tools/LSPTool`, `src/services/lsp`, `src/utils/ide.ts`, hooks | Assistant uses diagnostics/IDE selection/diffs. | LSP and IDE tools/hooks. | Optional tool node. | None. | IDEService, LSPService. | `direct_port` |
+| Voice input | `src/voice`, `src/hooks/useVoice*`, `src/context/voice.tsx` | User dictates prompt. | Terminal/audio integration. | None. | None. | VoiceAdapter if UI needs it. | `ui_replacement` |
+| Keybindings/Vim mode | `src/keybindings`, `src/vim`, prompt input hooks | User navigates terminal UI efficiently. | React/Ink input handlers. | None. | None. | UI only. | `ui_replacement` |
+| Remote/bridge session | `src/bridge`, `src/remote`, `src/server`, `src/hooks/useRemoteSession.ts`, `useReplBridge.tsx` | Session syncs with remote/bridge/client. | Bridge config, session ingress, mailbox/direct connect. | Optional remote event graph adapter. | None. | RemoteSessionService. | `redesigned_as_langgraph` |
+| `/doctor` diagnostics | `src/screens/Doctor.tsx`, command registration | User checks environment health. | Ink diagnostic screen. | Optional diagnostics command node. | None. | DiagnosticsService. | `direct_port` |
+| `/skills` UI | `src/commands/skills/*`, `src/components/skills/SkillsMenu.tsx` | User lists skills. | Ink menu over command list. | None. | Skill list output. | SkillRegistry API. | `ui_replacement` |
+| General artifact generation/edit/preview | Only scattered `artifact_urls`, tool-output storage, export/report files | User expects web-chat artifacts. | No unified artifact model found. | New artifact graph only if target requires it. | Potential artifact skills are new. | ArtifactService new design. | `removed_with_reason` |
+| Dataset upload/read/profiling | No dataset workflow; only generic file/remote file support. | User uploads CSV/Excel/Parquet for analysis. | Not present as a source feature. | New data ingestion graph if required. | New `load_dataset`/`profile_dataset` skills. | DataFrameService new design. | `removed_with_reason` |
+| Dataset Q&A | No analyst/dataframe workflow found. | User asks questions over dataset. | Not present. | New analysis graph if required. | New `answer_dataset_question` skill. | DataAnalysisService new design. | `removed_with_reason` |
+| Python code generation/execution for data analysis | Generic Bash/PowerShell only. | Assistant writes/runs analysis Python safely. | Not present as dedicated sandboxed analyst capability. | New code-execution graph if required. | New `generate_analysis_code` skill. | PythonSandboxService new design. | `removed_with_reason` |
+| Chart generation over datasets | No dataset chart workflow; only context/insights charts and notebook outputs. | User asks for plot/chart artifact. | Not present. | New visualization graph if required. | New `create_chart` skill. | VisualizationService new design. | `removed_with_reason` |
+| Parquet support | Search returned no Parquet source. | User uploads/reads Parquet. | Not present. | New ingestion branch if required. | New `load_parquet` skill. | DataFrameService new design. | `removed_with_reason` |
+
+## Unclear Items and Assumptions
+
+| Item | Status | Assumption |
+| --- | --- | --- |
+| Source path mismatch | `unclear_needs_assumption` | The intended source is `llm-data-analyst\claude-code-like-project`, not missing `claude-like-project`. |
+| Missing `src/types/message.ts` | `unclear_needs_assumption` | Message types must be inferred from usages or recovered before an exact Python schema is finalized. |
+| Web data analyst app requirement | `unclear_needs_assumption` | The audited source does not contain that app. A Python/LangGraph data analyst implementation would be an extension beyond this source. |
+
+No source feature is removed without an explanation above. Features marked `removed_with_reason` are not present in the audited source or are UI-only not relevant to core graph behavior.
