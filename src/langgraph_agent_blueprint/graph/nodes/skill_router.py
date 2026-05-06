@@ -28,23 +28,27 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
         return _skill_validation_error_update(state, active, exc)
     except KeyError as exc:
         return _skill_lookup_error_update(state, active, str(exc))
+    skill_name = result["name"]
     skill_args = result["args"]
+    skill_invocations = list(dict.fromkeys([*state.get("metadata", {}).get("skill_invocations", []), skill_name]))
     metadata = {
         **state.get("metadata", {}),
         "allowed_tools_override": result.get("allowed_tools", []),
-        "active_skill_name": active["name"],
+        "active_skill_name": skill_name,
+        "skill_invocations": skill_invocations,
         "skill_invocation": {
-            "name": active["name"],
+            "name": skill_name,
+            "requested_name": active["name"],
             "args": skill_args,
             "source_path": result.get("source_path"),
             "allowed_tools": result.get("allowed_tools", []),
         },
     }
     messages = []
-    events = [event("skill_started", name=active["name"])]
+    events = [event("skill_started", name=skill_name)]
     final_response = None
     memory = None
-    if active["name"] == "remember":
+    if skill_name == "remember":
         typed_args = result["typed_args"]
         scope, text = typed_args["scope"], typed_args["text"]
         path = deps.memory_service.remember(scope, text, state.get("session_id"))
@@ -58,15 +62,15 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
             0,
             ToolMessage(
                 content=json.dumps(
-                    {"skill": active["name"], "status": "prepared", "allowed_tools": result.get("allowed_tools", [])},
+                    {"skill": skill_name, "status": "prepared", "allowed_tools": result.get("allowed_tools", [])},
                     ensure_ascii=False,
                 ),
                 tool_call_id=str(active["tool_call_id"]),
             ),
         )
-    events.append(event("skill_finished", name=active["name"]))
+    events.append(event("skill_finished", name=skill_name))
     update = {
-        "active_skill": {"name": active["name"], "args": skill_args, "result": result},
+        "active_skill": {"name": skill_name, "requested_name": active["name"], "args": skill_args, "result": result},
         "messages": messages,
         "metadata": metadata,
         "ui_events": events,

@@ -8,13 +8,21 @@ Use tools when they are useful, respect permissions, keep responses concise, and
 Do not claim data analyst capabilities as a direct source port unless they are explicitly implemented as extensions."""
 
 
-def build_system_context(project_root: str, memory_context: str, tools_summary: str, skills_summary: str, todos_summary: str) -> str:
+def build_system_context(
+    project_root: str,
+    memory_context: str,
+    tools_summary: str,
+    skills_summary: str,
+    todos_summary: str,
+    plugin_context: str = "",
+) -> str:
     """Build the runtime system context from audited prompt categories without copying source prompts."""
 
     parts = [
         BASE_SYSTEM_PROMPT,
         f"Project root: {project_root}",
         memory_context,
+        plugin_context,
         tools_summary,
         skills_summary,
         todos_summary,

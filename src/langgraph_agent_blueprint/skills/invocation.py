@@ -22,7 +22,8 @@ class SkillInvocationService:
         formatted_args = format_skill_args_for_prompt(name, typed_args)
         prompt = skill.render(formatted_args, state)
         return {
-            "name": name,
+            "name": skill.metadata.name,
+            "requested_name": name,
             "args": formatted_args,
             "typed_args": typed_args.model_dump(mode="json"),
             "args_schema": skill.args_schema.__name__,

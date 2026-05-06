@@ -44,10 +44,20 @@ def _skills(args: str, state: dict[str, Any]) -> CommandResult:
     """Render enabled skills with allowed tools and disabled skills with reasons."""
 
     skills = state.get("available_skills", {})
-    lines = ["Available skills:"]
-    for name, meta in sorted(skills.items()):
+    builtin_skills = {name: meta for name, meta in skills.items() if not meta.get("plugin_name")}
+    plugin_skills = {name: meta for name, meta in skills.items() if meta.get("plugin_name")}
+    lines = ["Built-in skills:"]
+    for name, meta in sorted(builtin_skills.items()):
         allowed = ", ".join(meta.get("allowed_tools", []) or [])
         lines.append(f"- {name}: {meta.get('description', '')} (allowed_tools: {allowed or 'none'})")
+    if plugin_skills:
+        lines.append("Plugin skills:")
+        for name, meta in sorted(plugin_skills.items()):
+            allowed = ", ".join(meta.get("allowed_tools", []) or [])
+            lines.append(
+                f"- {name}: {meta.get('description', '')} "
+                f"(plugin: {meta.get('plugin_name')}, allowed_tools: {allowed or 'none'})"
+            )
     disabled = state.get("disabled_skills", {})
     if disabled:
         lines.append("Disabled skills:")
@@ -55,6 +65,28 @@ def _skills(args: str, state: dict[str, Any]) -> CommandResult:
             lines.append(f"- {name}: {reason}")
     if len(lines) == 1:
         lines.append("- none")
+    return CommandResult(True, "\n".join(lines))
+
+
+def _plugins(args: str, state: dict[str, Any]) -> CommandResult:
+    """Render installed/enabled plugin contributions."""
+
+    plugin_state = state.get("plugin_state", {})
+    plugins = plugin_state.get("plugins", [])
+    if not plugins:
+        return CommandResult(True, "Plugins: none")
+    lines = ["Plugins:"]
+    for plugin in sorted(plugins, key=lambda item: item.get("name", "")):
+        bootstrap = plugin.get("bootstrap_skill") or "none"
+        lines.append(
+            f"- {plugin.get('name')}: enabled, version: {plugin.get('version', 'unknown')}, "
+            f"skills: {plugin.get('skills_count', 0)}, bootstrap: {bootstrap}"
+        )
+    errors = plugin_state.get("errors", [])
+    if errors:
+        lines.append("Plugin errors:")
+        for item in errors:
+            lines.append(f"- {item.get('path')}: {item.get('error')}")
     return CommandResult(True, "\n".join(lines))
 
 
@@ -154,6 +186,6 @@ def builtins() -> list[Command]:
         Command("rename", "Rename session", "session", _not_implemented("rename")),
         Command("tag", "Tag session", "session", _not_implemented("tag")),
         Command("context", "Show context usage", "local", _not_implemented("context")),
-        Command("plugins", "List plugins", "local", _not_implemented("plugins")),
+        Command("plugins", "List plugins", "local", _plugins),
         Command("mcp", "List MCP state", "local", _not_implemented("mcp")),
     ]

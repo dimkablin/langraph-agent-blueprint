@@ -11,8 +11,10 @@ flowchart TD
     load_registries --> normalize_input
     normalize_input --> command_router
     command_router -->|local command| persist_session
-    command_router -->|prompt/model| context_builder
+    command_router -->|prompt/model| plugin_policy
     command_router -->|skill| skill_graph
+    plugin_policy -->|auto skill| skill_graph
+    plugin_policy -->|none| context_builder
     context_builder --> model_call
     model_call --> tool_router
     tool_router -->|no tools| compact_decision
@@ -49,8 +51,9 @@ Boundary data is validated with Pydantic before nodes act on it. State stores JS
 - `load_registries`: loads tools, commands, skills, MCP, plugin state.
 - `normalize_input`: converts user input into messages.
 - `command_router`: routes slash commands to local response, prompt, skill, or session behavior.
+- `plugin_policy`: applies enabled plugin runtime policies before the first model response. Superpowers uses this to activate `superpowers/brainstorming` for obvious development prompts.
 - `skill_router`: resolves active skill, renders prompt, narrows allowed tools.
-- `context_builder`: builds system context from project, memory, tools, skills, todos.
+- `context_builder`: builds system context from project, memory, plugin bootstrap fragments, tools, skills, todos.
 - `model_call`: calls provider and emits model/tool events.
 - `tool_router`: classifies tool calls and chooses execution, permission, skill, agent, MCP, or error route.
 - `permission_gate`: uses LangGraph `interrupt` and resumes from approval/rejection.
@@ -104,3 +107,9 @@ This is the path used by fake-provider tests and the Ollama `qwen3:14b` manual s
 ## Skill Runtime
 
 `/skill` and `SkillTool` enter the graph skill route. The skill route resolves `SKILL.md`, emits skill lifecycle events, applies `allowed_tools_override`, and then returns to the shared context/model/tool loop. `model_call` filters provider-bound tools to the active skill scope, and `tool_router` rejects any disallowed tool as a policy violation.
+
+## Plugin Runtime
+
+`load_registries` discovers installed/configured plugins, emits plugin lifecycle events, and exposes plugin bootstrap fragments in graph state. External plugin skills are registered before model tool schemas are built, so model-facing skill summaries and the `skill` tool can reference namespaced ids such as `superpowers/brainstorming`.
+
+The Superpowers adapter injects compact bootstrap context from `superpowers/using-superpowers` and uses `plugin_policy` for the clean-session acceptance path: `Let's make a react todo list` activates `superpowers/brainstorming` through `skill_graph` before normal model response.

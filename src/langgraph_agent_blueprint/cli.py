@@ -17,9 +17,11 @@ app = typer.Typer(help="LangGraph Agent Blueprint CLI")
 sessions_app = typer.Typer(help="Session commands")
 skills_app = typer.Typer(help="Skill commands")
 tools_app = typer.Typer(help="Tool commands")
+plugins_app = typer.Typer(help="Plugin commands")
 app.add_typer(sessions_app, name="sessions")
 app.add_typer(skills_app, name="skills")
 app.add_typer(tools_app, name="tools")
+app.add_typer(plugins_app, name="plugins")
 console = Console()
 
 
@@ -103,6 +105,33 @@ def list_tools() -> None:
     runtime = _runtime()
     for name, meta in runtime.dependencies.tool_registry.snapshot().items():
         console.print(f"{name}: {meta.get('description', '')}")
+
+
+@plugins_app.command("list")
+def list_plugins() -> None:
+    runtime = _runtime()
+    console.print(json.dumps(runtime.dependencies.plugin_service.discover(), indent=2, ensure_ascii=False))
+
+
+@plugins_app.command("install")
+def install_plugin(source: str) -> None:
+    runtime = _runtime()
+    result = runtime.dependencies.plugin_service.install(source)
+    console.print(result.model_dump_json(indent=2))
+
+
+@plugins_app.command("update")
+def update_plugin(name: str) -> None:
+    runtime = _runtime()
+    result = runtime.dependencies.plugin_service.update(name)
+    console.print(result.model_dump_json(indent=2))
+
+
+@plugins_app.command("remove")
+def remove_plugin(name: str) -> None:
+    runtime = _runtime()
+    result = runtime.dependencies.plugin_service.remove(name)
+    console.print(result.model_dump_json(indent=2))
 
 
 @app.command()

@@ -77,6 +77,8 @@ class AppConfig(BaseModel):
             "openai_compatible_base_url": env_value("OPENAI_COMPATIBLE_BASE_URL"),
             "openai_compatible_api_key": env_value("OPENAI_COMPATIBLE_API_KEY"),
             "openai_compatible_model": env_value("OPENAI_COMPATIBLE_MODEL"),
+            "skills_paths": [Path(item) for item in cls._split_path_list(env_value("SKILLS_PATHS") or env_value("LG_AGENT_SKILLS_PATHS"))],
+            "plugin_paths": [Path(item) for item in cls._split_path_list(env_value("PLUGIN_PATHS") or env_value("LG_AGENT_PLUGIN_PATHS"))],
             "cors_allowed_origins": cls._split_csv(
                 env_value("CORS_ALLOWED_ORIGINS"),
                 [
@@ -95,6 +97,16 @@ class AppConfig(BaseModel):
         if not value:
             return default
         return [item.strip() for item in value.split(",") if item.strip()]
+
+    @staticmethod
+    def _split_path_list(value: str | None) -> list[str]:
+        if not value:
+            return []
+        separators = [os.pathsep, ","]
+        items = [value]
+        for separator in separators:
+            items = [part for item in items for part in item.split(separator)]
+        return [item.strip() for item in items if item.strip()]
 
     def effective_model(self) -> str:
         """Return the model name for the selected provider."""

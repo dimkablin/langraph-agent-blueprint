@@ -23,11 +23,19 @@ from .nodes.load_registries import load_registries_node
 from .nodes.model_call import model_call_node
 from .nodes.normalize_input import normalize_input_node
 from .nodes.permission_gate import permission_gate_node
+from .nodes.plugin_policy import plugin_policy_node
 from .nodes.persist_session import persist_session_node
 from .nodes.skill_router import skill_router_node
 from .nodes.tool_executor import tool_executor_node
 from .nodes.tool_router import tool_router_node
-from .routing import route_after_command, route_after_compact_decision, route_after_permission, route_after_tool_execution, route_after_tool_router
+from .routing import (
+    route_after_command,
+    route_after_compact_decision,
+    route_after_permission,
+    route_after_plugin_policy,
+    route_after_tool_execution,
+    route_after_tool_router,
+)
 from .state import AssistantState, create_initial_state
 from .subgraphs.agent_graph import build_agent_graph
 from .subgraphs.mcp_graph import build_mcp_graph
@@ -42,6 +50,7 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
     graph.add_node("normalize_input", lambda state: normalize_input_node(state, deps))
     graph.add_node("command_router", lambda state: command_router_node(state, deps))
     graph.add_node("skill_graph", build_skill_node(deps))
+    graph.add_node("plugin_policy", lambda state: plugin_policy_node(state, deps))
     graph.add_node("context_builder", lambda state: context_builder_node(state, deps))
     graph.add_node("model_call", lambda state: model_call_node(state, deps))
     graph.add_node("tool_router", lambda state: tool_router_node(state, deps))
@@ -65,12 +74,14 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
         route_after_command,
         {
             "persist_session": "persist_session",
+            "plugin_policy": "plugin_policy",
             "context_builder": "context_builder",
             "skill_graph": "skill_graph",
             "compact_decision": "compact_decision",
             "error_recovery": "error_recovery",
         },
     )
+    graph.add_conditional_edges("plugin_policy", route_after_plugin_policy, {"skill_graph": "skill_graph", "context_builder": "context_builder"})
     graph.add_edge("skill_graph", "context_builder")
     graph.add_edge("context_builder", "model_call")
     graph.add_edge("model_call", "tool_router")
@@ -186,6 +197,9 @@ class AssistantGraphRuntime:
             "clear_messages",
             "export_requested",
             "doctor_requested",
+            "allowed_tools_override",
+            "active_skill_name",
+            "skill_invocation",
         ]:
             metadata.pop(key, None)
         state["metadata"] = metadata

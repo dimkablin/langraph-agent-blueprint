@@ -88,8 +88,22 @@ Other CLI entrypoints:
 ```bash
 lg-agent skills list
 lg-agent tools list
+lg-agent plugins list
 lg-agent doctor
 ```
+
+## Optional: Superpowers Plugin
+
+Superpowers can be installed as an external plugin contribution. Git install/update is explicit network work, so enable network first:
+
+```powershell
+$env:NETWORK_ENABLED = "true"
+lg-agent plugins install superpowers@git+https://github.com/obra/superpowers.git#v5.1.0
+lg-agent plugins list
+lg-agent skills list
+```
+
+When enabled, Superpowers skills are registered as `superpowers/<skill-name>`, `superpowers/using-superpowers` bootstrap context is injected at session start, and obvious new development prompts activate `superpowers/brainstorming` through LangGraph before code is written. See `docs/SUPERPOWERS_PLUGIN.md`.
 
 ## Run React CLI Frontend
 
@@ -186,10 +200,13 @@ Write/edit/shell/network tools request approval through LangGraph interrupt/resu
 
 Skills are first-class `skill-name/SKILL.md` capabilities with frontmatter metadata. Built-ins include `debug`, `remember`, `simplify`, `skillify`, `stuck`, `update-config`, `verify`, and `batch`.
 
+External plugin skills are namespaced, for example `superpowers/brainstorming`. Plugin skills are loaded through `PluginService` and `SkillRegistry`, not copied into bundled definitions.
+
 Skills can be invoked explicitly:
 
 ```bash
 lg-agent query "/skill remember project: Prefer pytest."
+lg-agent query "/skill superpowers/brainstorming Build a React todo list."
 lg-agent query "/memory"
 ```
 
@@ -211,8 +228,9 @@ Slash commands are routed through `CommandRegistry` and `command_router`:
 - `/doctor`
 - `/memory`
 - `/todo`
+- `/plugins`
 
-Optional commands such as `/plugins`, `/mcp`, `/context`, `/rewind`, `/branch`, `/rename`, and `/tag` are recognized with documented limitations.
+Optional commands such as `/mcp`, `/context`, `/rewind`, `/branch`, `/rename`, and `/tag` are recognized with documented limitations.
 
 Required commands now perform real runtime work: `/compact` compacts context, `/export` writes a transcript, `/resume` restores session state, `/doctor` runs diagnostics, `/todo` reads persisted todos, and `/memory` reads durable memory.
 

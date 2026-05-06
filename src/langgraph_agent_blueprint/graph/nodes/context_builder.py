@@ -14,17 +14,23 @@ def context_builder_node(state: dict, deps: AppDependencies) -> dict:
     tools_summary = "Tools: " + ", ".join(sorted(state.get("available_tools", {})))
     skills_summary = "Skills: " + ", ".join(sorted(state.get("available_skills", {})))
     todos_summary = f"Todos: {state.get('todos', [])}" if state.get("todos") else ""
+    plugin_fragments = state.get("plugin_state", {}).get("system_context_fragments", [])
+    plugin_context = "\n\n".join(str(fragment) for fragment in plugin_fragments if fragment)
     system_context = build_system_context(
         state.get("project_root", ""),
         deps.memory_service.build_context(memory),
         tools_summary,
         skills_summary,
         todos_summary,
+        plugin_context,
     )
     tokens = deps.compaction_service.estimate_tokens(state.get("messages", []))
+    events = [event("node_finished", node="context_builder")]
+    if any("Superpowers plugin is enabled." in str(fragment) for fragment in plugin_fragments):
+        events.append(event("superpowers_bootstrap_applied", skill="superpowers/using-superpowers"))
     return {
         "memory": memory,
         "context_status": {**state.get("context_status", {}), "estimated_tokens": tokens, "system_context": system_context},
-        "ui_events": [event("node_finished", node="context_builder")],
+        "ui_events": events,
     }
 

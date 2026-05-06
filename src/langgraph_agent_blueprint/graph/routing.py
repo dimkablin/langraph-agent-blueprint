@@ -16,6 +16,12 @@ def route_after_command(state: dict[str, Any]) -> str:
         return "persist_session"
     if state.get("active_skill"):
         return "skill_graph"
+    return "plugin_policy"
+
+
+def route_after_plugin_policy(state: dict[str, Any]) -> str:
+    if state.get("active_skill"):
+        return "skill_graph"
     return "context_builder"
 
 

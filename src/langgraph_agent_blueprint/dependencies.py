@@ -62,7 +62,9 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
     project_root = Path(config.project_root or Path.cwd()).resolve()
     cwd = Path(config.cwd or project_root).resolve()
     config = config.model_copy(update={"project_root": project_root, "cwd": cwd, "storage_dir": Path(config.storage_dir).resolve()})
+    plugin_service = PluginService(config.plugin_paths, config.storage_dir, network_enabled=config.network_enabled)
     skill_registry = build_builtin_skill_registry()
+    skill_registry.load_plugin_contributions(plugin_service.discover_contributions())
     if config.skills_paths:
         skill_registry.load_from_paths(config.skills_paths)
     skill_service = SkillInvocationService(skill_registry)
@@ -97,7 +99,7 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
             keep_recent=config.max_recent_messages_after_compact,
         ),
         hook_service=HookService(),
-        plugin_service=PluginService(config.plugin_paths),
+        plugin_service=plugin_service,
         mcp_service=mcp_service,
         task_service=TaskService(),
         agent_service=AgentService(),

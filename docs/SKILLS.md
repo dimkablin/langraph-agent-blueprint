@@ -33,6 +33,21 @@ Built-in skills:
 - `update-config`
 - `verify`
 
+Plugin skills are loaded by `PluginService` as external contributions and registered with a namespace:
+
+```text
+<plugin-name>/<skill-name>
+```
+
+For example, the Superpowers plugin registers:
+
+- `superpowers/using-superpowers`
+- `superpowers/brainstorming`
+- `superpowers/test-driven-development`
+- `superpowers/systematic-debugging`
+
+Unqualified aliases such as `brainstorming` may resolve to a plugin skill only when no local or built-in skill with that name exists.
+
 Optional audited skills are documented but disabled initially: `loop`, `schedule`, `keybindings-help`, `lorem-ipsum`, `claude-api`, `claude-api-content`, `claude-in-chrome`.
 
 Skills do not own workflow routing. LangGraph invokes skills through `skill_graph` and `SkillTool`.
@@ -49,5 +64,6 @@ Runtime status after fixes:
 - Model-invoked `skill` tool calls also enter the skill route.
 - Skill lifecycle events are visible.
 - `allowed_tools` narrows provider-bound tools and is enforced by `tool_router`.
+- Plugin bootstrap context can make plugin skills discoverable before the first model response.
 - `remember` writes durable memory; `/memory` reads it.
 - Other bundled skills remain prompt-driven capabilities that use the shared model/tool loop and normal permission rules for side effects.

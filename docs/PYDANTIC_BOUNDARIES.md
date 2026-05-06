@@ -14,6 +14,7 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - session storage records -> `SessionMetadata`, `RuntimeEvent`, and `ToolResult`
 - skill tool or `/skill` args -> built-in skill-specific Pydantic args schemas
 - tool classification -> `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect`
+- plugin config/manifests/discovery -> `PluginSource`, `PluginManifest`, `PluginContribution`, and `PluginInstallResult`
 
 The LangGraph state remains checkpointer-safe: nodes store dictionaries and lists in state, and validate them at node/service boundaries with `model_validate(...)`. Outgoing DTOs are serialized with `model_dump(mode="json")`.
 
@@ -79,6 +80,12 @@ Built-in skills use explicit schemas:
 String arguments are mapped by skill name, not by generic key guessing. Unknown file-based skills use `GenericSkillArgs`. Prompt interpolation is separate and handled by `format_skill_args_for_prompt(...)`; it is formatting, not security sanitization.
 
 Invalid skill arguments return structured errors through the skill graph/tool loop instead of crashing the runtime.
+
+## Plugins
+
+External plugin source strings normalize into `PluginSource`. Harness manifests such as `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, and `package.json` are parsed into `PluginManifest`. Discovered plugin roots become `PluginContribution` records before they enter graph state or `SkillRegistry`. Explicit install/update/remove operations return `PluginInstallResult`.
+
+Plugin records stored in LangGraph state are JSON-safe dictionaries produced from those models. Plugin skill content remains prompt data; tool execution and permissions continue to use the normal tool and permission boundary models.
 
 ## Sessions
 

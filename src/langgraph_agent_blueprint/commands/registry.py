@@ -29,7 +29,7 @@ class CommandRegistry:
         return dict(self._commands)
 
     def snapshot(self) -> dict[str, dict[str, Any]]:
-        unsupported = {"rewind", "branch", "rename", "tag", "context", "plugins", "mcp"}
+        unsupported = {"rewind", "branch", "rename", "tag", "context", "mcp"}
         return {
             name: {
                 "name": command.name,

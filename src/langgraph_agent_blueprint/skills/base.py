@@ -25,6 +25,10 @@ class SkillMetadata(BaseModel):
     shell: bool = False
     enabled: bool = True
     feature_gate: str | None = None
+    original_name: str | None = None
+    plugin_name: str | None = None
+    source_type: str = "builtin"
+    priority: int = 0
 
     @field_validator("name")
     @classmethod

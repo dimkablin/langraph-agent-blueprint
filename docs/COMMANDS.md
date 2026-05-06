@@ -18,10 +18,11 @@ Implemented commands:
 | `/doctor` | diagnostic | Calls diagnostics service. |
 | `/memory` | local | Shows durable memory. |
 | `/todo` | local | Shows persisted todos. |
+| `/plugins` | local | Lists installed/enabled plugins, skill counts, bootstrap status, and discovery errors. |
 | `/prompt` | prompt | Expands command args into a model prompt. |
 | `/skill` | skill | Routes to `skill_graph`. |
 
-Recognized but minimal commands: `/rewind`, `/branch`, `/rename`, `/tag`, `/context`, `/plugins`, `/mcp`.
+Recognized but minimal commands: `/rewind`, `/branch`, `/rename`, `/tag`, `/context`, `/mcp`.
 
 Runtime status after fixes:
 
@@ -30,4 +31,5 @@ Runtime status after fixes:
 - `/export` writes a transcript file.
 - `/doctor` calls diagnostics.
 - `/memory` and `/todo` read durable restored state.
+- `/plugins` reports discovered external plugin contributions.
 - `/help` separates enabled commands from unsupported optional commands.
