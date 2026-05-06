@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json
-
-from langchain_core.messages import ToolMessage
-
 from claude_code_langgraph.dependencies import AppDependencies
+from claude_code_langgraph.models.base import validate_list
+from claude_code_langgraph.models.tools import ToolCall, ToolResult, tool_result_to_tool_message
 
 
 def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
@@ -16,7 +14,7 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
     and each result receives a matching ToolMessage for the next model turn.
     """
 
-    calls = list(state.get("pending_tool_calls", []))
+    calls = validate_list(ToolCall, state.get("pending_tool_calls", []))
     events = []
     results = []
     errors = []
@@ -25,10 +23,12 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
     metadata = dict(state.get("metadata", {}))
     messages = []
     for call in calls:
-        events.append(deps.tool_execution_service.started_event(call))
-        record = deps.tool_execution_service.execute(call, state)
+        call_payload = call.model_dump(mode="json")
+        events.append(deps.tool_execution_service.started_event(call_payload))
+        record = deps.tool_execution_service.execute(call_payload, state)
+        result = ToolResult.model_validate(record)
         results.append(record)
-        messages.append(_tool_message(record))
+        messages.append(tool_result_to_tool_message(result))
         events.append(deps.tool_execution_service.finished_event(record))
         deps.session_storage.append_tool_call(state["project_root"], state["session_id"], record)
         state_update = record.get("state_update", {})
@@ -50,18 +50,3 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
         "errors": errors,
         "ui_events": events,
     }
-
-
-def _tool_message(record: dict) -> ToolMessage:
-    """Serialize a tool execution record into a compact ToolMessage payload."""
-
-    content = json.dumps(
-        {
-            "name": record.get("name"),
-            "status": record.get("status"),
-            "content": record.get("content", ""),
-            "metadata": record.get("metadata", {}),
-        },
-        ensure_ascii=False,
-    )
-    return ToolMessage(content=content, tool_call_id=str(record.get("id") or "unknown"))

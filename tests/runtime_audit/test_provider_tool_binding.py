@@ -50,10 +50,11 @@ def test_langchain_provider_receives_system_context_and_bound_tools(monkeypatch)
     assert dummy.bound_tools[0]["function"]["name"] == "read_file"
     assert response.tool_calls == [
         {
-            "id": "call_1",
-            "name": "read_file",
-            "args": {"path": "README.md"},
-            "raw": {"name": "read_file", "args": {"path": "README.md"}, "id": "call_1", "type": "tool_call"},
-            "status": "pending",
-        }
+                "id": "call_1",
+                "name": "read_file",
+                "args": {"path": "README.md"},
+                "provider": "ollama",
+                "raw": {"name": "read_file", "args": {"path": "README.md"}, "id": "call_1", "type": "tool_call"},
+                "status": "pending",
+            }
     ]

@@ -10,8 +10,10 @@ from typing import Any
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
 from claude_code_langgraph.config import AppConfig
+from claude_code_langgraph.models.base import dump_model
 from claude_code_langgraph.models.llm import ModelRequest, ModelResponse
 from claude_code_langgraph.models.messages import Usage
+from claude_code_langgraph.models.tools import ToolCall, normalize_provider_tool_calls
 from claude_code_langgraph.utils.ids import new_id
 
 
@@ -54,9 +56,10 @@ class ModelProviderService:
             return ModelResponse(content=response_text, raw=AIMessage(content=response_text), usage=self._usage(text))
         tool_call = self._parse_fake_tool_call(text)
         if tool_call:
-            content = f"Calling tool {tool_call['name']}"
-            message = AIMessage(content=content, tool_calls=[tool_call])
-            return ModelResponse(content=content, tool_calls=[tool_call], raw=message, usage=self._usage(text))
+            call = ToolCall.model_validate({**tool_call, "provider": "fake"})
+            content = f"Calling tool {call.name}"
+            message = AIMessage(content=content, tool_calls=[self._ai_message_tool_call(call)])
+            return ModelResponse(content=content, tool_calls=[dump_model(call)], raw=message, usage=self._usage(text))
         response_text = f"Fake response: {text}"
         return ModelResponse(content=response_text, raw=AIMessage(content=response_text), usage=self._usage(text))
 
@@ -105,9 +108,9 @@ class ModelProviderService:
             bound_model = model.bind_tools(tools)
         response = bound_model.invoke(messages)
         content = str(getattr(response, "content", ""))
-        tool_calls = self._normalize_tool_calls(list(getattr(response, "tool_calls", []) or []))
+        tool_calls = [dump_model(call) for call in normalize_provider_tool_calls(list(getattr(response, "tool_calls", []) or []), provider)]
         if not tool_calls:
-            tool_calls = self._parse_json_tool_calls(content)
+            tool_calls = self._parse_json_tool_calls(content, provider)
         return ModelResponse(content=content, tool_calls=tool_calls, raw=response, usage=self._usage(content))
 
     @staticmethod
@@ -144,33 +147,9 @@ class ModelProviderService:
     def _normalize_tool_calls(tool_calls: list[Any]) -> list[dict[str, Any]]:
         """Normalize provider-specific tool-call shapes into the graph's pending-call schema."""
 
-        normalized: list[dict[str, Any]] = []
-        for call in tool_calls:
-            if not isinstance(call, dict):
-                continue
-            name = call.get("name") or call.get("function", {}).get("name")
-            args = call.get("args")
-            if args is None:
-                args = call.get("arguments") or call.get("function", {}).get("arguments") or {}
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except json.JSONDecodeError:
-                    args = {"value": args}
-            if not name:
-                continue
-            normalized.append(
-                {
-                    "id": call.get("id") or new_id("tool"),
-                    "name": str(name),
-                    "args": args if isinstance(args, dict) else {},
-                    "raw": call,
-                    "status": "pending",
-                }
-            )
-        return normalized
+        return [dump_model(call) for call in normalize_provider_tool_calls(tool_calls)]
 
-    def _parse_json_tool_calls(self, content: str) -> list[dict[str, Any]]:
+    def _parse_json_tool_calls(self, content: str, provider: str = "unknown") -> list[dict[str, Any]]:
         """Fallback parser for local models that emit JSON tool calls as message text."""
 
         stripped = content.strip()
@@ -189,8 +168,14 @@ class ModelProviderService:
             if isinstance(raw_calls, dict):
                 raw_calls = [raw_calls]
             if isinstance(raw_calls, list):
-                return self._normalize_tool_calls(raw_calls)
+                return [dump_model(call) for call in normalize_provider_tool_calls(raw_calls, provider)]
         return []
+
+    @staticmethod
+    def _ai_message_tool_call(call: ToolCall) -> dict[str, Any]:
+        """Return the subset of ToolCall fields accepted by LangChain AIMessage."""
+
+        return {"id": call.id, "name": call.name, "args": call.args}
 
     def _build_chat_model(self, provider: str) -> Any:
         """Construct the concrete LangChain chat model for the requested provider name."""

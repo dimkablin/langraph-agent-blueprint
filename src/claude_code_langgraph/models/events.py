@@ -29,6 +29,8 @@ EventType = Literal[
     "skill_finished",
     "subagent_started",
     "subagent_finished",
+    "hook_finished",
+    "hook_error",
     "compact_started",
     "compact_finished",
     "memory_updated",

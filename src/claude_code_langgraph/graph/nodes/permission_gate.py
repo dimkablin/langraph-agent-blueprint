@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import json
-
-from langchain_core.messages import ToolMessage
 from langgraph.types import interrupt
 
 from claude_code_langgraph.dependencies import AppDependencies
+from claude_code_langgraph.models.base import dump_model
 from claude_code_langgraph.models.messages import event
+from claude_code_langgraph.models.tools import ToolCall, ToolResult, tool_result_to_tool_message
 
 
 def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
@@ -39,22 +38,15 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
             "ui_events": [event("permission_resolved", **record)],
         }
     metadata["tool_route"] = "rejected"
-    call = state.get("pending_tool_calls", [{}])[0]
-    result = {"id": call.get("id"), "name": pending["tool_name"], "status": "rejected", "content": "Tool call rejected by user."}
+    call = ToolCall.model_validate(state.get("pending_tool_calls", [{}])[0])
+    result = ToolResult(id=call.id, name=pending["tool_name"], status="rejected", content="Tool call rejected by user.")
+    result_payload = dump_model(result)
     return {
         "metadata": metadata,
         "pending_confirmation": None,
         "permission_decisions": [record],
         "pending_tool_calls": [],
-        "tool_results": [result],
-        "messages": [
-            ToolMessage(
-                content=json.dumps(
-                    {"name": result["name"], "status": result["status"], "content": result["content"]},
-                    ensure_ascii=False,
-                ),
-                tool_call_id=str(result.get("id") or "unknown"),
-            )
-        ],
+        "tool_results": [result_payload],
+        "messages": [tool_result_to_tool_message(result)],
         "ui_events": [event("permission_resolved", **record)],
     }

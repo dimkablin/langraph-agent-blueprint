@@ -2,24 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from claude_code_langgraph.utils.ids import new_id
+from claude_code_langgraph.models.base import dump_model
+from claude_code_langgraph.models.events import EventType, RuntimeEvent, Severity, make_event
 
 
-class StreamEvent(BaseModel):
+class StreamEvent(RuntimeEvent):
     """Client-visible event emitted from graph nodes and adapters."""
-
-    id: str = Field(default_factory=lambda: new_id("event"))
-    type: str
-    session_id: str | None = None
-    node: str | None = None
-    severity: str | None = None
-    data: dict[str, Any] = Field(default_factory=dict)
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class Usage(BaseModel):
@@ -55,12 +47,14 @@ class ToolResultRecord(BaseModel):
 
 
 def event(event_type: str, **data: Any) -> dict[str, Any]:
-    """Return a serializable stream event dictionary."""
+    """Return a validated, serializable RuntimeEvent payload.
 
-    return StreamEvent(
-        type=event_type,
-        session_id=data.get("session_id"),
-        node=data.get("node"),
-        severity=data.get("severity"),
-        data=data,
-    ).model_dump(mode="json")
+    This backward-compatible helper keeps call sites terse while ensuring every
+    emitted event follows the typed boundary contract before it enters graph
+    state, streaming, or session storage.
+    """
+
+    session_id = str(data.pop("session_id", "") or "unknown")
+    node = data.pop("node", None)
+    severity = data.pop("severity", "info") or "info"
+    return dump_model(make_event(event_type, session_id, node=node, severity=severity, data=data))  # type: ignore[arg-type]

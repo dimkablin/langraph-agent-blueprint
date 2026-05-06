@@ -7,7 +7,9 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from claude_code_langgraph.models.base import dump_model
 from claude_code_langgraph.models.messages import event
+from claude_code_langgraph.models.tools import ToolCall, ToolResult
 from claude_code_langgraph.tools.base import BaseTool, ToolExecutionContext
 from claude_code_langgraph.tools.registry import ToolRegistry
 
@@ -22,7 +24,8 @@ class ToolExecutionService:
     def execute(self, tool_call: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
         """Validate one tool call, run the tool, and format a graph/persistence record."""
 
-        tool = self.registry.get(tool_call["name"])
+        call = ToolCall.model_validate(tool_call)
+        tool = self.registry.get(call.name)
         context = ToolExecutionContext(
             project_root=Path(state["project_root"]),
             cwd=Path(state["cwd"]),
@@ -30,10 +33,10 @@ class ToolExecutionService:
             state=state,
         )
         try:
-            parsed = tool.parse_input(tool_call.get("args", {}))
+            parsed = tool.parse_input(call.args)
             output = tool.run(parsed, context)
-            record = {
-                "id": tool_call["id"],
+            record: dict[str, Any] = {
+                "id": call.id,
                 "name": tool.name,
                 "status": "ok" if getattr(output, "ok", True) else "error",
                 "content": getattr(output, "content", ""),
@@ -46,23 +49,27 @@ class ToolExecutionService:
                 record.setdefault("state_update", {}).setdefault("metadata", {})["read_files"] = sorted(context.read_files)
             if tool.name == "agent":
                 record["state_update"] = {"child_runs": [record["output"]["child_run"]]}
-            return record
+            return dump_model(ToolResult.model_validate(record))
         except (ValidationError, Exception) as exc:
-            return {
-                "id": tool_call["id"],
-                "name": tool.name,
-                "status": "error",
-                "content": str(exc),
-                "metadata": {"error_type": exc.__class__.__name__},
-                "error": {"message": str(exc), "type": exc.__class__.__name__},
-            }
+            return dump_model(
+                ToolResult(
+                    id=call.id,
+                    name=tool.name,
+                    status="error",
+                    content=str(exc),
+                    metadata={"error_type": exc.__class__.__name__},
+                    error={"message": str(exc), "type": exc.__class__.__name__},
+                )
+            )
 
     @staticmethod
     def started_event(tool_call: dict[str, Any]) -> dict[str, Any]:
-        return event("tool_call_started", id=tool_call["id"], name=tool_call["name"])
+        call = ToolCall.model_validate(tool_call)
+        return event("tool_call_started", id=call.id, name=call.name)
 
     @staticmethod
     def finished_event(record: dict[str, Any]) -> dict[str, Any]:
-        event_type = "tool_call_error" if record["status"] == "error" else "tool_call_finished"
-        return event(event_type, id=record["id"], name=record["name"], status=record["status"])
+        result = ToolResult.model_validate(record)
+        event_type = "tool_call_error" if result.status == "error" else "tool_call_finished"
+        return event(event_type, id=result.id, name=result.name, status=result.status)
 

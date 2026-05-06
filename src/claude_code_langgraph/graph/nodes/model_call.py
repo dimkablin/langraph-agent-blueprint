@@ -5,8 +5,10 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage
 
 from claude_code_langgraph.dependencies import AppDependencies
+from claude_code_langgraph.models.base import dump_model, validate_list
 from claude_code_langgraph.models.llm import ModelRequest
 from claude_code_langgraph.models.messages import event
+from claude_code_langgraph.models.tools import ToolCall
 
 
 def model_call_node(state: dict, deps: AppDependencies) -> dict:
@@ -29,6 +31,7 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
         metadata={"tool_results": state.get("tool_results", [])},
     )
     response = deps.model_provider.generate(request)
+    tool_calls = validate_list(ToolCall, response.tool_calls)
     usage = deps.usage_service.merge(state.get("usage", {}), response.usage.model_dump(mode="json"))
     events = [event("node_started", node="model_call")]
     if response.content:
@@ -37,12 +40,12 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
         events.append(event("model_token", token=token))
     message = AIMessage(
         content=response.content,
-        tool_calls=[{"id": call["id"], "name": call["name"], "args": call.get("args", {})} for call in response.tool_calls],
+        tool_calls=[{"id": call.id, "name": call.name, "args": call.args} for call in tool_calls],
     )
     return {
         "messages": [message],
-        "pending_tool_calls": response.tool_calls,
+        "pending_tool_calls": [dump_model(call) for call in tool_calls],
         "usage": usage,
-        "final_response": response.content if not response.tool_calls else None,
+        "final_response": response.content if not tool_calls else None,
         "ui_events": [*events, event("node_finished", node="model_call")],
     }
