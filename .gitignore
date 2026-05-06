@@ -34,3 +34,4 @@ frontend/dist/
 frontend/.vite/
 frontend/.env
 frontend/.env.*
+uv.lock
