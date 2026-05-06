@@ -31,6 +31,8 @@ Core tools:
 
 Tool workflow is graph-owned: UI/API call the graph, the graph routes to permission and execution nodes, and services perform low-level operations.
 
+When Langfuse observability is enabled, tool lifecycle RuntimeEvents are mapped to redacted observability events after graph execution or during streaming. This does not change tool routing or permissions.
+
 Tool names are identity only: registry key, provider function name, display/logging/persistence id, and skill `allowed_tools` matching. Semantic behavior comes from metadata:
 
 - `tool.permission.action`
@@ -76,3 +78,4 @@ Runtime status after fixes:
 - Tool routing for skill, agent, and MCP tools is metadata-driven through `tool.runtime.route`.
 - MCP tools are discovered through `MCPService`, registered with `ToolRuntimeMetadata(kind="mcp", route="mcp_graph")`, and require approval by default through `ToolPermissionMetadata(action="mcp", risk="high", external=True)`.
 - MCP adapter input schemas come from server `tools/list` `inputSchema` payloads; tool calls return through the normal `ToolResult` -> `ToolMessage` loop.
+- Observability redacts secret-like tool args before export and respects `LANGFUSE_CAPTURE_INPUTS` / `LANGFUSE_CAPTURE_OUTPUTS`.

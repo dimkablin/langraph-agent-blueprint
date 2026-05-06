@@ -23,6 +23,7 @@ api = ["fastapi", "uvicorn"]
 openai = ["langchain-openai"]
 ollama = ["langchain-ollama"]
 anthropic = ["langchain-anthropic"]
+observability = ["langfuse>=3"]
 test = ["pytest"]
 
 [project.scripts]

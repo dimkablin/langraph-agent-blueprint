@@ -140,6 +140,8 @@ Hook lifecycle events are normal `RuntimeEvent` records:
 
 They are appended to `ui_events`, streamed by `stream-json`, and persisted by `persist_session` with the rest of the session event log.
 
+When Langfuse observability is enabled, hook RuntimeEvents are mapped by `ObservabilityService` like other lifecycle events. Langfuse does not change hook dispatch, trust, result application, or permission behavior.
+
 ## Permissions
 
 Hooks cannot bypass `PermissionService`.
@@ -173,4 +175,5 @@ The current command lists registered hooks, hook point, plugin name, priority, a
 - Declarative plugin hooks are intentionally small and data-only.
 - `request_permission` is represented but not wired to create permission interrupts.
 - MCP tool calls use the normal `pre_tool`, `permission_request`, `permission_resolved`, `post_tool`, and `error` hook points; hooks still cannot execute MCP calls directly.
+- Langfuse observability consumes hook events; it does not introduce Langfuse-specific hook behavior in graph nodes.
 - Hook-added context is prompt content and must be treated as untrusted when it comes from external plugins.

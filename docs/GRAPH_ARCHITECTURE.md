@@ -92,6 +92,18 @@ Graph nodes append shared `ui_events` through LangGraph reducers. Events include
 
 `AssistantGraphRuntime.stream()` uses LangGraph value streaming and yields only newly appended events from each state delta. `query --output stream-json` writes those events as plain JSON lines.
 
+## Observability Boundary
+
+Optional Langfuse tracing is attached at the graph runtime boundary:
+
+- `AssistantGraphRuntime.invoke(...)`
+- `AssistantGraphRuntime.resume(...)`
+- `AssistantGraphRuntime.stream(...)`
+
+`ObservabilityService` preserves `configurable.thread_id` and adds callbacks, metadata, tags, and a run name to LangGraph config. RuntimeEvents are mapped after invoke/resume or as stream chunks yield new events. This keeps LangGraph as workflow owner; Langfuse observes graph execution and does not call tools, skills, hooks, MCP, permissions, or storage directly.
+
+Trace metadata avoids full local project paths by default and sends a project-root basename plus hash. Full paths are opt-in through `LANGFUSE_INCLUDE_PROJECT_PATHS=true`.
+
 ## Tool Message Loop
 
 Tool calling now follows provider-compatible message order:
@@ -128,3 +140,7 @@ Plugin hooks are declarative/data-only contributions parsed by `PluginService` a
 MCP tools are regular tools with `ToolRuntimeMetadata(kind="mcp", route="mcp_graph")` and conservative `ToolPermissionMetadata(action="mcp", risk="high", requires_permission=True, external=True)`. `tool_router` reads that metadata, asks for permission when required, and routes approved MCP calls to `mcp_graph`; it does not route by `mcp.` name prefix.
 
 MCP events such as `mcp_server_connected`, `mcp_tools_discovered`, `mcp_tool_call_started`, and `mcp_tool_call_finished` are normal `RuntimeEvent` records and are streamed/persisted with the session.
+
+## Langfuse Event Mapping
+
+RuntimeEvent mapping records compact, redacted semantic events for permissions, skills, hooks, MCP, compaction, persistence, final responses, and errors. LangChain/LangGraph callbacks remain the primary automatic model/tool tracing integration.

@@ -17,6 +17,7 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - plugin config/manifests/discovery -> `PluginSource`, `PluginManifest`, `PluginContribution`, and `PluginInstallResult`
 - hook discovery/invocation/results -> `HookContribution`, `HookContext`, `HookInvocation`, `HookResult`, and `HookRunSummary`
 - MCP config/discovery/invocation -> `MCPServerConfig`, `MCPConnectionState`, `MCPToolContribution`, `MCPResourceContribution`, `MCPPromptContribution`, `MCPToolCallRequest`, `MCPToolCallResult`, `MCPResourceReadResult`, and `MCPPromptGetResult`
+- observability config/trace/events -> `LangfuseConfig`, `TraceContext`, `TraceMetadata`, and `ObservabilityEvent`
 
 The LangGraph state remains checkpointer-safe: nodes store dictionaries and lists in state, and validate them at node/service boundaries with `model_validate(...)`. Outgoing DTOs are serialized with `model_dump(mode="json")`.
 
@@ -115,6 +116,17 @@ MCP boundary models live in `langgraph_agent_blueprint.models.mcp`.
 - `MCPResourceReadResult` and `MCPPromptGetResult` mark external content as untrusted.
 
 Graph state stores MCP snapshots as JSON-safe dictionaries. The stdio transport and service keep process objects outside LangGraph state.
+
+## Observability
+
+Observability boundary models live in `langgraph_agent_blueprint.models.observability`.
+
+- `LangfuseConfig` validates optional Langfuse config and exposes a redacted status view.
+- `TraceContext` carries session/thread/environment/release/tag metadata into graph callback config.
+- `TraceMetadata` describes provider/model/tool/skill/plugin/MCP runtime dimensions.
+- `ObservabilityEvent` normalizes RuntimeEvent-derived payloads before they are sent to an observability backend.
+
+Langfuse SDK clients and callback handlers are never stored in graph state. RuntimeEvent payloads are redacted/truncated before export.
 
 ## Sessions
 

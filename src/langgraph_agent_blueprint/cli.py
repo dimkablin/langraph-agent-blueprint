@@ -137,7 +137,10 @@ def remove_plugin(name: str) -> None:
 @app.command()
 def doctor() -> None:
     runtime = _runtime()
-    console.print(json.dumps(runtime.dependencies.diagnostics_service.run(), indent=2))
+    diagnostics = runtime.dependencies.diagnostics_service.run()
+    diagnostics["mcp"] = runtime.dependencies.mcp_service.diagnostics()
+    diagnostics["langfuse"] = runtime.dependencies.observability_service.status()
+    console.print(json.dumps(diagnostics, indent=2))
 
 
 def main() -> None:

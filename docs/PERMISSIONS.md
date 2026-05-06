@@ -21,6 +21,8 @@ Policy:
 
 Human approval uses LangGraph interrupt/resume. `pending_confirmation` is stored in graph state before `permission_gate` interrupts.
 
+When Langfuse observability is enabled, permission lifecycle events are traced as redacted RuntimeEvent-derived events. Observability cannot approve, reject, or skip permissions.
+
 ## Hooks
 
 Hooks cannot bypass permission policy. Plugin hooks are declarative/data-only and cannot execute shell, write files, use network, or call MCP directly.
@@ -35,6 +37,7 @@ Runtime status after fixes:
 - Network tools with `requires_permission=True` are no longer auto-allowed just because they are read-only.
 - `permission_required` action/risk values come from tool metadata, not registry names.
 - Confirmation args are recursively redacted with default secret-like keys plus each tool's `sensitive_arg_keys`.
+- Langfuse status/config/event export redacts permission payload secrets before they leave the runtime.
 
 ## MCP
 

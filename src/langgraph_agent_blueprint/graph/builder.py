@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -9,6 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
+from langgraph_agent_blueprint.models.observability import TraceContext, TraceMetadata
 
 from .checkpoints import default_checkpointer
 from .nodes.bootstrap_config import bootstrap_config_node
@@ -153,11 +155,29 @@ class AssistantGraphRuntime:
         )
         if session_id:
             self._hydrate_session_state(state)
-        config = {"configurable": {"thread_id": state["thread_id"]}}
-        return self.app.invoke(state, config)
+        config = self._graph_config(state)
+        result = self.app.invoke(state, config)
+        self._record_result_events(result)
+        self.dependencies.observability_service.flush()
+        return result
 
     def resume(self, thread_id: str, decision: dict[str, Any]) -> dict[str, Any]:
-        return self.app.invoke(Command(resume=decision), {"configurable": {"thread_id": thread_id}})
+        initial_context = TraceContext(
+            session_id=thread_id,
+            thread_id=thread_id,
+            environment=self.dependencies.config.langfuse.environment,
+            release=self.dependencies.config.langfuse.release,
+            user_id=self.dependencies.config.langfuse.trace_user_id,
+        )
+        config = self.dependencies.observability_service.build_graph_config(
+            {"configurable": {"thread_id": thread_id}},
+            initial_context,
+            self._trace_metadata({}),
+        )
+        result = self.app.invoke(Command(resume=decision), config)
+        self._record_result_events(result)
+        self.dependencies.observability_service.flush()
+        return result
 
     def stream(self, input_text: str, input_kind: str = "headless") -> Iterable[dict[str, Any]]:
         """Yield newly appended UI events from LangGraph value-stream state updates."""
@@ -169,15 +189,21 @@ class AssistantGraphRuntime:
             cwd=self.dependencies.config.cwd or self.dependencies.config.project_root or Path.cwd(),
             input_kind=input_kind,
         )
-        for chunk in self.app.stream(
-            state,
-            {"configurable": {"thread_id": state["thread_id"]}},
-            stream_mode="values",
-        ):
-            events = chunk.get("ui_events", [])
-            for item in events[previous_count:]:
-                yield item
-            previous_count = len(events)
+        config = self._graph_config(state)
+        try:
+            for chunk in self.app.stream(
+                state,
+                config,
+                stream_mode="values",
+            ):
+                context = self._trace_context(chunk if isinstance(chunk, dict) else state)
+                events = chunk.get("ui_events", [])
+                for item in events[previous_count:]:
+                    self.dependencies.observability_service.record_runtime_event(item, context)
+                    yield item
+                previous_count = len(events)
+        finally:
+            self.dependencies.observability_service.flush()
 
     def _hydrate_session_state(self, state: dict[str, Any]) -> None:
         """Mutate initial state with persisted session messages, todos, memory, usage, and metadata."""
@@ -207,3 +233,65 @@ class AssistantGraphRuntime:
         ]:
             metadata.pop(key, None)
         state["metadata"] = metadata
+
+    def _graph_config(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Build LangGraph invocation config with observability callbacks and metadata."""
+
+        return self.dependencies.observability_service.build_graph_config(
+            {"configurable": {"thread_id": state["thread_id"]}},
+            self._trace_context(state),
+            self._trace_metadata(state),
+        )
+
+    def _record_result_events(self, result: dict[str, Any]) -> None:
+        """Record accumulated UI events after graph invoke/resume returns."""
+
+        if not isinstance(result, dict):
+            return
+        self.dependencies.observability_service.record_runtime_events(
+            result.get("ui_events", []),
+            self._trace_context(result),
+        )
+
+    def _trace_context(self, state: dict[str, Any]) -> TraceContext:
+        config = self.dependencies.config
+        project_root = state.get("project_root") or config.project_root or Path.cwd()
+        safe_root, root_hash = self._safe_project_root(project_root)
+        tags = ["runtime"]
+        if config.llm_provider:
+            tags.append(str(config.llm_provider))
+        metadata = {"project_root_hash": root_hash}
+        return TraceContext(
+            session_id=str(state.get("session_id") or "unknown"),
+            thread_id=state.get("thread_id"),
+            project_root=safe_root,
+            user_id=config.langfuse.trace_user_id,
+            environment=config.langfuse.environment,
+            release=config.langfuse.release,
+            tags=tags,
+            metadata=metadata,
+        )
+
+    def _trace_metadata(self, state: dict[str, Any]) -> TraceMetadata:
+        config = self.dependencies.config
+        plugins = state.get("plugin_state", {}).get("plugins", []) if isinstance(state, dict) else []
+        plugin_names = [str(plugin.get("name")) for plugin in plugins if plugin.get("name")]
+        mcp_servers = list((config.mcp_config.get("servers") or {}).keys()) if isinstance(config.mcp_config, dict) else []
+        active_skill = state.get("active_skill") if isinstance(state, dict) else None
+        active_tool = (state.get("pending_tool_calls") or [{}])[0] if isinstance(state, dict) and state.get("pending_tool_calls") else None
+        return TraceMetadata(
+            provider=config.llm_provider,
+            model=config.effective_model(),
+            active_skill=active_skill.get("name") if isinstance(active_skill, dict) else None,
+            active_tool=active_tool.get("name") if isinstance(active_tool, dict) else None,
+            plugin_names=plugin_names,
+            mcp_servers=[str(name) for name in mcp_servers],
+            permission_mode=config.permission_mode,
+        )
+
+    def _safe_project_root(self, project_root: str | Path) -> tuple[str, str]:
+        root_text = str(Path(project_root).resolve())
+        root_hash = hashlib.sha256(root_text.encode("utf-8")).hexdigest()[:12]
+        if self.dependencies.config.langfuse.include_project_paths:
+            return root_text, root_hash
+        return Path(root_text).name, root_hash

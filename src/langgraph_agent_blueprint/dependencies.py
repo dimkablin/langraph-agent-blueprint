@@ -17,6 +17,7 @@ from langgraph_agent_blueprint.services.hook_service import HookService
 from langgraph_agent_blueprint.services.mcp_service import MCPService
 from langgraph_agent_blueprint.services.memory_service import MemoryService
 from langgraph_agent_blueprint.services.model_provider import ModelProviderService
+from langgraph_agent_blueprint.services.observability_service import ObservabilityService
 from langgraph_agent_blueprint.services.permission_service import PermissionService
 from langgraph_agent_blueprint.services.plugin_service import PluginService
 from langgraph_agent_blueprint.services.session_service import SessionService
@@ -55,6 +56,7 @@ class AppDependencies:
     diagnostics_service: DiagnosticsService
     command_service: CommandService
     usage_service: UsageService
+    observability_service: ObservabilityService
 
 
 def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
@@ -115,4 +117,5 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         diagnostics_service=DiagnosticsService(),
         command_service=CommandService(command_registry),
         usage_service=UsageService(),
+        observability_service=ObservabilityService(config.langfuse),
     )

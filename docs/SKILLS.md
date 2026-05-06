@@ -52,6 +52,8 @@ Optional audited skills are documented but disabled initially: `loop`, `schedule
 
 Skills do not own workflow routing. LangGraph invokes skills through `skill_graph` and `SkillTool`.
 
+When Langfuse observability is enabled, skill lifecycle events are exported through `ObservabilityService` as redacted RuntimeEvent-derived events. Observability does not change skill lookup, allowed-tool scoping, plugin bootstrap, or permission behavior.
+
 MCP prompts are discovered through `MCPService.prompts/list` and can be retrieved as untrusted prompt content with `prompts/get`. Automatic MCP prompt-to-skill registration is not enabled in Phase 2; the planned namespace is `mcp/<server>/prompt/<prompt>`.
 
 Skill arguments are typed with Pydantic schemas. Built-in skills use dedicated schemas such as
@@ -69,3 +71,4 @@ Runtime status after fixes:
 - Plugin bootstrap context can make plugin skills discoverable before the first model response.
 - `remember` writes durable memory; `/memory` reads it.
 - Other bundled skills remain prompt-driven capabilities that use the shared model/tool loop and normal permission rules for side effects.
+- Skill events, including plugin skills such as `superpowers/brainstorming`, are observable when Langfuse is enabled.

@@ -127,6 +127,7 @@ def _status(args: str, state: dict[str, Any]) -> CommandResult:
                 f"tools: {len(state.get('available_tools', {}))}",
                 f"skills: {len(state.get('available_skills', {}))}",
                 f"commands: {len(state.get('available_commands', {}))}",
+                f"langfuse: {'enabled' if state.get('observability_state', {}).get('enabled') else 'disabled'}",
             ]
         ),
     )
@@ -146,6 +147,28 @@ def _config(args: str, state: dict[str, Any]) -> CommandResult:
 
 def _doctor(args: str, state: dict[str, Any]) -> CommandResult:
     return CommandResult(True, "Doctor requested.", metadata={"doctor_requested": True})
+
+
+def _observability(args: str, state: dict[str, Any]) -> CommandResult:
+    """Render observability backend status without exposing secrets."""
+
+    status = state.get("observability_state", {})
+    if not status:
+        return CommandResult(True, "Langfuse: unavailable")
+    enabled = "enabled" if status.get("enabled") else "disabled"
+    lines = [
+        f"Langfuse: {enabled}",
+        f"mode: {status.get('mode')}",
+        f"sdk_installed: {status.get('sdk_installed')}",
+        f"base_url_configured: {status.get('base_url_configured')}",
+        f"public_key_present: {status.get('public_key_present')}",
+        f"secret_key_present: {status.get('secret_key_present')}",
+        f"capture_inputs: {status.get('capture_inputs')}",
+        f"capture_outputs: {status.get('capture_outputs')}",
+    ]
+    if status.get("last_error"):
+        lines.append(f"last_error: {status.get('last_error')}")
+    return CommandResult(True, "\n".join(lines))
 
 
 def _mcp(args: str, state: dict[str, Any]) -> CommandResult:
@@ -250,6 +273,7 @@ def builtins() -> list[Command]:
         Command("cost", "Show usage/cost", "local", _cost),
         Command("config", "Show config", "local", _config),
         Command("doctor", "Run diagnostics", "diagnostic", _doctor),
+        Command("observability", "Show observability status", "diagnostic", _observability),
         Command("memory", "Show memory", "local", _memory),
         Command("todo", "Show todos", "local", _todo),
         Command("prompt", "Expand a prompt command", "prompt", _prompt),

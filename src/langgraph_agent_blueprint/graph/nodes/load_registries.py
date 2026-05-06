@@ -35,6 +35,7 @@ def load_registries_node(state: dict, deps: AppDependencies) -> dict:
             "transport_support": mcp_state.get("transport_support", {}),
         },
         "hooks_state": {"registered_hooks": deps.hook_registry.snapshot(), "registered_hook_count": len(deps.hook_registry.list_hooks())},
+        "observability_state": deps.observability_service.status(),
         "metadata": metadata,
         "ui_events": events,
     }

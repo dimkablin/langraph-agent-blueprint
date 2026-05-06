@@ -16,6 +16,7 @@ Implemented commands:
 | `/cost` | local | Shows usage telemetry and honest unavailable cost when pricing is absent. |
 | `/config` | local | Shows redacted runtime config and path separation. |
 | `/doctor` | diagnostic | Calls diagnostics service. |
+| `/observability` | diagnostic | Shows redacted Langfuse observability status. |
 | `/memory` | local | Shows durable memory. |
 | `/todo` | local | Shows persisted todos. |
 | `/plugins` | local | Lists installed/enabled plugins, skill counts, bootstrap status, and discovery errors. |
@@ -32,6 +33,7 @@ Runtime status after fixes:
 - `/resume` loads latest/specific session state.
 - `/export` writes a transcript file.
 - `/doctor` calls diagnostics.
+- `/observability` reports Langfuse enabled mode, SDK availability, configured URL/key presence, capture flags, and last error.
 - `/memory` and `/todo` read durable restored state.
 - `/plugins` reports discovered external plugin contributions.
 - `/hooks` reports hook registry state exposed by `load_registries`.

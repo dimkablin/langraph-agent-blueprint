@@ -149,6 +149,10 @@ MCP tool calls pass through normal hook lifecycle points:
 
 Hooks still cannot execute MCP calls directly or bypass permissions.
 
+## Observability
+
+When Langfuse is enabled, MCP discovery and tool-call events are exported through the same RuntimeEvent mapping as the rest of the graph. MCP tools still require normal permission approval and route through `mcp_graph`; observability does not execute MCP calls or bypass permission checks.
+
 ## Security Model
 
 - MCP servers are external and untrusted unless configured otherwise.
@@ -181,3 +185,4 @@ It implements `initialize`, `tools/list`, `tools/call`, `resources/list`, `resou
 - No OAuth flow.
 - No marketplace or automatic discovery.
 - The stdio transport is intentionally synchronous and one-request-at-a-time for Phase 2.
+- Langfuse tracing is optional and tested with mocks; live trace visibility requires user-provided Langfuse keys.

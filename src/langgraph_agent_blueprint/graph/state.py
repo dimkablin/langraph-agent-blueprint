@@ -53,6 +53,7 @@ class AssistantState(TypedDict, total=False):
     mcp_state: dict[str, Any]
     plugin_state: dict[str, Any]
     hooks_state: dict[str, Any]
+    observability_state: dict[str, Any]
     child_runs: Annotated[list[dict[str, Any]], append_list]
     artifacts: Annotated[list[dict[str, Any]], append_list]
     exported_outputs: Annotated[list[dict[str, Any]], append_list]
@@ -104,6 +105,7 @@ def create_initial_state(
         mcp_state={},
         plugin_state={},
         hooks_state={},
+        observability_state={},
         child_runs=[],
         artifacts=[],
         exported_outputs=[],

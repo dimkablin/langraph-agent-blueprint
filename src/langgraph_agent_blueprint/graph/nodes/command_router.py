@@ -46,6 +46,7 @@ def command_router_node(state: dict, deps: AppDependencies) -> dict:
     if name == "doctor" and result.metadata and result.metadata.get("doctor_requested"):
         diagnostics = deps.diagnostics_service.run()
         diagnostics["mcp"] = deps.mcp_service.diagnostics()
+        diagnostics["langfuse"] = deps.observability_service.status()
         update["final_response"] = json.dumps(diagnostics, ensure_ascii=False, indent=2)
         metadata["diagnostics"] = diagnostics
     if name == "export" and result.metadata and result.metadata.get("export_requested"):

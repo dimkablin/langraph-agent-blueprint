@@ -9,6 +9,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from langgraph_agent_blueprint.models.observability import LangfuseConfig
+
 
 PermissionMode = Literal["default", "accept_edits", "bypass_read_only", "plan", "strict"]
 ProviderName = Literal["anthropic", "openai", "ollama", "openai_compatible", "fake"]
@@ -31,6 +33,7 @@ class AppConfig(BaseModel):
     skills_paths: list[Path] = Field(default_factory=list)
     plugin_paths: list[Path] = Field(default_factory=list)
     mcp_config: dict[str, Any] = Field(default_factory=dict)
+    langfuse: LangfuseConfig = Field(default_factory=LangfuseConfig)
     cors_allowed_origins: list[str] = Field(
         default_factory=lambda: [
             "http://127.0.0.1:5173",
@@ -63,6 +66,9 @@ class AppConfig(BaseModel):
         storage_dir = env_value("CC_LANGGRAPH_STORAGE_DIR") or env_value("langgraph_agent_blueprint_STORAGE_DIR")
         provider = env_value("LLM_PROVIDER", "fake")
         model_name = env_value("MODEL_NAME") or env_value("OLLAMA_MODEL") or "fake-model"
+        langfuse_enabled = cls._bool(env_value("LANGFUSE_ENABLED"), default=False)
+        langfuse_base_url = env_value("LANGFUSE_BASE_URL") or env_value("LANGFUSE_HOST")
+        langfuse_environment = env_value("LANGFUSE_ENVIRONMENT") or env_value("LANGFUSE_TRACING_ENVIRONMENT") or "dev"
         values: dict[str, Any] = {
             "llm_provider": provider,
             "model_name": model_name,
@@ -81,6 +87,19 @@ class AppConfig(BaseModel):
             "skills_paths": [Path(item) for item in cls._split_path_list(env_value("SKILLS_PATHS") or env_value("LG_AGENT_SKILLS_PATHS"))],
             "plugin_paths": [Path(item) for item in cls._split_path_list(env_value("PLUGIN_PATHS") or env_value("LG_AGENT_PLUGIN_PATHS"))],
             "mcp_config": cls._json_config(env_value("MCP_CONFIG_JSON") or env_value("LG_AGENT_MCP_CONFIG_JSON")),
+            "langfuse": LangfuseConfig(
+                enabled=langfuse_enabled,
+                public_key=env_value("LANGFUSE_PUBLIC_KEY"),
+                secret_key=env_value("LANGFUSE_SECRET_KEY"),
+                base_url=langfuse_base_url,
+                environment=langfuse_environment,
+                release=env_value("LANGFUSE_RELEASE"),
+                trace_user_id=env_value("LANGFUSE_TRACE_USER_ID"),
+                debug=cls._bool(env_value("LANGFUSE_DEBUG"), default=False),
+                capture_inputs=cls._bool(env_value("LANGFUSE_CAPTURE_INPUTS"), default=True),
+                capture_outputs=cls._bool(env_value("LANGFUSE_CAPTURE_OUTPUTS"), default=True),
+                include_project_paths=cls._bool(env_value("LANGFUSE_INCLUDE_PROJECT_PATHS"), default=False),
+            ),
             "cors_allowed_origins": cls._split_csv(
                 env_value("CORS_ALLOWED_ORIGINS"),
                 [
@@ -111,6 +130,12 @@ class AppConfig(BaseModel):
         return [item.strip() for item in items if item.strip()]
 
     @staticmethod
+    def _bool(value: str | None, *, default: bool = False) -> bool:
+        if value is None:
+            return default
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
     def _json_config(value: str | None) -> dict[str, Any]:
         if not value:
             return {}
@@ -137,10 +162,20 @@ class AppConfig(BaseModel):
         """Return config suitable for events/logs without secrets."""
 
         data = self.model_dump(mode="json")
-        for key in list(data):
-            if "key" in key.lower() or "token" in key.lower():
-                data[key] = "***" if data[key] else None
-        return data
+        return _redact_for_display(data)
+
+
+def _redact_for_display(value: Any, key: str | None = None) -> Any:
+    """Recursively redact secrets from config/status dictionaries."""
+
+    sensitive_parts = ("api_key", "apikey", "authorization", "auth", "key", "password", "secret", "token")
+    if key and any(part in key.lower() for part in sensitive_parts):
+        return "***" if value not in (None, "") else None
+    if isinstance(value, dict):
+        return {str(item_key): _redact_for_display(item_value, str(item_key)) for item_key, item_value in value.items()}
+    if isinstance(value, list):
+        return [_redact_for_display(item) for item in value]
+    return value
 
 
 def _load_dotenv_values(path: Path) -> dict[str, str]:

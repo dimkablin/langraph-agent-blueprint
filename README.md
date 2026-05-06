@@ -108,6 +108,22 @@ lg-agent query "/doctor"
 
 Discovered tools register as `mcp.<server>.<tool>` and route through `ToolRuntimeMetadata(kind="mcp", route="mcp_graph")`. Unknown MCP tools require approval by default and cannot bypass `PermissionService`. Resource and prompt content is marked external/untrusted. See `docs/MCP.md`.
 
+## Optional: Langfuse Observability
+
+Langfuse tracing is optional and disabled by default. Install the extra and set keys when you have a Langfuse project:
+
+```powershell
+python -m pip install -e ".[observability]"
+$env:LANGFUSE_ENABLED = "true"
+$env:LANGFUSE_PUBLIC_KEY = "pk-lf-..."
+$env:LANGFUSE_SECRET_KEY = "sk-lf-..."
+$env:LANGFUSE_BASE_URL = "https://your-langfuse-host"
+lg-agent doctor
+lg-agent query "hello"
+```
+
+The graph attaches Langfuse callbacks at invoke/stream boundaries and maps critical RuntimeEvents for tools, skills, hooks, MCP, permissions, compaction, persistence, final responses, and errors. If disabled, missing, or misconfigured, normal runtime behavior continues with no-op observability. `/doctor`, `/config`, and `/observability` redact keys. See `docs/OBSERVABILITY.md`.
+
 ## Optional: Superpowers Plugin
 
 Superpowers can be installed as an external plugin contribution. Git install/update is explicit network work, so enable network first:
@@ -195,7 +211,7 @@ Tool-use loops, permission flow, skill invocation, hooks, subagents, compaction,
 
 ## Runtime Boundary Contracts
 
-Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, skill args use skill-specific schemas, tools declare `ToolPermissionMetadata` / `ToolRuntimeMetadata`, plugins validate `PluginContribution`, and hooks validate `HookContribution` / `HookResult`.
+Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, skill args use skill-specific schemas, tools declare `ToolPermissionMetadata` / `ToolRuntimeMetadata`, plugins validate `PluginContribution`, hooks validate `HookContribution` / `HookResult`, MCP validates server/tool/resource/prompt DTOs, and observability validates `LangfuseConfig` / `TraceContext` / `TraceMetadata`.
 
 See `docs/PYDANTIC_BOUNDARIES.md` for the contract map and extension rules.
 
@@ -259,6 +275,7 @@ Slash commands are routed through `CommandRegistry` and `command_router`:
 - `/plugins`
 - `/hooks`
 - `/mcp`
+- `/observability`
 
 Optional commands such as `/context`, `/rewind`, `/branch`, `/rename`, and `/tag` are recognized with documented limitations.
 
