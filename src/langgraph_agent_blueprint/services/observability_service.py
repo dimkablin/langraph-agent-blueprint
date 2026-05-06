@@ -600,7 +600,7 @@ class ScopedObservabilityTurn:
             "session_id": self.trace_context.session_id,
             "user_id": self.trace_context.user_id,
             "tags": self._tags(),
-            "metadata": self._base_metadata(),
+            "metadata": self._propagation_metadata(),
             "version": self.trace_context.release,
         }
         clean = {key: value for key, value in kwargs.items() if value not in (None, [], {})}
@@ -632,6 +632,28 @@ class ScopedObservabilityTurn:
         if self.trace_metadata:
             metadata.update(self.trace_metadata.model_dump(mode="json", exclude_none=True))
         return self.service.mapper.redact(metadata)
+
+    def _propagation_metadata(self) -> dict[str, str]:
+        metadata = self._base_metadata()
+        return {
+            key: self._stringify_propagation_value(value, limit=200)
+            for key, value in metadata.items()
+            if value not in (None, "", [], {})
+        }
+
+    def _stringify_propagation_value(self, value: Any, *, limit: int = 200) -> str:
+        if isinstance(value, str):
+            text = value
+        elif isinstance(value, bool):
+            text = "true" if value else "false"
+        elif isinstance(value, (int, float)):
+            text = str(value)
+        else:
+            text = json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)
+        if len(text) > limit:
+            suffix = "...[truncated]"
+            return text[: max(0, limit - len(suffix))] + suffix
+        return text
 
     def _tags(self) -> list[str]:
         return [

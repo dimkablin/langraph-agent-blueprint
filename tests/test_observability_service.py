@@ -88,7 +88,7 @@ class RecordingPropagationContext(AbstractContextManager):
             trace["session_id"] = self.payload.get("session_id") or trace.get("session_id")
             trace["user_id"] = self.payload.get("user_id") or trace.get("user_id")
             trace["tags"] = self.payload.get("tags") or trace.get("tags", [])
-            trace.setdefault("metadata", {}).update(self.payload.get("metadata") or {})
+            trace["propagated_metadata"] = self.payload.get("metadata") or {}
         return self
 
     def __exit__(self, exc_type, exc, traceback) -> None:
@@ -103,6 +103,7 @@ class RecordingLangfuseClient:
         self.child_observations: list[dict] = []
         self.unscoped_events: list[dict] = []
         self.metadata_updates: list[dict] = []
+        self.propagated_payloads: list[dict] = []
         self.flushed = False
         self._active_stack: list[dict] = []
         self._propagated_stack: list[dict] = []
@@ -130,6 +131,7 @@ class RecordingLangfuseClient:
         return RecordingObservationContext(self, as_type, name, kwargs)
 
     def propagate_attributes(self, **kwargs):
+        self.propagated_payloads.append(kwargs)
         return RecordingPropagationContext(self, kwargs)
 
     def create_event(self, **kwargs):
@@ -248,3 +250,43 @@ def test_graph_config_preserves_configurable_and_adds_callbacks_metadata_tags() 
     assert factory.callbacks_created == 1
     assert len(factory.client.top_level_traces) == 1
     assert factory.client.top_level_traces[0]["session_id"] == "session-1"
+
+
+def test_propagation_metadata_is_string_only_without_flattening_root_metadata() -> None:
+    factory = RecordingLangfuseFactory()
+    service = ObservabilityService(
+        LangfuseConfig(
+            enabled=True,
+            public_key="pk",
+            secret_key="sk",
+            base_url="https://langfuse.example",
+            environment="ci",
+        ),
+        factory=factory,
+    )
+    context = TraceContext(
+        session_id="session-1",
+        thread_id="thread-1",
+        environment="ci",
+        metadata={
+            "turn_index": 1,
+            "flags": {"debug": True},
+            "secret_token": "do-not-leak",
+        },
+    )
+    metadata = TraceMetadata(provider="fake", plugin_names=["superpowers", "local"], mcp_servers=["fake"])
+
+    with service.trace_turn(context, metadata, input_data={"message": "hello"}):
+        pass
+
+    propagated = factory.client.propagated_payloads[0]["metadata"]
+    root_metadata = factory.client.top_level_traces[0]["metadata"]
+    assert all(isinstance(value, str) for value in propagated.values())
+    assert propagated["turn_index"] == "1"
+    assert propagated["plugin_names"] == '["superpowers","local"]'
+    assert propagated["mcp_servers"] == '["fake"]'
+    assert propagated["flags"] == '{"debug":true}'
+    assert "do-not-leak" not in str(propagated)
+    assert root_metadata["turn_index"] == 1
+    assert root_metadata["plugin_names"] == ["superpowers", "local"]
+    assert root_metadata["mcp_servers"] == ["fake"]
