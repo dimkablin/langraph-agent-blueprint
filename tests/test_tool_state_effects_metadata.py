@@ -1,4 +1,4 @@
-"""Regression tests for metadata-driven post-tool state effects."""
+﻿"""Regression tests for metadata-driven post-tool state effects."""
 
 from __future__ import annotations
 
@@ -6,12 +6,12 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.nodes.tool_executor import tool_executor_node
-from claude_code_langgraph.graph.state import create_initial_state
-from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
-from claude_code_langgraph.tools.base import BaseTool, ToolExecutionContext, ToolOutput
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.nodes.tool_executor import tool_executor_node
+from langgraph_agent_blueprint.graph.state import create_initial_state
+from langgraph_agent_blueprint.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
+from langgraph_agent_blueprint.tools.base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class TodoInput(BaseModel):

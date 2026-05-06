@@ -1,9 +1,9 @@
-"""Pytest coverage for subagent graph behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for subagent graph behavior in the Python/LangGraph assistant."""
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.subgraphs.agent_graph import build_agent_graph
-from claude_code_langgraph.graph.state import create_initial_state
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.subgraphs.agent_graph import build_agent_graph
+from langgraph_agent_blueprint.graph.state import create_initial_state
 
 
 def test_child_graph_runs_and_result_merges(tmp_path):

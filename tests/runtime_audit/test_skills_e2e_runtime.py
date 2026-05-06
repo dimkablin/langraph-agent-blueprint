@@ -1,15 +1,15 @@
-"""Runtime-audit regression tests proving end-to-end graph behavior for commands, skills, providers, and tools."""
+﻿"""Runtime-audit regression tests proving end-to-end graph behavior for commands, skills, providers, and tools."""
 
 from __future__ import annotations
 
 import pytest
 from langchain_core.messages import ToolMessage
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.builder import AssistantGraphRuntime
-from claude_code_langgraph.graph.nodes.tool_router import tool_router_node
-from claude_code_langgraph.graph.state import create_initial_state
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.graph.nodes.tool_router import tool_router_node
+from langgraph_agent_blueprint.graph.state import create_initial_state
 
 
 def _runtime(tmp_path):

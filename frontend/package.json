@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-langgraph-frontend",
+  "name": "langgraph-agent-blueprint-frontend",
   "version": "0.1.0",
   "private": true,
   "type": "module",

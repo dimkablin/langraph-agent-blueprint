@@ -1,4 +1,4 @@
-"""Pytest coverage for cli headless behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for cli headless behavior in the Python/LangGraph assistant."""
 
 import json
 import os
@@ -12,7 +12,7 @@ def run_cli(tmp_path, *args):
     env["LLM_PROVIDER"] = "fake"
     env["CC_LANGGRAPH_STORAGE_DIR"] = str(tmp_path)
     return subprocess.run(
-        [sys.executable, "-m", "claude_code_langgraph", *args],
+        [sys.executable, "-m", "langgraph_agent_blueprint", *args],
         cwd=os.getcwd(),
         env=env,
         text=True,

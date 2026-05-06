@@ -23,21 +23,21 @@ Current as of 2026-05-06.
 
 ## Final Acceptance Fixes Added
 
-- `src/claude_code_langgraph/skills/args.py`: added typed Pydantic skill argument schemas, explicit string-to-schema mappings, size limits, validation errors, and prompt formatting.
-- `src/claude_code_langgraph/skills/invocation.py`: validates skill args against each skill's schema before rendering `SKILL.md`.
-- `src/claude_code_langgraph/graph/nodes/skill_router.py`: returns structured ToolMessage validation errors and uses typed `remember` args for durable memory.
-- `src/claude_code_langgraph/services/model_provider.py`: fake provider now treats `tool:bash {"command":"..."}` as JSON args, matching real provider contracts.
-- `src/claude_code_langgraph/tools/search_tools.py`: relative `path` values for `glob`/`grep` resolve under `project_root`, preserving confinement and making `path="src"` work from any process cwd.
-- `src/claude_code_langgraph/tools/web_tools.py`: `web_fetch` propagates untrusted-content warning metadata from `WebService`.
+- `src/langgraph_agent_blueprint/skills/args.py`: added typed Pydantic skill argument schemas, explicit string-to-schema mappings, size limits, validation errors, and prompt formatting.
+- `src/langgraph_agent_blueprint/skills/invocation.py`: validates skill args against each skill's schema before rendering `SKILL.md`.
+- `src/langgraph_agent_blueprint/graph/nodes/skill_router.py`: returns structured ToolMessage validation errors and uses typed `remember` args for durable memory.
+- `src/langgraph_agent_blueprint/services/model_provider.py`: fake provider now treats `tool:bash {"command":"..."}` as JSON args, matching real provider contracts.
+- `src/langgraph_agent_blueprint/tools/search_tools.py`: relative `path` values for `glob`/`grep` resolve under `project_root`, preserving confinement and making `path="src"` work from any process cwd.
+- `src/langgraph_agent_blueprint/tools/web_tools.py`: `web_fetch` propagates untrusted-content warning metadata from `WebService`.
 
 ## Tool Metadata Refactor Added
 
-- `src/claude_code_langgraph/models/tool_metadata.py`: added `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect`.
-- `src/claude_code_langgraph/tools/base.py`: `BaseTool` now exposes `permission` and `runtime` metadata plus compatibility wrappers for legacy properties.
+- `src/langgraph_agent_blueprint/models/tool_metadata.py`: added `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect`.
+- `src/langgraph_agent_blueprint/tools/base.py`: `BaseTool` now exposes `permission` and `runtime` metadata plus compatibility wrappers for legacy properties.
 - Core tools now declare explicit permission/runtime metadata.
-- `src/claude_code_langgraph/services/permission_service.py`: permission policy uses `tool.permission`; `_permission_action` and `_permission_risk` were removed.
-- `src/claude_code_langgraph/graph/nodes/tool_router.py`: skill/agent/MCP routing uses `tool.runtime.route`, not hardcoded tool names or `mcp.` prefixes.
-- `src/claude_code_langgraph/services/tool_execution_service.py`: todo replacement, child-run merge, and file-read history are applied through typed `ToolStateEffect` records, not central `tool.name` checks.
+- `src/langgraph_agent_blueprint/services/permission_service.py`: permission policy uses `tool.permission`; `_permission_action` and `_permission_risk` were removed.
+- `src/langgraph_agent_blueprint/graph/nodes/tool_router.py`: skill/agent/MCP routing uses `tool.runtime.route`, not hardcoded tool names or `mcp.` prefixes.
+- `src/langgraph_agent_blueprint/services/tool_execution_service.py`: todo replacement, child-run merge, and file-read history are applied through typed `ToolStateEffect` records, not central `tool.name` checks.
 - Fake-provider `tool:bash`, `tool:write_file`, and `tool:agent` shorthands remain documented compatibility aliases for deterministic tests; generic `tool:<name> <json>` is the preferred fake-provider contract.
 
 ## Tests Added or Extended
@@ -67,4 +67,4 @@ Current as of 2026-05-06.
 - MCP is optional and disabled when no config exists.
 - Plugin discovery is minimal.
 - Subagent behavior remains limited/synthetic.
-- Running from a source checkout requires editable install or `PYTHONPATH=src`; installed mode works with `python -m claude_code_langgraph`.
+- Running from a source checkout requires editable install or `PYTHONPATH=src`; installed mode works with `lg-agent`.

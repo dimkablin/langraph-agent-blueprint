@@ -1,6 +1,6 @@
-"""Executable example showing how to run interactive with the assistant runtime."""
+﻿"""Executable example showing how to run interactive with the assistant runtime."""
 
-from claude_code_langgraph.cli import chat
+from langgraph_agent_blueprint.cli import chat
 
 
 if __name__ == "__main__":

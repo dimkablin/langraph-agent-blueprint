@@ -2,7 +2,7 @@
 
 ## Main Graph
 
-The runtime core is `claude_code_langgraph.graph.builder.build_main_graph`. CLI and API adapters both call `AssistantGraphRuntime`, which invokes the same compiled LangGraph graph.
+The runtime core is `langgraph_agent_blueprint.graph.builder.build_main_graph`. CLI and API adapters both call `AssistantGraphRuntime`, which invokes the same compiled LangGraph graph.
 
 ```mermaid
 flowchart TD

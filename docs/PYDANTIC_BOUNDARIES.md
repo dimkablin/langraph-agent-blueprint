@@ -19,7 +19,7 @@ The LangGraph state remains checkpointer-safe: nodes store dictionaries and list
 
 ## Base Models
 
-`claude_code_langgraph.models.base` defines:
+`langgraph_agent_blueprint.models.base` defines:
 
 - `RuntimeModel`: mutable boundary DTO for snapshots/config-like payloads.
 - `FrozenRuntimeModel`: immutable DTO for requests, results, and events.

@@ -1,8 +1,8 @@
-"""Tests for loading runtime configuration from a project .env file."""
+﻿"""Tests for loading runtime configuration from a project .env file."""
 
 from __future__ import annotations
 
-from claude_code_langgraph.config import AppConfig
+from langgraph_agent_blueprint.config import AppConfig
 
 
 def test_from_env_loads_project_dotenv_when_process_env_is_absent(tmp_path, monkeypatch):

@@ -16,14 +16,14 @@ SKILL.md -> SkillLoader -> SkillRegistry -> /skills or SkillTool
 
 | Skill | File | Metadata loaded | Listed by `/skills` | Explicit invocation | Model SkillTool invocation | Allowed tools enforced | Events visible | Persisted | Current status | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `batch` | `src/claude_code_langgraph/skills/definitions/batch/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | `/skill batch acceptance input` emitted `skill_started` and `skill_finished`; scoped to `agent,todo_write`. |
-| `debug` | `src/claude_code_langgraph/skills/definitions/debug/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | SkillTool path reaches skill graph and adds ToolMessage. |
-| `remember` | `src/claude_code_langgraph/skills/definitions/remember/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working` | `tool:skill {"skill":"remember","args":{"text":"Dima 228","scope":"project"}}` persisted memory; `/memory` showed `Dima 228`. |
-| `simplify` | `src/claude_code_langgraph/skills/definitions/simplify/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph; edits remain permissioned through `edit_file`. |
-| `skillify` | `src/claude_code_langgraph/skills/definitions/skillify/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph; writes remain permissioned through `write_file`. |
-| `stuck` | `src/claude_code_langgraph/skills/definitions/stuck/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph and current state context. |
-| `update-config` | `src/claude_code_langgraph/skills/definitions/update-config/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph; config file edits remain permissioned. |
-| `verify` | `src/claude_code_langgraph/skills/definitions/verify/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation scoped to shell/search/read tools; shell still requires approval. |
+| `batch` | `src/langgraph_agent_blueprint/skills/definitions/batch/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | `/skill batch acceptance input` emitted `skill_started` and `skill_finished`; scoped to `agent,todo_write`. |
+| `debug` | `src/langgraph_agent_blueprint/skills/definitions/debug/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | SkillTool path reaches skill graph and adds ToolMessage. |
+| `remember` | `src/langgraph_agent_blueprint/skills/definitions/remember/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working` | `tool:skill {"skill":"remember","args":{"text":"Dima 228","scope":"project"}}` persisted memory; `/memory` showed `Dima 228`. |
+| `simplify` | `src/langgraph_agent_blueprint/skills/definitions/simplify/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph; edits remain permissioned through `edit_file`. |
+| `skillify` | `src/langgraph_agent_blueprint/skills/definitions/skillify/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph; writes remain permissioned through `write_file`. |
+| `stuck` | `src/langgraph_agent_blueprint/skills/definitions/stuck/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph and current state context. |
+| `update-config` | `src/langgraph_agent_blueprint/skills/definitions/update-config/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph; config file edits remain permissioned. |
+| `verify` | `src/langgraph_agent_blueprint/skills/definitions/verify/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation scoped to shell/search/read tools; shell still requires approval. |
 
 ## Allowed-Tools Narrowing
 

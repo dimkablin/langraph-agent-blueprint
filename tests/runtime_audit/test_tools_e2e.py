@@ -1,4 +1,4 @@
-"""Runtime-audit regression tests proving end-to-end graph behavior for commands, skills, providers, and tools."""
+﻿"""Runtime-audit regression tests proving end-to-end graph behavior for commands, skills, providers, and tools."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
 
 
 def _runtime(tmp_path, **overrides):

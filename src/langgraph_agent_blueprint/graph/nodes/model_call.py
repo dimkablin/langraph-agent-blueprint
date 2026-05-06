@@ -1,0 +1,51 @@
+﻿"""LangGraph node module responsible for one thin state-transition step in the assistant runtime."""
+
+from __future__ import annotations
+
+from langchain_core.messages import AIMessage
+
+from langgraph_agent_blueprint.dependencies import AppDependencies
+from langgraph_agent_blueprint.models.base import dump_model, validate_list
+from langgraph_agent_blueprint.models.llm import ModelRequest
+from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models.tools import ToolCall
+
+
+def model_call_node(state: dict, deps: AppDependencies) -> dict:
+    """Call the configured model provider and translate its response into graph state.
+
+    The node narrows tool schemas for active skills, preserves assistant tool calls on the
+    AIMessage, and leaves actual tool execution to the downstream tool router.
+    """
+
+    if state.get("final_response") and not state.get("pending_tool_calls"):
+        return {}
+    available_tools = state.get("available_tools", {})
+    allowed_tools = state.get("metadata", {}).get("allowed_tools_override")
+    if allowed_tools:
+        available_tools = {name: meta for name, meta in available_tools.items() if name in set(allowed_tools)}
+    request = ModelRequest(
+        messages=state.get("messages", []),
+        system_context=state.get("context_status", {}).get("system_context", ""),
+        tools=available_tools,
+        metadata={"tool_results": state.get("tool_results", [])},
+    )
+    response = deps.model_provider.generate(request)
+    tool_calls = validate_list(ToolCall, response.tool_calls)
+    usage = deps.usage_service.merge(state.get("usage", {}), response.usage.model_dump(mode="json"))
+    events = [event("node_started", node="model_call")]
+    if response.content:
+        events.append(event("model_message", content=response.content))
+    for token in response.content.split():
+        events.append(event("model_token", token=token))
+    message = AIMessage(
+        content=response.content,
+        tool_calls=[{"id": call.id, "name": call.name, "args": call.args} for call in tool_calls],
+    )
+    return {
+        "messages": [message],
+        "pending_tool_calls": [dump_model(call) for call in tool_calls],
+        "usage": usage,
+        "final_response": response.content if not tool_calls else None,
+        "ui_events": [*events, event("node_finished", node="model_call")],
+    }

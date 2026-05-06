@@ -1,8 +1,8 @@
-"""Pytest coverage for skill loader behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for skill loader behavior in the Python/LangGraph assistant."""
 
 import pytest
 
-from claude_code_langgraph.skills.loader import SkillLoader
+from langgraph_agent_blueprint.skills.loader import SkillLoader
 
 
 def test_loads_skill_name_skill_md_and_metadata(tmp_path):

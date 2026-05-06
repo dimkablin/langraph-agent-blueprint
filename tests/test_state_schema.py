@@ -1,9 +1,9 @@
-"""Pytest coverage for state schema behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for state schema behavior in the Python/LangGraph assistant."""
 
 from langchain_core.messages import HumanMessage
 from langgraph.graph.message import add_messages
 
-from claude_code_langgraph.graph.state import AssistantState, create_initial_state
+from langgraph_agent_blueprint.graph.state import AssistantState, create_initial_state
 
 
 def test_state_contains_required_defaults(tmp_path):

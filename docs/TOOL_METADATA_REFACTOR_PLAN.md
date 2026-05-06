@@ -6,7 +6,7 @@ This plan follows `docs/TOOL_NAME_SEMANTICS_AUDIT.md`. It was originally written
 
 Implemented on 2026-05-06:
 
-- Added `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect` in `src/claude_code_langgraph/models/tool_metadata.py`.
+- Added `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect` in `src/langgraph_agent_blueprint/models/tool_metadata.py`.
 - Added `permission` and `runtime` metadata to `BaseTool`, with backward-compatible `safety`, `is_read_only`, and `requires_permission` properties.
 - Added explicit permission/runtime metadata for all core tools.
 - Reworked `PermissionService` to be policy-only and metadata-driven.
@@ -31,7 +31,7 @@ Consumers should not infer semantics from names.
 
 ## New/Updated Models
 
-Add metadata models near tool/runtime boundary models, likely `src/claude_code_langgraph/models/tool_metadata.py` or `src/claude_code_langgraph/tools/base.py`.
+Add metadata models near tool/runtime boundary models, likely `src/langgraph_agent_blueprint/models/tool_metadata.py` or `src/langgraph_agent_blueprint/tools/base.py`.
 
 ```python
 class ToolPermissionMetadata(FrozenRuntimeModel):

@@ -1,17 +1,17 @@
-"""Integration tests that ensure boundary DTOs are used by the graph runtime."""
+﻿"""Integration tests that ensure boundary DTOs are used by the graph runtime."""
 
 from __future__ import annotations
 
 from langchain_core.messages import HumanMessage, ToolMessage
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.builder import AssistantGraphRuntime
-from claude_code_langgraph.models.events import RuntimeEvent
-from claude_code_langgraph.models.llm import ModelRequest
-from claude_code_langgraph.models.messages import event
-from claude_code_langgraph.models.tools import ToolCall, ToolResult
-from claude_code_langgraph.services.model_provider import ModelProviderService
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.models.events import RuntimeEvent
+from langgraph_agent_blueprint.models.llm import ModelRequest
+from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models.tools import ToolCall, ToolResult
+from langgraph_agent_blueprint.services.model_provider import ModelProviderService
 
 
 def test_legacy_event_helper_returns_runtime_event_payload():

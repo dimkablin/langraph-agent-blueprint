@@ -1,6 +1,6 @@
-"""Pytest coverage for tool registry behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for tool registry behavior in the Python/LangGraph assistant."""
 
-from claude_code_langgraph.tools.registry import build_core_tool_registry
+from langgraph_agent_blueprint.tools.registry import build_core_tool_registry
 
 
 def test_core_tools_registered_and_schemas_valid():

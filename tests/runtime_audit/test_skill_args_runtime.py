@@ -1,4 +1,4 @@
-"""Runtime tests for typed Pydantic skill argument validation and formatting."""
+﻿"""Runtime tests for typed Pydantic skill argument validation and formatting."""
 
 from __future__ import annotations
 
@@ -6,12 +6,12 @@ from pathlib import Path
 
 from langchain_core.messages import ToolMessage
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.builder import AssistantGraphRuntime
-from claude_code_langgraph.graph.nodes.tool_router import tool_router_node
-from claude_code_langgraph.graph.state import create_initial_state
-from claude_code_langgraph.skills.args import GenericSkillArgs, RememberSkillArgs, VerifySkillArgs
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.graph.nodes.tool_router import tool_router_node
+from langgraph_agent_blueprint.graph.state import create_initial_state
+from langgraph_agent_blueprint.skills.args import GenericSkillArgs, RememberSkillArgs, VerifySkillArgs
 
 
 def _runtime(tmp_path: Path) -> AssistantGraphRuntime:

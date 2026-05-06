@@ -1,7 +1,7 @@
-"""Pytest coverage for mcp registry behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for mcp registry behavior in the Python/LangGraph assistant."""
 
-from claude_code_langgraph.services.mcp_service import MCPService
-from claude_code_langgraph.tools.mcp_tools import MCPToolAdapter
+from langgraph_agent_blueprint.services.mcp_service import MCPService
+from langgraph_agent_blueprint.tools.mcp_tools import MCPToolAdapter
 
 
 def test_no_mcp_config_does_not_crash():

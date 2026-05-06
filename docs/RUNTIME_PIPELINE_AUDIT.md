@@ -6,7 +6,7 @@ This document originally captured the pre-fix runtime audit. Historical findings
 
 ## Runtime That Exists Now
 
-The shared runtime is `AssistantGraphRuntime` in `src/claude_code_langgraph/graph/builder.py`. CLI, API, frontend-facing endpoints, and tests call the same compiled LangGraph graph.
+The shared runtime is `AssistantGraphRuntime` in `src/langgraph_agent_blueprint/graph/builder.py`. CLI, API, frontend-facing endpoints, and tests call the same compiled LangGraph graph.
 
 Main graph:
 

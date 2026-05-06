@@ -14,7 +14,7 @@ The implementation is based on the existing audit documents:
 Verification performed before implementation:
 
 - Confirmed source path exists: `C:\Users\dimka\Documents\PROJECTS\llm-data-analyst\claude-code-like-project`.
-- Confirmed target path exists: `C:\Users\dimka\Documents\PROJECTS\claude-code-langraph`.
+- Confirmed target path exists: `C:\Users\dimka\Documents\PROJECTS\langgraph-agent-blueprint`.
 - Confirmed `package.json` is still absent in the audited source tree.
 - Confirmed the target project initially contained only `docs/` audit files.
 - Confirmed the audit conclusion still holds: the source is a Claude Code-like terminal assistant, not a browser React data analyst app.
@@ -23,7 +23,7 @@ No contradictions were found that require rewriting the audit documents.
 
 ## Implementation Assumptions
 
-- The Python package name is `claude_code_langgraph`; the repository folder keeps the existing `langraph` typo.
+- The Python package name is `langgraph_agent_blueprint`; the repository folder keeps the existing `langraph` typo.
 - LangGraph is the only workflow/orchestration runtime for assistant turns, tool routing, permission gates, skill invocation, session lifecycle, compaction, memory, and subagent execution.
 - Services and tools are intentionally thin execution layers. They do not own assistant workflow.
 - Tests use the fake provider. No test requires Anthropic, OpenAI, Ollama, network access, MCP servers, or cloud credentials.

@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Check, CircleHelp, Command, KeyRound, Send, ShieldAlert, Sparkles, Terminal, X } from "lucide-react";
 import { filterHints, keyboardHints, skillHints, slashCommands, toolHints } from "./commandHints.js";
 
@@ -7,7 +7,7 @@ export function StatusBar({ sessionId, threadId, busy, apiStatus }) {
     <header className="status-bar">
       <div className="brand">
         <Terminal size={18} aria-hidden="true" />
-        <span>claude-code-langgraph</span>
+        <span>langgraph-agent-blueprint</span>
       </div>
       <div className="status-items">
         <span>{busy ? "running" : "idle"}</span>

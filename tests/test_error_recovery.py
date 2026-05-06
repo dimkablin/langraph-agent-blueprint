@@ -1,9 +1,9 @@
-"""Pytest coverage for error recovery behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for error recovery behavior in the Python/LangGraph assistant."""
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.builder import AssistantGraphRuntime
-from claude_code_langgraph.tools.base import BaseTool, ToolExecutionContext, ToolSafety
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.tools.base import BaseTool, ToolExecutionContext, ToolSafety
 from pydantic import BaseModel
 
 

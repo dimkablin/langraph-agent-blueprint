@@ -1,4 +1,4 @@
-"""Tests for Pydantic boundary DTOs used at runtime layer edges."""
+﻿"""Tests for Pydantic boundary DTOs used at runtime layer edges."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ import json
 from langchain_core.messages import ToolMessage
 from pydantic import ValidationError
 
-from claude_code_langgraph.models.base import dump_model, validate_list
-from claude_code_langgraph.models.events import RuntimeEvent, make_event
-from claude_code_langgraph.models.tools import ToolCall, ToolResult, normalize_provider_tool_call, tool_result_to_tool_message
+from langgraph_agent_blueprint.models.base import dump_model, validate_list
+from langgraph_agent_blueprint.models.events import RuntimeEvent, make_event
+from langgraph_agent_blueprint.models.tools import ToolCall, ToolResult, normalize_provider_tool_call, tool_result_to_tool_message
 
 
 def test_runtime_event_is_json_serializable_with_required_boundary_fields():

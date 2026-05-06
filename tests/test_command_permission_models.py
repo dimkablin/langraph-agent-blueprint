@@ -1,15 +1,15 @@
-"""Tests for typed command and permission boundary contracts."""
+﻿"""Tests for typed command and permission boundary contracts."""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
 
-from claude_code_langgraph.commands.parser import parse_slash_command
-from claude_code_langgraph.models.commands import CommandResult, ParsedCommand
-from claude_code_langgraph.models.permissions import PermissionDecision, PermissionRequest
-from claude_code_langgraph.services.permission_service import PermissionService
-from claude_code_langgraph.tools.registry import build_core_tool_registry
+from langgraph_agent_blueprint.commands.parser import parse_slash_command
+from langgraph_agent_blueprint.models.commands import CommandResult, ParsedCommand
+from langgraph_agent_blueprint.models.permissions import PermissionDecision, PermissionRequest
+from langgraph_agent_blueprint.services.permission_service import PermissionService
+from langgraph_agent_blueprint.tools.registry import build_core_tool_registry
 
 
 def test_parse_slash_command_returns_typed_command_payload():

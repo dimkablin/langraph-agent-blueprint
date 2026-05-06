@@ -1,6 +1,6 @@
-"""Pytest coverage for memory behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for memory behavior in the Python/LangGraph assistant."""
 
-from claude_code_langgraph.services.memory_service import MemoryService
+from langgraph_agent_blueprint.services.memory_service import MemoryService
 
 
 def test_memory_loads_into_context_and_remember_writes(tmp_path):

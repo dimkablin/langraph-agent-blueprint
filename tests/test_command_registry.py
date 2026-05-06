@@ -1,6 +1,6 @@
-"""Pytest coverage for command registry behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for command registry behavior in the Python/LangGraph assistant."""
 
-from claude_code_langgraph.commands.registry import build_builtin_command_registry
+from langgraph_agent_blueprint.commands.registry import build_builtin_command_registry
 
 
 def test_builtin_commands_are_registered():

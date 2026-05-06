@@ -1,8 +1,8 @@
-"""Pytest coverage for compaction behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for compaction behavior in the Python/LangGraph assistant."""
 
 from langchain_core.messages import HumanMessage
 
-from claude_code_langgraph.services.compaction_service import CompactionService
+from langgraph_agent_blueprint.services.compaction_service import CompactionService
 
 
 def test_compaction_creates_summary_and_preserves_recent_messages():

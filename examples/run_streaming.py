@@ -1,8 +1,8 @@
-"""Executable example showing how to run streaming with the assistant runtime."""
+﻿"""Executable example showing how to run streaming with the assistant runtime."""
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
 
 
 runtime = AssistantGraphRuntime(build_dependencies(AppConfig(llm_provider="fake")))

@@ -1,10 +1,10 @@
-"""Pytest coverage for shell permissions behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for shell permissions behavior in the Python/LangGraph assistant."""
 
 from langgraph.types import Command
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
 
 
 def test_shell_command_creates_pending_confirmation(tmp_path):

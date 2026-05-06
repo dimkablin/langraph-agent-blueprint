@@ -1,11 +1,11 @@
-"""Tests for typed session/storage boundary contracts."""
+﻿"""Tests for typed session/storage boundary contracts."""
 
 from __future__ import annotations
 
-from claude_code_langgraph.models.events import RuntimeEvent, make_event
-from claude_code_langgraph.models.sessions import SessionMetadata
-from claude_code_langgraph.models.tools import ToolResult
-from claude_code_langgraph.storage.session_storage import SessionStorage
+from langgraph_agent_blueprint.models.events import RuntimeEvent, make_event
+from langgraph_agent_blueprint.models.sessions import SessionMetadata
+from langgraph_agent_blueprint.models.tools import ToolResult
+from langgraph_agent_blueprint.storage.session_storage import SessionStorage
 
 
 def test_session_metadata_preserves_unknown_runtime_metadata_as_extra():

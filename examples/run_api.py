@@ -1,4 +1,4 @@
-"""Executable example showing how to run api with the assistant runtime."""
+﻿"""Executable example showing how to run api with the assistant runtime."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 uvicorn.run(
-    "claude_code_langgraph.api.server:create_app",
+    "langgraph_agent_blueprint.api.server:create_app",
     factory=True,
     host="127.0.0.1",
     port=8000,

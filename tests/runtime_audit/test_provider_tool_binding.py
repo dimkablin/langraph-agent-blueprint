@@ -1,12 +1,12 @@
-"""Runtime-audit regression tests proving end-to-end graph behavior for commands, skills, providers, and tools."""
+﻿"""Runtime-audit regression tests proving end-to-end graph behavior for commands, skills, providers, and tools."""
 
 from __future__ import annotations
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.models.llm import ModelRequest
-from claude_code_langgraph.services.model_provider import ModelProviderService
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.models.llm import ModelRequest
+from langgraph_agent_blueprint.services.model_provider import ModelProviderService
 
 
 class DummyBindableModel:

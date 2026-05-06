@@ -2,9 +2,9 @@
 
 Date: 2026-05-06
 
-Project root: `C:\Users\dimka\Documents\PROJECTS\claude-code-langraph`
+Project root: `C:\Users\dimka\Documents\PROJECTS\langgraph-agent-blueprint`
 
-Acceptance workspace: `C:\Users\dimka\Documents\PROJECTS\claude-code-langraph\test_runs\final-acceptance-workspace`
+Acceptance workspace: `C:\Users\dimka\Documents\PROJECTS\langgraph-agent-blueprint\test_runs\final-acceptance-workspace`
 
 ## Scope
 
@@ -29,11 +29,11 @@ They were updated so the main tables now describe current acceptance status. His
 | `python -m pytest -q -rA` | passed, 73 collected tests |
 | `npm.cmd --prefix frontend run test:static` | passed |
 | `npm.cmd --prefix frontend run build` | passed outside sandbox after sandbox run failed with Windows `spawn EPERM` |
-| `python -m claude_code_langgraph query "/help" --output stream-json` with `PYTHONPATH=src` | passed, emitted multiple JSONL events ending in `final_response` |
+| `lg-agent query "/help" --output stream-json` with `PYTHONPATH=src` | passed, emitted multiple JSONL events ending in `final_response` |
 
 ## Runtime Smoke Summary
 
-All smoke scenarios below used `project_root = C:\Users\dimka\Documents\PROJECTS\claude-code-langraph\test_runs\final-acceptance-workspace`, not `.storage`.
+All smoke scenarios below used `project_root = C:\Users\dimka\Documents\PROJECTS\langgraph-agent-blueprint\test_runs\final-acceptance-workspace`, not `.storage`.
 
 | Scenario | Provider | Expected | Actual evidence | Result |
 | --- | --- | --- | --- | --- |
@@ -118,4 +118,4 @@ Required skills:
 - MCP remains optional and disabled when no MCP config exists.
 - Plugin discovery validates manifests, but marketplace install/update and rich contribution loading remain limited.
 - Subagent behavior is still limited/synthetic compared with a full child-agent runtime.
-- CLI module execution from a source checkout requires editable install or `PYTHONPATH=src`; installed mode uses `python -m claude_code_langgraph`.
+- CLI module execution from a source checkout requires editable install or `PYTHONPATH=src`; installed mode uses `lg-agent`.

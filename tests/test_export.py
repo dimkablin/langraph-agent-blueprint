@@ -1,8 +1,8 @@
-"""Pytest coverage for export behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for export behavior in the Python/LangGraph assistant."""
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from claude_code_langgraph.services.export_service import ExportService
+from langgraph_agent_blueprint.services.export_service import ExportService
 
 
 def test_transcript_export_produces_file_and_text(tmp_path):

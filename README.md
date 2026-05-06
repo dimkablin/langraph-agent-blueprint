@@ -1,6 +1,20 @@
-# claude-code-langgraph
+# LangGraph Agent Blueprint
 
-Python/LangGraph implementation of the audited Claude Code-like coding assistant runtime.
+LangGraph Agent Blueprint is a reference implementation of a production-style agent runtime built with Python and LangGraph.
+
+It demonstrates:
+
+- graph-first agent orchestration
+- provider tool-calling
+- typed Pydantic runtime boundaries
+- metadata-driven tools
+- skills
+- slash commands
+- human-in-the-loop permissions
+- session persistence
+- streaming events
+- memory
+- compaction
 
 This project ports the behavior described in:
 
@@ -56,7 +70,7 @@ Supported provider names:
 ## Run Interactive CLI
 
 ```bash
-python -m claude_code_langgraph chat
+lg-agent chat
 ```
 
 The CLI calls the same LangGraph runtime as headless/API modes. Permission prompts are resumed through LangGraph interrupt/resume, not direct tool calls.
@@ -64,9 +78,17 @@ The CLI calls the same LangGraph runtime as headless/API modes. Permission promp
 ## Run Headless Query
 
 ```bash
-python -m claude_code_langgraph query "hello"
-python -m claude_code_langgraph query --output json "hello"
-python -m claude_code_langgraph query --output stream-json "hello"
+lg-agent query "hello"
+lg-agent query --output json "hello"
+lg-agent query --output stream-json "hello"
+```
+
+Other CLI entrypoints:
+
+```bash
+lg-agent skills list
+lg-agent tools list
+lg-agent doctor
 ```
 
 ## Run React CLI Frontend
@@ -76,7 +98,7 @@ The browser frontend is a React terminal UI. It does not execute tools directly;
 Start the API:
 
 ```bash
-uvicorn claude_code_langgraph.api.server:create_app --factory --host 127.0.0.1 --port 8000
+uvicorn langgraph_agent_blueprint.api.server:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
 Start the frontend:
@@ -100,7 +122,7 @@ Install and start Ollama, then pull a model:
 ollama pull llama3.1
 set LLM_PROVIDER=ollama
 set OLLAMA_MODEL=llama3.1
-python -m claude_code_langgraph query "Explain this project."
+lg-agent query "Explain this project."
 ```
 
 You can also use OpenAI-compatible Ollama endpoints through `LLM_PROVIDER=openai_compatible`.
@@ -110,7 +132,7 @@ Manual verification was also run with:
 ```bash
 set LLM_PROVIDER=ollama
 set OLLAMA_MODEL=qwen3:14b
-python -m claude_code_langgraph query "Use read_file to read README.md and answer with its first line."
+lg-agent query "Use read_file to read README.md and answer with its first line."
 ```
 
 `qwen3:14b` successfully emitted a native `read_file` tool call through LangGraph, the graph executed the tool, appended a `ToolMessage`, and the model produced the final answer from the file content.
@@ -154,8 +176,8 @@ Core tools include file read/write/edit, notebook read/edit, glob, grep, bash, P
 Examples with the fake provider:
 
 ```bash
-python -m claude_code_langgraph query "tool:read_file {\"path\":\"README.md\"}"
-python -m claude_code_langgraph query --output stream-json "tool:read_file {\"path\":\"README.md\"}"
+lg-agent query "tool:read_file {\"path\":\"README.md\"}"
+lg-agent query --output stream-json "tool:read_file {\"path\":\"README.md\"}"
 ```
 
 Write/edit/shell/network tools request approval through LangGraph interrupt/resume. API and frontend receive `permission_required`; the CLI prompts interactively in `chat` mode. Confirmation payloads are built from metadata and redact secret-like args recursively.
@@ -167,8 +189,8 @@ Skills are first-class `skill-name/SKILL.md` capabilities with frontmatter metad
 Skills can be invoked explicitly:
 
 ```bash
-python -m claude_code_langgraph query "/skill remember project: Prefer pytest."
-python -m claude_code_langgraph query "/memory"
+lg-agent query "/skill remember project: Prefer pytest."
+lg-agent query "/memory"
 ```
 
 Skill invocation goes through the graph skill route, emits `skill_started` / `skill_finished`, filters provider-bound tools to the skill's `allowed_tools`, and enforces that scope in `tool_router`.

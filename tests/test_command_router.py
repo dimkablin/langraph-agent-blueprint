@@ -1,11 +1,11 @@
-"""Pytest coverage for command router behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for command router behavior in the Python/LangGraph assistant."""
 
 from langchain_core.messages import HumanMessage
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.nodes.command_router import command_router_node
-from claude_code_langgraph.graph.state import create_initial_state
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.nodes.command_router import command_router_node
+from langgraph_agent_blueprint.graph.state import create_initial_state
 
 
 def test_help_routes_locally(tmp_path):

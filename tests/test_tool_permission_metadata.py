@@ -1,9 +1,9 @@
-"""Tests for metadata-driven tool classification."""
+﻿"""Tests for metadata-driven tool classification."""
 
 from __future__ import annotations
 
-from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
-from claude_code_langgraph.tools.registry import build_core_tool_registry
+from langgraph_agent_blueprint.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
+from langgraph_agent_blueprint.tools.registry import build_core_tool_registry
 
 
 def test_every_core_tool_declares_permission_and_runtime_metadata(tmp_path):

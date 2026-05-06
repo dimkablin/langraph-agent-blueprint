@@ -1,10 +1,10 @@
-"""Pytest coverage for file tools behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for file tools behavior in the Python/LangGraph assistant."""
 
 import pytest
 
-from claude_code_langgraph.services.file_service import FileService
-from claude_code_langgraph.tools.file_tools import FileEditInput, FileReadInput, FileReadTool, FileWriteInput, FileWriteTool, FileEditTool
-from claude_code_langgraph.tools.base import ToolExecutionContext
+from langgraph_agent_blueprint.services.file_service import FileService
+from langgraph_agent_blueprint.tools.file_tools import FileEditInput, FileReadInput, FileReadTool, FileWriteInput, FileWriteTool, FileEditTool
+from langgraph_agent_blueprint.tools.base import ToolExecutionContext
 
 
 def test_read_file_works(tmp_path):

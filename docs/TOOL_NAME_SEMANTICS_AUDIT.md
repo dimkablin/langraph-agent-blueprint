@@ -2,7 +2,7 @@
 
 Audit date: 2026-05-06.
 
-Scope: `src/claude_code_langgraph`, `tests`, and current `docs`. This is an audit-only pass. No production runtime code or tests were changed.
+Scope: `src/langgraph_agent_blueprint`, `tests`, and current `docs`. This is an audit-only pass. No production runtime code or tests were changed.
 
 ## Post-Implementation Status
 
@@ -21,10 +21,10 @@ Verification:
 ```bash
 python -m pytest tests\test_tool_permission_metadata.py tests\test_permission_service_metadata_driven.py tests\test_tool_router_metadata_routes.py tests\test_tool_state_effects_metadata.py -q
 python -m pytest tests\test_file_tools.py tests\test_permission_interrupts.py tests\test_shell_permissions.py tests\runtime_audit\test_skills_e2e_runtime.py tests\runtime_audit\test_commands_e2e.py -q
-rg -n "_permission_action|_permission_risk" src\claude_code_langgraph
-rg -n "tool\.name ==" src\claude_code_langgraph
-rg -n "tool_name in" src\claude_code_langgraph
-rg -n "mcp\." src\claude_code_langgraph
+rg -n "_permission_action|_permission_risk" src\langgraph_agent_blueprint
+rg -n "tool\.name ==" src\langgraph_agent_blueprint
+rg -n "tool_name in" src\langgraph_agent_blueprint
+rg -n "mcp\." src\langgraph_agent_blueprint
 ```
 
 The remaining `mcp.` production reference is the MCP adapter display/registry identity (`self.name = f"mcp.{definition.name}"`), not route classification. The fake provider still supports test-only shorthand aliases such as `tool:bash echo hi` and `tool:write_file path content`; these produce deterministic provider tool-call fixtures and do not define permission, risk, route, or state-effect semantics.
@@ -42,10 +42,10 @@ The original audit findings below are retained as historical evidence.
 
 The largest runtime issues are in:
 
-- `src/claude_code_langgraph/services/permission_service.py`
-- `src/claude_code_langgraph/graph/nodes/tool_router.py`
-- `src/claude_code_langgraph/services/tool_execution_service.py`
-- `src/claude_code_langgraph/services/model_provider.py` fake-provider contract
+- `src/langgraph_agent_blueprint/services/permission_service.py`
+- `src/langgraph_agent_blueprint/graph/nodes/tool_router.py`
+- `src/langgraph_agent_blueprint/services/tool_execution_service.py`
+- `src/langgraph_agent_blueprint/services/model_provider.py` fake-provider contract
 
 ## Searches Performed
 
@@ -55,17 +55,17 @@ Commands/searches included:
 
 ```bash
 rg -n "read_file|write_file|edit_file|notebook_read|notebook_edit|glob|grep|bash|powershell|web_fetch|web_search|todo_write|skill|agent|diagnostics|mcp" src tests docs
-rg -n "tool_name" src/claude_code_langgraph tests
-rg -n "tool\.name" src/claude_code_langgraph tests
-rg -n "call\.name" src/claude_code_langgraph tests
-rg -n "name in" src/claude_code_langgraph tests
-rg -n "startswith" src/claude_code_langgraph tests
-rg -n "endswith" src/claude_code_langgraph tests
-rg -n "_permission_action|_permission_risk|requires_permission|is_read_only|safety|risk|action|allowed_in_plan_mode|requires_network" src/claude_code_langgraph tests
-rg -n "if .*tool|elif .*tool|match .*tool|case .*tool|in \{.*read_file|in \{.*bash|in \{.*web" src/claude_code_langgraph
-rg -n "mcp\.|plugin|external|network|shell|write|edit|read_only|read-only" src/claude_code_langgraph
-rg -n "bind_tools|tool schema|tools=.*|available_tools|ToolCall|tool_calls|function" src/claude_code_langgraph
-rg -n "fake|tool:|deterministic|parse.*tool|ToolCall" src/claude_code_langgraph tests
+rg -n "tool_name" src/langgraph_agent_blueprint tests
+rg -n "tool\.name" src/langgraph_agent_blueprint tests
+rg -n "call\.name" src/langgraph_agent_blueprint tests
+rg -n "name in" src/langgraph_agent_blueprint tests
+rg -n "startswith" src/langgraph_agent_blueprint tests
+rg -n "endswith" src/langgraph_agent_blueprint tests
+rg -n "_permission_action|_permission_risk|requires_permission|is_read_only|safety|risk|action|allowed_in_plan_mode|requires_network" src/langgraph_agent_blueprint tests
+rg -n "if .*tool|elif .*tool|match .*tool|case .*tool|in \{.*read_file|in \{.*bash|in \{.*web" src/langgraph_agent_blueprint
+rg -n "mcp\.|plugin|external|network|shell|write|edit|read_only|read-only" src/langgraph_agent_blueprint
+rg -n "bind_tools|tool schema|tools=.*|available_tools|ToolCall|tool_calls|function" src/langgraph_agent_blueprint
+rg -n "fake|tool:|deterministic|parse.*tool|ToolCall" src/langgraph_agent_blueprint tests
 ```
 
 ## What Counts As OK
@@ -96,19 +96,19 @@ Tool names are not acceptable as the source of:
 
 | File | Line | Snippet | Classification | Severity | Why | Proposed replacement | Test needed |
 | --- | ---: | --- | --- | --- | --- | --- | --- |
-| `src/claude_code_langgraph/services/permission_service.py` | 38-40 | `action=_permission_action(str(tool_call["name"]))`, `risk=_permission_risk(...)` | `anti_pattern_permission_policy` / `anti_pattern_risk_classification` | P0 | Permission request semantics are derived from registry key, so custom/MCP/plugin tools default to wrong `unknown`/`low` classifications. | Add `tool.permission` metadata and build confirmation payload from the resolved tool, not just `ToolCall.name`. | Permission tests with custom tool metadata and MCP/plugin conservative defaults. |
-| `src/claude_code_langgraph/services/permission_service.py` | 47-58 | `if tool_name in {"write_file"}` / `{"bash", "powershell"}` / `{"web_fetch", "web_search"}` | `anti_pattern_side_effect_classification` | P0 | Action is guessed from built-in names. New write/shell/network tools are misclassified. | `ToolPermissionMetadata.action`. | Assert action comes from metadata for built-in and custom tools. |
-| `src/claude_code_langgraph/services/permission_service.py` | 61-66 | `if tool_name in {"bash", "powershell"}` | `anti_pattern_risk_classification` | P0 | Risk is guessed from built-in names. External shell-like tools can be marked `low`. | `ToolPermissionMetadata.risk`. | Assert shell/network/write/MCP risks are metadata-driven. |
-| `src/claude_code_langgraph/services/tool_execution_service.py` | 48-49 | `if tool.name in {"read_file", "edit_file", "write_file"}` | `anti_pattern_side_effect_classification` | P0 | Prior-read/read-files metadata is updated only for hardcoded file tools. A custom file reader/editor cannot participate in edit-safety state. | Tool output or runtime metadata should declare state update effects, e.g. `state_effects=["read_history"]`. | Custom file-like tool updates read history through metadata/effect hook. |
-| `src/claude_code_langgraph/graph/nodes/tool_router.py` | 43 | `if name in {"skill", "SkillTool"}` | `anti_pattern_routing_semantics` | P1 | Tool route to skill graph is inferred from names instead of tool kind/runtime behavior. | `ToolRuntimeMetadata.kind == "skill"` or `route="skill_graph"`. | Register a custom skill-tool alias and verify routing uses metadata. |
-| `src/claude_code_langgraph/graph/nodes/tool_router.py` | 53 | `if name in {"agent", "task"}` | `anti_pattern_routing_semantics` | P1 | Agent/task route is hardcoded. Plugin subagent tools cannot route correctly. | `ToolRuntimeMetadata.kind == "agent"` or `route="agent_graph"`. | Custom agent-like tool routes by metadata. |
-| `src/claude_code_langgraph/graph/nodes/tool_router.py` | 56 | `if name.startswith("mcp.")` | `anti_pattern_mcp_plugin_detection` | P1 | MCP behavior is inferred from prefix. This couples identity formatting to runtime behavior and misses non-prefixed MCP adapters. | MCP adapter should expose `runtime.kind="mcp"` and conservative permission metadata. | MCP mock tool without `mcp.` prefix still routes through MCP metadata, or prefix becomes display-only. |
-| `src/claude_code_langgraph/services/tool_execution_service.py` | 46-47 | `if tool.name == "todo_write"` | `anti_pattern_side_effect_classification` | P1 | State update for todos is tied to one name instead of declared output/state effect. | Tool result/state-effect metadata, e.g. `state_update_keys=["todos"]` or output protocol. | Custom task/todo tool updates todos through metadata. |
-| `src/claude_code_langgraph/services/tool_execution_service.py` | 50-51 | `if tool.name == "agent"` | `anti_pattern_routing_semantics` | P1 | Child-run state merge depends on one hardcoded name. | Tool runtime metadata or output protocol declares `child_runs` state effect. | Agent-like tool result merges child runs without name special-case. |
-| `src/claude_code_langgraph/graph/nodes/skill_router.py` | 47 | `if active["name"] == "remember"` | `needs_review` | P1 | This is skill-name semantics, not tool-name semantics, but it is the same extensibility problem for skill runtime. | Skill metadata/runtime behavior should declare direct memory write behavior. | A memory-like custom skill uses metadata behavior, not name. |
-| `src/claude_code_langgraph/services/model_provider.py` | 74-82 | `if command.startswith("bash ")` -> emits `name="bash"` | `anti_pattern_fake_provider_contract` | P2 | Fake-provider shorthand special-cases one shell tool. This is test ergonomics, but production fake provider is a runtime provider. | Generic `tool:<name> <json>` should be the only semantic path; optional aliases should be documented test-only fixtures. | Fake provider tests use generic JSON syntax for shell. |
-| `src/claude_code_langgraph/services/model_provider.py` | 83-86 | `if command.startswith("write_file ")` -> emits `name="write_file"` | `anti_pattern_fake_provider_contract` | P2 | Fake-provider shorthand knows write_file args and behavior. | Move shorthand into tests/helpers or keep only generic JSON parser. | Write-file fake tests use `tool:write_file {"path":...}` only. |
-| `src/claude_code_langgraph/services/model_provider.py` | 87-88 | `if command.startswith("agent ")` -> emits `name="agent"` | `anti_pattern_fake_provider_contract` | P2 | Fake-provider shorthand encodes agent tool shape by name. | Generic tool JSON or fixture helper. | Agent fake tests construct generic tool call. |
+| `src/langgraph_agent_blueprint/services/permission_service.py` | 38-40 | `action=_permission_action(str(tool_call["name"]))`, `risk=_permission_risk(...)` | `anti_pattern_permission_policy` / `anti_pattern_risk_classification` | P0 | Permission request semantics are derived from registry key, so custom/MCP/plugin tools default to wrong `unknown`/`low` classifications. | Add `tool.permission` metadata and build confirmation payload from the resolved tool, not just `ToolCall.name`. | Permission tests with custom tool metadata and MCP/plugin conservative defaults. |
+| `src/langgraph_agent_blueprint/services/permission_service.py` | 47-58 | `if tool_name in {"write_file"}` / `{"bash", "powershell"}` / `{"web_fetch", "web_search"}` | `anti_pattern_side_effect_classification` | P0 | Action is guessed from built-in names. New write/shell/network tools are misclassified. | `ToolPermissionMetadata.action`. | Assert action comes from metadata for built-in and custom tools. |
+| `src/langgraph_agent_blueprint/services/permission_service.py` | 61-66 | `if tool_name in {"bash", "powershell"}` | `anti_pattern_risk_classification` | P0 | Risk is guessed from built-in names. External shell-like tools can be marked `low`. | `ToolPermissionMetadata.risk`. | Assert shell/network/write/MCP risks are metadata-driven. |
+| `src/langgraph_agent_blueprint/services/tool_execution_service.py` | 48-49 | `if tool.name in {"read_file", "edit_file", "write_file"}` | `anti_pattern_side_effect_classification` | P0 | Prior-read/read-files metadata is updated only for hardcoded file tools. A custom file reader/editor cannot participate in edit-safety state. | Tool output or runtime metadata should declare state update effects, e.g. `state_effects=["read_history"]`. | Custom file-like tool updates read history through metadata/effect hook. |
+| `src/langgraph_agent_blueprint/graph/nodes/tool_router.py` | 43 | `if name in {"skill", "SkillTool"}` | `anti_pattern_routing_semantics` | P1 | Tool route to skill graph is inferred from names instead of tool kind/runtime behavior. | `ToolRuntimeMetadata.kind == "skill"` or `route="skill_graph"`. | Register a custom skill-tool alias and verify routing uses metadata. |
+| `src/langgraph_agent_blueprint/graph/nodes/tool_router.py` | 53 | `if name in {"agent", "task"}` | `anti_pattern_routing_semantics` | P1 | Agent/task route is hardcoded. Plugin subagent tools cannot route correctly. | `ToolRuntimeMetadata.kind == "agent"` or `route="agent_graph"`. | Custom agent-like tool routes by metadata. |
+| `src/langgraph_agent_blueprint/graph/nodes/tool_router.py` | 56 | `if name.startswith("mcp.")` | `anti_pattern_mcp_plugin_detection` | P1 | MCP behavior is inferred from prefix. This couples identity formatting to runtime behavior and misses non-prefixed MCP adapters. | MCP adapter should expose `runtime.kind="mcp"` and conservative permission metadata. | MCP mock tool without `mcp.` prefix still routes through MCP metadata, or prefix becomes display-only. |
+| `src/langgraph_agent_blueprint/services/tool_execution_service.py` | 46-47 | `if tool.name == "todo_write"` | `anti_pattern_side_effect_classification` | P1 | State update for todos is tied to one name instead of declared output/state effect. | Tool result/state-effect metadata, e.g. `state_update_keys=["todos"]` or output protocol. | Custom task/todo tool updates todos through metadata. |
+| `src/langgraph_agent_blueprint/services/tool_execution_service.py` | 50-51 | `if tool.name == "agent"` | `anti_pattern_routing_semantics` | P1 | Child-run state merge depends on one hardcoded name. | Tool runtime metadata or output protocol declares `child_runs` state effect. | Agent-like tool result merges child runs without name special-case. |
+| `src/langgraph_agent_blueprint/graph/nodes/skill_router.py` | 47 | `if active["name"] == "remember"` | `needs_review` | P1 | This is skill-name semantics, not tool-name semantics, but it is the same extensibility problem for skill runtime. | Skill metadata/runtime behavior should declare direct memory write behavior. | A memory-like custom skill uses metadata behavior, not name. |
+| `src/langgraph_agent_blueprint/services/model_provider.py` | 74-82 | `if command.startswith("bash ")` -> emits `name="bash"` | `anti_pattern_fake_provider_contract` | P2 | Fake-provider shorthand special-cases one shell tool. This is test ergonomics, but production fake provider is a runtime provider. | Generic `tool:<name> <json>` should be the only semantic path; optional aliases should be documented test-only fixtures. | Fake provider tests use generic JSON syntax for shell. |
+| `src/langgraph_agent_blueprint/services/model_provider.py` | 83-86 | `if command.startswith("write_file ")` -> emits `name="write_file"` | `anti_pattern_fake_provider_contract` | P2 | Fake-provider shorthand knows write_file args and behavior. | Move shorthand into tests/helpers or keep only generic JSON parser. | Write-file fake tests use `tool:write_file {"path":...}` only. |
+| `src/langgraph_agent_blueprint/services/model_provider.py` | 87-88 | `if command.startswith("agent ")` -> emits `name="agent"` | `anti_pattern_fake_provider_contract` | P2 | Fake-provider shorthand encodes agent tool shape by name. | Generic tool JSON or fixture helper. | Agent fake tests construct generic tool call. |
 | `tests/test_command_permission_models.py` | 38-39 | `assert request.action == "write"` / `risk == "medium"` from `write_file` | `anti_pattern_risk_classification` | P2 | Test locks current name-derived permission behavior. | Rewrite after refactor to assert metadata drives action/risk. | New test should register metadata-bearing fake tool. |
 
 ## P0 Findings
@@ -136,18 +136,18 @@ These affect security/runtime correctness for custom, MCP, and plugin tools.
 
 | File | Line | Snippet | Classification | Why |
 | --- | ---: | --- | --- | --- |
-| `src/claude_code_langgraph/tools/registry.py` | 34-46 | `self._tools[tool.name]`, `get(name)`, `snapshot()` | `ok_registry_lookup` | Tool names are registry keys and metadata identity. |
-| `src/claude_code_langgraph/services/model_provider.py` | 130-140 | provider function schema `"name": name` | `ok_provider_schema_name` | Provider schema name must preserve registry identity. |
-| `src/claude_code_langgraph/services/tool_execution_service.py` | 27-28 | `self.registry.get(call.name)` | `ok_registry_lookup` | `call.name` is used as lookup key only. |
-| `src/claude_code_langgraph/services/tool_execution_service.py` | 38-44 | record `"name": tool.name` | `ok_display_or_logging` | Tool result identity/persistence. |
-| `src/claude_code_langgraph/services/tool_execution_service.py` | 66-74 | tool event id/name/status | `ok_display_or_logging` | Event identity only. |
-| `src/claude_code_langgraph/graph/nodes/model_call.py` | 25-26 | filter `available_tools` by `allowed_tools` | `ok_allowed_tools_matching` | Skill metadata intentionally names allowed tools. |
-| `src/claude_code_langgraph/graph/nodes/model_call.py` | 41-43 | `AIMessage.tool_calls` name | `ok_provider_schema_name` | LangChain message contract requires tool call names. |
-| `src/claude_code_langgraph/graph/nodes/tool_router.py` | 26 | disallowed check against skill allowed tools | `ok_allowed_tools_matching` | This is policy matching against explicit skill metadata. |
-| `src/claude_code_langgraph/cli.py` | 49, 74 | display `payload.get("tool_name")` | `ok_display_or_logging` | UI text only. |
-| `src/claude_code_langgraph/ui/event_renderer.py` | 14 | display permission tool name | `ok_display_or_logging` | UI text only. |
-| `src/claude_code_langgraph/tools/*.py` | class `name = "..."` | concrete tool names | `ok_registry_lookup` | Tool identity declarations are expected. |
-| `src/claude_code_langgraph/skills/definitions/*/SKILL.md` | `allowed_tools` lists | tool names in skill metadata | `ok_allowed_tools_matching` | This is explicit user/skill configuration. |
+| `src/langgraph_agent_blueprint/tools/registry.py` | 34-46 | `self._tools[tool.name]`, `get(name)`, `snapshot()` | `ok_registry_lookup` | Tool names are registry keys and metadata identity. |
+| `src/langgraph_agent_blueprint/services/model_provider.py` | 130-140 | provider function schema `"name": name` | `ok_provider_schema_name` | Provider schema name must preserve registry identity. |
+| `src/langgraph_agent_blueprint/services/tool_execution_service.py` | 27-28 | `self.registry.get(call.name)` | `ok_registry_lookup` | `call.name` is used as lookup key only. |
+| `src/langgraph_agent_blueprint/services/tool_execution_service.py` | 38-44 | record `"name": tool.name` | `ok_display_or_logging` | Tool result identity/persistence. |
+| `src/langgraph_agent_blueprint/services/tool_execution_service.py` | 66-74 | tool event id/name/status | `ok_display_or_logging` | Event identity only. |
+| `src/langgraph_agent_blueprint/graph/nodes/model_call.py` | 25-26 | filter `available_tools` by `allowed_tools` | `ok_allowed_tools_matching` | Skill metadata intentionally names allowed tools. |
+| `src/langgraph_agent_blueprint/graph/nodes/model_call.py` | 41-43 | `AIMessage.tool_calls` name | `ok_provider_schema_name` | LangChain message contract requires tool call names. |
+| `src/langgraph_agent_blueprint/graph/nodes/tool_router.py` | 26 | disallowed check against skill allowed tools | `ok_allowed_tools_matching` | This is policy matching against explicit skill metadata. |
+| `src/langgraph_agent_blueprint/cli.py` | 49, 74 | display `payload.get("tool_name")` | `ok_display_or_logging` | UI text only. |
+| `src/langgraph_agent_blueprint/ui/event_renderer.py` | 14 | display permission tool name | `ok_display_or_logging` | UI text only. |
+| `src/langgraph_agent_blueprint/tools/*.py` | class `name = "..."` | concrete tool names | `ok_registry_lookup` | Tool identity declarations are expected. |
+| `src/langgraph_agent_blueprint/skills/definitions/*/SKILL.md` | `allowed_tools` lists | tool names in skill metadata | `ok_allowed_tools_matching` | This is explicit user/skill configuration. |
 | `tests/*` and `tests/runtime_audit/*` | most concrete tool names | fixture identity | `ok_test_fixture` | Tests verify known built-ins unless they assert name-derived policy. |
 | `docs/*` | tool examples/status | documentation examples | `ok_docs_example` | Not production behavior. |
 

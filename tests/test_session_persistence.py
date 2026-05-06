@@ -1,8 +1,8 @@
-"""Pytest coverage for session persistence behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for session persistence behavior in the Python/LangGraph assistant."""
 
-from claude_code_langgraph.config import AppConfig
-from claude_code_langgraph.dependencies import build_dependencies
-from claude_code_langgraph.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
 
 
 def test_events_and_tool_calls_are_written(tmp_path):

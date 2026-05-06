@@ -1,9 +1,9 @@
-"""Pytest coverage for api frontend contract behavior in the Python/LangGraph assistant."""
+﻿"""Pytest coverage for api frontend contract behavior in the Python/LangGraph assistant."""
 
 from fastapi.testclient import TestClient
 
-from claude_code_langgraph.api.server import create_app
-from claude_code_langgraph.config import AppConfig
+from langgraph_agent_blueprint.api.server import create_app
+from langgraph_agent_blueprint.config import AppConfig
 
 
 def test_chat_api_returns_frontend_runtime_contract(tmp_path):

@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "claude-code-langgraph"
+name = "langgraph-agent-blueprint"
 version = "0.1.0"
-description = "Python/LangGraph Claude Code-like coding assistant runtime"
+description = "Reference implementation of a production-style agent runtime built with Python and LangGraph"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -26,13 +26,13 @@ anthropic = ["langchain-anthropic"]
 test = ["pytest"]
 
 [project.scripts]
-claude-code-langgraph = "claude_code_langgraph.cli:app"
+lg-agent = "langgraph_agent_blueprint.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-claude_code_langgraph = ["skills/definitions/*/SKILL.md"]
+langgraph_agent_blueprint = ["skills/definitions/*/SKILL.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

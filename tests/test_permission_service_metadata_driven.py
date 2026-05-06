@@ -1,13 +1,13 @@
-"""Tests that permission policy uses tool metadata rather than tool names."""
+﻿"""Tests that permission policy uses tool metadata rather than tool names."""
 
 from __future__ import annotations
 
 from pydantic import BaseModel
 
-from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
-from claude_code_langgraph.models.tools import ToolCall
-from claude_code_langgraph.services.permission_service import PermissionService, redact_args, summarize_args
-from claude_code_langgraph.tools.base import BaseTool, ToolExecutionContext, ToolOutput
+from langgraph_agent_blueprint.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
+from langgraph_agent_blueprint.models.tools import ToolCall
+from langgraph_agent_blueprint.services.permission_service import PermissionService, redact_args, summarize_args
+from langgraph_agent_blueprint.tools.base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class CustomInput(BaseModel):
