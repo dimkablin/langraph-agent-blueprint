@@ -21,6 +21,12 @@ Policy:
 
 Human approval uses LangGraph interrupt/resume. `pending_confirmation` is stored in graph state before `permission_gate` interrupts.
 
+## Hooks
+
+Hooks cannot bypass permission policy. Plugin hooks are declarative/data-only and cannot execute shell, write files, use network, or call MCP directly.
+
+Hook results that add system context are treated as prompt content only. Tool calls that arise after that context still pass through `tool_router`, metadata-driven `PermissionService`, and LangGraph interrupt/resume. Phase 1 models `request_permission` as a hook result action, but the controlled applier emits an unsupported warning instead of creating a permission interrupt.
+
 Runtime status after fixes:
 
 - `permission_required` and `permission_resolved` events survive to CLI/API/frontend responses.

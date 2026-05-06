@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
+from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
 from langgraph_agent_blueprint.models.base import validate_list
 from langgraph_agent_blueprint.models.tools import ToolCall, ToolResult, tool_result_to_tool_message
 
@@ -40,7 +41,7 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
             metadata.update(state_update["metadata"])
         if record.get("error"):
             errors.append(record["error"])
-    return {
+    update = {
         "pending_tool_calls": [],
         "tool_results": results,
         "messages": messages,
@@ -50,3 +51,6 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
         "errors": errors,
         "ui_events": events,
     }
+    active_tool = results[0] if results else None
+    post_update = run_hook_point(deps, state_with_update(state, update), "post_tool", active_tool=active_tool)
+    return merge_updates(update, post_update)

@@ -10,6 +10,7 @@ It demonstrates:
 - metadata-driven tools
 - skills
 - slash commands
+- hooks
 - human-in-the-loop permissions
 - session persistence
 - streaming events
@@ -173,15 +174,27 @@ Current final acceptance verification on 2026-05-06:
 
 The main runtime is a LangGraph `StateGraph`:
 
-`bootstrap_config -> load_registries -> normalize_input -> command_router -> context_builder -> model_call -> tool_router -> permission_gate/tool_executor/subgraphs -> hook_runner -> compact_decision -> persist_session -> finalize_response`.
+`bootstrap_config -> load_registries -> normalize_input -> command_router -> plugin_policy/context_builder/skill_graph -> model_call -> tool_router -> permission_gate/tool_executor/subgraphs -> compact_decision -> persist_session -> finalize_response`.
 
-Tool-use loops, permission flow, skill invocation, subagents, compaction, memory, and session lifecycle are represented as graph nodes/subgraphs.
+Tool-use loops, permission flow, skill invocation, hooks, subagents, compaction, memory, and session lifecycle are represented as graph nodes/subgraphs. Hook dispatch is owned by the graph nodes that reach each lifecycle point.
 
 ## Runtime Boundary Contracts
 
-Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, skill args use skill-specific schemas, and tools declare `ToolPermissionMetadata` / `ToolRuntimeMetadata`.
+Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, skill args use skill-specific schemas, tools declare `ToolPermissionMetadata` / `ToolRuntimeMetadata`, plugins validate `PluginContribution`, and hooks validate `HookContribution` / `HookResult`.
 
 See `docs/PYDANTIC_BOUNDARIES.md` for the contract map and extension rules.
+
+## Hooks
+
+Hooks are graph-owned lifecycle extension points for plugins, observability, policy, skills, tools, MCP, and future frontend integrations. Graph nodes call `HookService` at typed lifecycle points such as `user_prompt`, `pre_model`, `post_model`, `pre_tool`, `post_tool`, `permission_request`, `permission_resolved`, `pre_skill`, and `post_skill`.
+
+External plugin hooks are declarative and data-only. They can add marked system context, metadata, events, or block a route, but they cannot execute scripts, mutate arbitrary graph state, or bypass tool permissions. Inspect registered hooks with:
+
+```bash
+lg-agent query "/hooks"
+```
+
+See `docs/HOOKS.md`.
 
 ## Tools
 
@@ -229,6 +242,7 @@ Slash commands are routed through `CommandRegistry` and `command_router`:
 - `/memory`
 - `/todo`
 - `/plugins`
+- `/hooks`
 
 Optional commands such as `/mcp`, `/context`, `/rewind`, `/branch`, `/rename`, and `/tag` are recognized with documented limitations.
 

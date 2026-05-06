@@ -19,6 +19,7 @@ Implemented commands:
 | `/memory` | local | Shows durable memory. |
 | `/todo` | local | Shows persisted todos. |
 | `/plugins` | local | Lists installed/enabled plugins, skill counts, bootstrap status, and discovery errors. |
+| `/hooks` | local | Lists registered hooks, hook points, plugin names, priority, and enabled status. |
 | `/prompt` | prompt | Expands command args into a model prompt. |
 | `/skill` | skill | Routes to `skill_graph`. |
 
@@ -32,4 +33,5 @@ Runtime status after fixes:
 - `/doctor` calls diagnostics.
 - `/memory` and `/todo` read durable restored state.
 - `/plugins` reports discovered external plugin contributions.
+- `/hooks` reports hook registry state exposed by `load_registries`.
 - `/help` separates enabled commands from unsupported optional commands.

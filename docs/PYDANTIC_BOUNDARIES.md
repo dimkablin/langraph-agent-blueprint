@@ -15,6 +15,7 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - skill tool or `/skill` args -> built-in skill-specific Pydantic args schemas
 - tool classification -> `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect`
 - plugin config/manifests/discovery -> `PluginSource`, `PluginManifest`, `PluginContribution`, and `PluginInstallResult`
+- hook discovery/invocation/results -> `HookContribution`, `HookContext`, `HookInvocation`, `HookResult`, and `HookRunSummary`
 
 The LangGraph state remains checkpointer-safe: nodes store dictionaries and lists in state, and validate them at node/service boundaries with `model_validate(...)`. Outgoing DTOs are serialized with `model_dump(mode="json")`.
 
@@ -86,6 +87,21 @@ Invalid skill arguments return structured errors through the skill graph/tool lo
 External plugin source strings normalize into `PluginSource`. Harness manifests such as `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, and `package.json` are parsed into `PluginManifest`. Discovered plugin roots become `PluginContribution` records before they enter graph state or `SkillRegistry`. Explicit install/update/remove operations return `PluginInstallResult`.
 
 Plugin records stored in LangGraph state are JSON-safe dictionaries produced from those models. Plugin skill content remains prompt data; tool execution and permissions continue to use the normal tool and permission boundary models.
+
+Plugin hook entries from manifests are validated into `HookContribution` records before registration. Malformed hook entries remain structured warnings, not raw unvalidated runtime data.
+
+## Hooks
+
+Hook runtime boundaries live in `langgraph_agent_blueprint.models.hooks`:
+
+- `HookContribution` describes a registered core/plugin hook.
+- `HookContext` is the read-only context graph nodes pass to hooks.
+- `HookInvocation` pairs one contribution with one context.
+- `HookResult` is the controlled output envelope.
+- `HookPolicy` and `HookRuntimeMetadata` describe trust/action metadata.
+- `HookRunSummary` carries typed results plus validated runtime events.
+
+Graph state stores hook records as JSON-safe dictionaries. Nodes apply `HookResult` through the controlled applier; hooks cannot replace arbitrary graph state fields.
 
 ## Sessions
 

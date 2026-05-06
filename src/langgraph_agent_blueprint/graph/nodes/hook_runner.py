@@ -6,6 +6,7 @@ from langgraph_agent_blueprint.dependencies import AppDependencies
 
 
 def hook_runner_node(state: dict, deps: AppDependencies) -> dict:
-    events = deps.hook_service.run("post_turn", {"session_id": state.get("session_id"), "state": state})
-    return {"hooks_state": {"last_hook_count": len(events)}, "ui_events": events}
+    """Compatibility node retained for graph shape; lifecycle hooks run at owning nodes."""
+
+    return {"hooks_state": {**state.get("hooks_state", {}), "post_turn_node_seen": True}}
 

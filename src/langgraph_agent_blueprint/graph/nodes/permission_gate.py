@@ -5,6 +5,7 @@ from __future__ import annotations
 from langgraph.types import interrupt
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
+from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
 from langgraph_agent_blueprint.models.base import dump_model
 from langgraph_agent_blueprint.models.messages import event
 from langgraph_agent_blueprint.models.permissions import PermissionDecision, PermissionRequest
@@ -36,17 +37,25 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
     metadata = dict(state.get("metadata", {}))
     if approved:
         metadata["tool_route"] = "execute"
-        return {
+        update = {
             "metadata": metadata,
             "pending_confirmation": None,
             "permission_decisions": [record],
             "ui_events": [event("permission_resolved", **record)],
         }
+        hook_update = run_hook_point(
+            deps,
+            state_with_update(state, update),
+            "permission_resolved",
+            permission_request=request.model_dump(mode="json"),
+            metadata={"permission_decision": record},
+        )
+        return merge_updates(update, hook_update)
     metadata["tool_route"] = "rejected"
     call = ToolCall.model_validate(state.get("pending_tool_calls", [{}])[0])
     result = ToolResult(id=call.id, name=request.tool_name, status="rejected", content="Tool call rejected by user.")
     result_payload = dump_model(result)
-    return {
+    update = {
         "metadata": metadata,
         "pending_confirmation": None,
         "permission_decisions": [record],
@@ -55,6 +64,14 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
         "messages": [tool_result_to_tool_message(result)],
         "ui_events": [event("permission_resolved", **record)],
     }
+    hook_update = run_hook_point(
+        deps,
+        state_with_update(state, update),
+        "permission_resolved",
+        permission_request=request.model_dump(mode="json"),
+        metadata={"permission_decision": record},
+    )
+    return merge_updates(update, hook_update)
 
 
 def _resume_decision(request: PermissionRequest, decision: object) -> PermissionDecision:

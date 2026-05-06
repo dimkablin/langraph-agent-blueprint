@@ -7,6 +7,7 @@ from pathlib import Path
 
 from langgraph_agent_blueprint.commands.registry import CommandRegistry, build_builtin_command_registry
 from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.hooks.registry import HookRegistry
 from langgraph_agent_blueprint.services.agent_service import AgentService
 from langgraph_agent_blueprint.services.command_service import CommandService
 from langgraph_agent_blueprint.services.compaction_service import CompactionService
@@ -44,6 +45,7 @@ class AppDependencies:
     session_service: SessionService
     memory_service: MemoryService
     compaction_service: CompactionService
+    hook_registry: HookRegistry
     hook_service: HookService
     plugin_service: PluginService
     mcp_service: MCPService
@@ -63,8 +65,13 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
     cwd = Path(config.cwd or project_root).resolve()
     config = config.model_copy(update={"project_root": project_root, "cwd": cwd, "storage_dir": Path(config.storage_dir).resolve()})
     plugin_service = PluginService(config.plugin_paths, config.storage_dir, network_enabled=config.network_enabled)
+    plugin_contributions = plugin_service.discover_contributions()
     skill_registry = build_builtin_skill_registry()
-    skill_registry.load_plugin_contributions(plugin_service.discover_contributions())
+    skill_registry.load_plugin_contributions(plugin_contributions)
+    hook_registry = HookRegistry()
+    for contribution in plugin_contributions:
+        for hook in contribution.hooks:
+            hook_registry.register(hook)
     if config.skills_paths:
         skill_registry.load_from_paths(config.skills_paths)
     skill_service = SkillInvocationService(skill_registry)
@@ -98,7 +105,8 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
             max_messages_before_compact=max(3, config.auto_compact_threshold // 1000),
             keep_recent=config.max_recent_messages_after_compact,
         ),
-        hook_service=HookService(),
+        hook_registry=hook_registry,
+        hook_service=HookService(hook_registry),
         plugin_service=plugin_service,
         mcp_service=mcp_service,
         task_service=TaskService(),

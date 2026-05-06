@@ -28,7 +28,7 @@ def _command_type(name: str) -> CommandType:
         return "session"
     if name == "doctor":
         return "diagnostic"
-    if name in {"help", "clear", "export", "skills", "status", "cost", "config", "memory", "todo", "context", "plugins", "mcp"}:
+    if name in {"help", "clear", "export", "skills", "status", "cost", "config", "memory", "todo", "context", "plugins", "hooks", "mcp"}:
         return "local"
     return "unsupported"
 

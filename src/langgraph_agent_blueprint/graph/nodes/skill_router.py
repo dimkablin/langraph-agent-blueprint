@@ -7,6 +7,7 @@ import json
 from langchain_core.messages import HumanMessage, ToolMessage
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
+from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
 from langgraph_agent_blueprint.models.messages import event
 from langgraph_agent_blueprint.skills.args import SkillArgumentValidationError
 
@@ -21,18 +22,26 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
     active = state.get("active_skill")
     if not active:
         return {}
+    pre_update = run_hook_point(deps, state, "pre_skill", active_skill=active)
+    if hook_blocked(pre_update):
+        return pre_update
+    current = state_with_update(state, pre_update)
     raw_args = active.get("args", "")
     try:
-        result = deps.skill_service.invoke(active["name"], raw_args, state)
+        result = deps.skill_service.invoke(active["name"], raw_args, current)
     except SkillArgumentValidationError as exc:
-        return _skill_validation_error_update(state, active, exc)
+        update = _skill_validation_error_update(current, active, exc)
+        post_update = run_hook_point(deps, state_with_update(current, update), "post_skill", active_skill=active)
+        return merge_updates(pre_update, update, post_update)
     except KeyError as exc:
-        return _skill_lookup_error_update(state, active, str(exc))
+        update = _skill_lookup_error_update(current, active, str(exc))
+        post_update = run_hook_point(deps, state_with_update(current, update), "post_skill", active_skill=active)
+        return merge_updates(pre_update, update, post_update)
     skill_name = result["name"]
     skill_args = result["args"]
-    skill_invocations = list(dict.fromkeys([*state.get("metadata", {}).get("skill_invocations", []), skill_name]))
+    skill_invocations = list(dict.fromkeys([*current.get("metadata", {}).get("skill_invocations", []), skill_name]))
     metadata = {
-        **state.get("metadata", {}),
+        **current.get("metadata", {}),
         "allowed_tools_override": result.get("allowed_tools", []),
         "active_skill_name": skill_name,
         "skill_invocations": skill_invocations,
@@ -51,8 +60,8 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
     if skill_name == "remember":
         typed_args = result["typed_args"]
         scope, text = typed_args["scope"], typed_args["text"]
-        path = deps.memory_service.remember(scope, text, state.get("session_id"))
-        memory = deps.memory_service.load_memory(state.get("project_root"), state.get("session_id"))
+        path = deps.memory_service.remember(scope, text, current.get("session_id"))
+        memory = deps.memory_service.load_memory(current.get("project_root"), current.get("session_id"))
         final_response = f"Remembered in {scope} memory: {text}"
         events.append(event("memory_updated", scope=scope, path=str(path)))
     else:
@@ -79,7 +88,8 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
         update["final_response"] = final_response
     if memory is not None:
         update["memory"] = memory
-    return update
+    post_update = run_hook_point(deps, state_with_update(current, update), "post_skill", active_skill=update["active_skill"])
+    return merge_updates(pre_update, update, post_update)
 
 
 def _skill_validation_error_update(state: dict, active: dict, exc: SkillArgumentValidationError) -> dict:

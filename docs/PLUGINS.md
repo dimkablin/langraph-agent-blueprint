@@ -45,9 +45,32 @@ The service accepts:
 
 Discovery reads harness manifests such as `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json`, falls back to `package.json`, validates paths, and exposes `PluginContribution` records in graph state.
 
+## Hook Contributions
+
+Plugin manifests can declare data-only hooks:
+
+```json
+{
+  "name": "example-plugin",
+  "hooks": [
+    {
+      "id": "example.add_context",
+      "point": "pre_model",
+      "action": "add_system_context",
+      "content": "Remember to be concise.",
+      "priority": 100
+    }
+  ]
+}
+```
+
+`PluginService` validates hook entries into `HookContribution` records. Valid hooks are registered in `HookRegistry`; malformed hooks are reported as `hook_warnings` in plugin state and `/plugins` output instead of crashing discovery.
+
+External plugin hooks are untrusted by default. Phase 1 supports only safe declarative actions: `continue`, `add_event`, `add_system_context`, `modify_metadata`, and `block`. Script fields, install hooks, package scripts, and arbitrary plugin code are ignored and never executed.
+
 ## Security
 
-Plugin install and discovery never execute plugin scripts. Skills are prompt content only. Plugin skill tool calls still go through the normal tool registry, permission service, LangGraph interrupt/resume flow, and skill `allowed_tools` scope.
+Plugin install and discovery never execute plugin scripts. Skills and hook-added context are prompt content only. Plugin skill tool calls still go through the normal tool registry, permission service, LangGraph interrupt/resume flow, and skill `allowed_tools` scope.
 
 Git install/update is a network operation and fails with a structured error unless `NETWORK_ENABLED=true`. Path traversal in manifest-declared skill paths is rejected.
 
@@ -57,6 +80,7 @@ Slash command:
 
 ```text
 /plugins
+/hooks
 ```
 
 CLI commands:

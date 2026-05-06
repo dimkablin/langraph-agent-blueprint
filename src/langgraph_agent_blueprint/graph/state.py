@@ -37,6 +37,7 @@ class AssistantState(TypedDict, total=False):
     available_tools: dict[str, dict[str, Any]]
     available_commands: dict[str, dict[str, Any]]
     available_skills: dict[str, dict[str, Any]]
+    available_hooks: list[dict[str, Any]]
     disabled_skills: dict[str, str]
     pending_tool_calls: list[dict[str, Any]]
     tool_results: Annotated[list[dict[str, Any]], append_list]
@@ -87,6 +88,7 @@ def create_initial_state(
         available_tools={},
         available_commands={},
         available_skills={},
+        available_hooks=[],
         disabled_skills={},
         pending_tool_calls=[],
         tool_results=[],

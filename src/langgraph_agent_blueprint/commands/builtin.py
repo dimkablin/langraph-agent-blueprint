@@ -80,13 +80,34 @@ def _plugins(args: str, state: dict[str, Any]) -> CommandResult:
         bootstrap = plugin.get("bootstrap_skill") or "none"
         lines.append(
             f"- {plugin.get('name')}: enabled, version: {plugin.get('version', 'unknown')}, "
-            f"skills: {plugin.get('skills_count', 0)}, bootstrap: {bootstrap}"
+            f"skills: {plugin.get('skills_count', 0)}, hooks: {plugin.get('hooks_count', 0)}, bootstrap: {bootstrap}"
         )
+        for warning in plugin.get("hook_warnings", []):
+            lines.append(f"  hook warning: {warning.get('hook')}: {warning.get('error')}")
     errors = plugin_state.get("errors", [])
     if errors:
         lines.append("Plugin errors:")
         for item in errors:
             lines.append(f"- {item.get('path')}: {item.get('error')}")
+    warnings = plugin_state.get("hook_warnings", [])
+    if warnings:
+        lines.append("Plugin hook warnings:")
+        for item in warnings:
+            lines.append(f"- {item.get('plugin')}/{item.get('hook')}: {item.get('error')}")
+    return CommandResult(True, "\n".join(lines))
+
+
+def _hooks(args: str, state: dict[str, Any]) -> CommandResult:
+    """Render registered hook contributions."""
+
+    hooks = state.get("available_hooks") or state.get("hooks_state", {}).get("registered_hooks", [])
+    if not hooks:
+        return CommandResult(True, "Registered hooks: none")
+    lines = ["Registered hooks:"]
+    for hook in sorted(hooks, key=lambda item: (item.get("hook_point", ""), item.get("priority", 100), item.get("id", ""))):
+        plugin = hook.get("plugin_name") or "core"
+        status = "enabled" if hook.get("enabled", True) else "disabled"
+        lines.append(f"- {hook.get('id')} [{hook.get('hook_point')}] plugin: {plugin}, priority: {hook.get('priority', 100)}, {status}")
     return CommandResult(True, "\n".join(lines))
 
 
@@ -187,5 +208,6 @@ def builtins() -> list[Command]:
         Command("tag", "Tag session", "session", _not_implemented("tag")),
         Command("context", "Show context usage", "local", _not_implemented("context")),
         Command("plugins", "List plugins", "local", _plugins),
+        Command("hooks", "List hooks", "local", _hooks),
         Command("mcp", "List MCP state", "local", _not_implemented("mcp")),
     ]

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from langgraph_agent_blueprint.models.base import dump_model
+from langgraph_agent_blueprint.models.hooks import HookContribution, HookRuntimeMetadata
 from langgraph_agent_blueprint.models.plugins import PluginContribution, PluginInstallResult, PluginManifest, PluginSource
 from langgraph_agent_blueprint.plugins.superpowers import (
     SUPERPOWERS_BOOTSTRAP_SKILL,
@@ -41,9 +42,12 @@ class PluginService:
                 errors.append({"path": str(root), "error": str(exc)})
         skills = []
         plugins = []
+        hooks = []
+        hook_warnings: list[dict[str, str]] = []
         fragments: list[str] = []
         for contribution in contributions:
             skill_names = self._skill_registry_ids(contribution)
+            hook_payloads = [hook.model_dump(mode="json", exclude_none=True) for hook in contribution.hooks]
             plugins.append(
                 {
                     **contribution.manifest.model_dump(mode="json", exclude_none=True),
@@ -53,9 +57,13 @@ class PluginService:
                     "skills_path": contribution.skills_path,
                     "bootstrap_skill": contribution.bootstrap_skill,
                     "skills_count": len(skill_names),
+                    "hooks_count": len(contribution.hooks),
+                    "hook_warnings": contribution.hook_warnings,
                 }
             )
             skills.extend(skill_names)
+            hooks.extend(hook_payloads)
+            hook_warnings.extend(contribution.hook_warnings)
             fragments.extend(contribution.system_context_fragments)
         return {
             "plugins": plugins,
@@ -64,7 +72,8 @@ class PluginService:
             "commands": [],
             "skills": skills,
             "tools": [],
-            "hooks": [],
+            "hooks": hooks,
+            "hook_warnings": hook_warnings,
             "mcp": [],
             "system_context_fragments": fragments,
         }
@@ -88,6 +97,9 @@ class PluginService:
         skills_declared = codex.get("skills") or claude.get("skills")
         skills_path = self._resolve_skills_path(root_path, skills_declared)
         bootstrap_skill = codex.get("bootstrap_skill") or claude.get("bootstrap_skill")
+        hooks_declared, manifest_hook_warnings = self._manifest_hook_entries(name, codex, claude)
+        hooks, parse_hook_warnings = self._parse_hooks(root_path, name, hooks_declared)
+        hook_warnings = [*manifest_hook_warnings, *parse_hook_warnings]
         if name == SUPERPOWERS_PLUGIN_NAME and skills_path and (Path(skills_path) / SUPERPOWERS_BOOTSTRAP_SKILL / "SKILL.md").exists():
             bootstrap_skill = SUPERPOWERS_BOOTSTRAP_SKILL
         manifest = PluginManifest.model_validate(
@@ -99,6 +111,7 @@ class PluginService:
                 "version": version,
                 "skills_path": skills_declared,
                 "bootstrap_skill": bootstrap_skill,
+                "hooks": hooks_declared,
             }
         )
         contribution = PluginContribution(
@@ -108,6 +121,8 @@ class PluginService:
             skills_path=str(skills_path) if skills_path else None,
             bootstrap_skill=bootstrap_skill,
             system_context_fragments=[],
+            hooks=hooks,
+            hook_warnings=hook_warnings,
         )
         if is_superpowers_repo(root_path, name) and skills_path:
             skill_names = self._skill_registry_ids(contribution)
@@ -279,6 +294,58 @@ class PluginService:
         except ValueError as exc:
             raise ValueError("plugin path traversal rejected") from exc
         return candidate
+
+    @staticmethod
+    def _manifest_hook_entries(plugin_name: str, *manifests: dict[str, Any]) -> tuple[list[Any], list[dict[str, str]]]:
+        entries: list[Any] = []
+        warnings: list[dict[str, str]] = []
+        for manifest in manifests:
+            if "hooks" not in manifest:
+                continue
+            raw_hooks = manifest.get("hooks")
+            if raw_hooks is None:
+                continue
+            if not isinstance(raw_hooks, list):
+                warnings.append({"plugin": plugin_name, "hook": "hooks", "error": "plugin hooks field must be a list"})
+                continue
+            entries.extend(raw_hooks)
+        return entries, warnings
+
+    def _parse_hooks(self, root_path: Path, plugin_name: str, raw_hooks: list[Any]) -> tuple[list[HookContribution], list[dict[str, str]]]:
+        hooks: list[HookContribution] = []
+        warnings: list[dict[str, str]] = []
+        source_path = str(root_path / ".codex-plugin" / "plugin.json")
+        for index, raw in enumerate(raw_hooks):
+            try:
+                if not isinstance(raw, dict):
+                    raise ValueError("plugin hook entry must be an object")
+                hook_point = raw.get("hook_point") or raw.get("point")
+                hook_id = str(raw.get("id") or f"{plugin_name}.{hook_point}.{index}")
+                runtime = HookRuntimeMetadata(
+                    action=raw.get("action", "continue"),
+                    content=raw.get("content"),
+                    event_type=raw.get("event_type"),
+                    event_data=raw.get("event_data") if isinstance(raw.get("event_data"), dict) else {},
+                    metadata_update=raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {},
+                    context_update=raw.get("context") if isinstance(raw.get("context"), dict) else {},
+                    block_reason=raw.get("message") or raw.get("reason"),
+                )
+                hooks.append(
+                    HookContribution(
+                        id=hook_id,
+                        plugin_name=plugin_name,
+                        hook_point=hook_point,
+                        description=raw.get("description"),
+                        enabled=bool(raw.get("enabled", True)),
+                        priority=int(raw.get("priority", 100)),
+                        trusted=False,
+                        source_path=source_path,
+                        metadata={"runtime": runtime.model_dump(mode="json", exclude_none=True)},
+                    )
+                )
+            except Exception as exc:
+                warnings.append({"plugin": plugin_name, "hook": str(raw.get("id", index)) if isinstance(raw, dict) else str(index), "error": str(exc)})
+        return hooks, warnings
 
     def _skill_registry_ids(self, contribution: PluginContribution) -> list[str]:
         if not contribution.skills_path:

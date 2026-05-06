@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import ConfigDict, Field
 
 from .base import FrozenRuntimeModel
+from .hooks import HookContribution
 
 
 class PluginSource(FrozenRuntimeModel):
@@ -32,6 +33,7 @@ class PluginManifest(FrozenRuntimeModel):
     license: str | None = None
     skills_path: str | None = None
     bootstrap_skill: str | None = None
+    hooks: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class PluginContribution(FrozenRuntimeModel):
@@ -43,6 +45,8 @@ class PluginContribution(FrozenRuntimeModel):
     skills_path: str | None = None
     bootstrap_skill: str | None = None
     system_context_fragments: list[str] = Field(default_factory=list)
+    hooks: list[HookContribution] = Field(default_factory=list)
+    hook_warnings: list[dict[str, str]] = Field(default_factory=list)
 
 
 class PluginInstallResult(FrozenRuntimeModel):
