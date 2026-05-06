@@ -79,12 +79,11 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
     if tool.runtime.route == "agent_graph":
         metadata["tool_route"] = "agent_tool"
         return merge_updates(pre_tool_update, {"metadata": metadata})
-    if tool.runtime.route == "mcp_graph":
-        metadata["tool_route"] = "mcp_tool"
-        return merge_updates(pre_tool_update, {"metadata": metadata})
     decision = deps.permission_service.decide(tool, current, call.args)
+    execution_route = "mcp_tool" if tool.runtime.route == "mcp_graph" else "execute"
     if decision.decision == "ask":
         metadata["tool_route"] = "needs_permission"
+        metadata["after_permission_route"] = execution_route
         pending = dump_model(deps.permission_service.confirmation_payload(call, tool, decision.reason))
         update = {
             "metadata": metadata,
@@ -109,5 +108,6 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
             "messages": [tool_result_to_tool_message(result)],
             "pending_tool_calls": [],
         })
-    metadata["tool_route"] = "execute"
+    metadata["tool_route"] = execution_route
+    metadata.pop("after_permission_route", None)
     return merge_updates(pre_tool_update, {"metadata": metadata})

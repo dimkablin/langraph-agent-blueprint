@@ -39,3 +39,15 @@ def test_process_env_overrides_project_dotenv(tmp_path, monkeypatch):
     config = AppConfig.from_env()
 
     assert config.llm_provider == "fake"
+
+
+def test_from_env_loads_mcp_config_json(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(
+        "MCP_CONFIG_JSON",
+        '{"servers":{"fake":{"enabled":true,"transport":"stdio","command":"python","args":["server.py"]}}}',
+    )
+
+    config = AppConfig.from_env()
+
+    assert config.mcp_config["servers"]["fake"]["transport"] == "stdio"

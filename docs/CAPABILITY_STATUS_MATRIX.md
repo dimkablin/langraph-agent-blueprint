@@ -30,7 +30,10 @@ Status vocabulary:
 | `/todo` | command | yes | yes | yes | yes | yes | durable todos read | `working` | Shows todos persisted by `todo_write`. |
 | `/prompt` | command | yes | yes | yes | yes | yes | session event | `working` | Expands prompt and continues to model path. |
 | `/skill` | command | yes | yes | yes | yes | yes | skill invocation/session | `working` | Routes explicit skill invocation through skill graph. |
-| `/rewind`, `/branch`, `/rename`, `/tag`, `/context`, `/plugins`, `/mcp` | optional commands | documented | unsupported list | yes | no side effect | command response | n/a | `unsupported_optional` | Listed separately by `/help`; not shown as active required commands. |
+| `/plugins` | command | yes | yes | yes | yes | yes | plugin state | `working` | Lists installed/enabled plugin contributions. |
+| `/hooks` | command | yes | yes | yes | yes | yes | hook state | `working` | Lists registered hook contributions. |
+| `/mcp` | command | yes | yes | yes | yes | yes | MCP state | `working` | Lists MCP servers, tools, resources, and prompts. |
+| `/rewind`, `/branch`, `/rename`, `/tag`, `/context` | optional commands | documented | unsupported list | yes | no side effect | command response | n/a | `unsupported_optional` | Listed separately by `/help`; not shown as active required commands. |
 
 ## Skills
 
@@ -64,6 +67,7 @@ Status vocabulary:
 | `skill` | tool | yes | yes | yes | fake + provider schema | routes to skill graph | yes | skill/session | `working` | Structured args route to skill graph; `remember` persists memory. |
 | `agent` | tool | yes | yes | yes | fake/provider schema | limited child result | yes | child_runs/session | `unsupported_optional` | Subagent remains limited/synthetic and is not counted as required core. |
 | `diagnostics` | tool | yes | yes | `/doctor` | provider schema | yes | yes | diagnostics metadata | `working` | `/doctor` calls diagnostics service. |
+| `mcp.<server>.<tool>` | tool | discovered from config | yes when server configured | yes | provider schema | approval + MCP call | yes | tool_calls/permissions | `working_with_provider_requirement` | Fake stdio MCP server tests cover discovery, permission, approval, rejection, and result ToolMessage. |
 
 ## Final Counts
 

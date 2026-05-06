@@ -27,7 +27,7 @@ Core tools:
 - `agent`
 - `skill`
 - `diagnostics`
-- `mcp.*` adapters
+- `mcp.<server>.<tool>` adapters discovered from configured MCP servers
 
 Tool workflow is graph-owned: UI/API call the graph, the graph routes to permission and execution nodes, and services perform low-level operations.
 
@@ -74,3 +74,5 @@ Runtime status after fixes:
 - `web_fetch` is disabled unless network is enabled and approved; when enabled it returns untrusted-content warning metadata.
 - `web_search` reports unavailable when no provider is configured.
 - Tool routing for skill, agent, and MCP tools is metadata-driven through `tool.runtime.route`.
+- MCP tools are discovered through `MCPService`, registered with `ToolRuntimeMetadata(kind="mcp", route="mcp_graph")`, and require approval by default through `ToolPermissionMetadata(action="mcp", risk="high", external=True)`.
+- MCP adapter input schemas come from server `tools/list` `inputSchema` payloads; tool calls return through the normal `ToolResult` -> `ToolMessage` loop.

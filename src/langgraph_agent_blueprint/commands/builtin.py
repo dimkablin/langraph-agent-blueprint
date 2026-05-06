@@ -148,6 +148,58 @@ def _doctor(args: str, state: dict[str, Any]) -> CommandResult:
     return CommandResult(True, "Doctor requested.", metadata={"doctor_requested": True})
 
 
+def _mcp(args: str, state: dict[str, Any]) -> CommandResult:
+    """Render MCP client status from graph-owned discovery state."""
+
+    mcp_state = state.get("mcp_state", {})
+    view = (args or "servers").strip().split()[0] if args or args == "" else "servers"
+    servers = mcp_state.get("servers", [])
+    tools = mcp_state.get("tools", {})
+    resources = mcp_state.get("resources", {})
+    prompts = mcp_state.get("prompts", {})
+    if view in {"servers", "status"}:
+        lines = ["MCP servers:"]
+        if not servers:
+            lines.append("- none")
+        for server in servers:
+            counts = {
+                "tools": len([tool for tool in tools.values() if tool.get("server_name") == server.get("name")]),
+                "resources": len(resources.get(server.get("name"), [])),
+                "prompts": len(prompts.get(server.get("name"), [])),
+            }
+            detail = f", error: {server.get('error')}" if server.get("error") else ""
+            lines.append(
+                f"- {server.get('name')}: {server.get('status')} "
+                f"(transport: {server.get('transport')}, tools: {counts['tools']}, "
+                f"resources: {counts['resources']}, prompts: {counts['prompts']}){detail}"
+            )
+        return CommandResult(True, "\n".join(lines))
+    if view == "tools":
+        lines = ["MCP tools:"]
+        if not tools:
+            lines.append("- none")
+        for name, tool in sorted(tools.items()):
+            lines.append(f"- {name}: {tool.get('description', '')} (server: {tool.get('server_name')})")
+        return CommandResult(True, "\n".join(lines))
+    if view == "resources":
+        lines = ["MCP resources:"]
+        if not resources:
+            lines.append("- none")
+        for server, items in sorted(resources.items()):
+            for item in items:
+                lines.append(f"- {server}: {item.get('uri')} ({item.get('mime_type') or item.get('mimeType') or 'unknown'})")
+        return CommandResult(True, "\n".join(lines))
+    if view == "prompts":
+        lines = ["MCP prompts:"]
+        if not prompts:
+            lines.append("- none")
+        for server, items in sorted(prompts.items()):
+            for item in items:
+                lines.append(f"- {server}: {item.get('prompt_name')} ({item.get('description', '')})")
+        return CommandResult(True, "\n".join(lines))
+    return CommandResult(True, "Usage: /mcp [servers|tools|resources|prompts]")
+
+
 def _memory(args: str, state: dict[str, Any]) -> CommandResult:
     """Render loaded memory scopes, omitting empty scopes for readability."""
 
@@ -209,5 +261,5 @@ def builtins() -> list[Command]:
         Command("context", "Show context usage", "local", _not_implemented("context")),
         Command("plugins", "List plugins", "local", _plugins),
         Command("hooks", "List hooks", "local", _hooks),
-        Command("mcp", "List MCP state", "local", _not_implemented("mcp")),
+        Command("mcp", "List MCP state", "local", _mcp),
     ]

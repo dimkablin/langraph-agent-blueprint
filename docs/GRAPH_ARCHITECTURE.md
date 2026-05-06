@@ -24,7 +24,8 @@ flowchart TD
     tool_router -->|needs permission| permission_gate
     tool_router -->|execute| tool_executor
     permission_gate -->|interrupt| HUMAN
-    HUMAN -->|resume approve| tool_executor
+    HUMAN -->|resume approve execute| tool_executor
+    HUMAN -->|resume approve MCP| mcp_graph
     HUMAN -->|resume reject| model_call
     tool_executor --> model_call
     skill_graph --> model_call
@@ -56,8 +57,8 @@ Boundary data is validated with Pydantic before nodes act on it. State stores JS
 - `context_builder`: runs `pre_context_build` / `post_context_build` hooks and builds system context from project, memory, plugin bootstrap fragments, hook context fragments, tools, skills, todos.
 - `model_call`: runs `pre_model` / `post_model` hooks, calls provider, and emits model/tool events.
 - `tool_router`: runs `pre_tool`, classifies tool calls, runs `permission_request` hooks when approval is needed, and chooses execution, permission, skill, agent, MCP, or error route.
-- `permission_gate`: uses LangGraph `interrupt`, resumes from approval/rejection, and runs `permission_resolved` hooks.
-- `tool_executor`: executes tools through `ToolExecutionService` and runs `post_tool` hooks.
+- `permission_gate`: uses LangGraph `interrupt`, resumes from approval/rejection, routes approved calls back to the intended execute or MCP route, and runs `permission_resolved` hooks.
+- `tool_executor`: executes tools through `ToolExecutionService`, emits MCP-specific tool events for MCP adapters, and runs `post_tool` hooks.
 - `hook_runner`: compatibility node retained for graph shape; lifecycle hooks are dispatched by the graph nodes that own each lifecycle point.
 - `compact_decision`: decides manual/automatic compaction.
 - `compact_context`: runs `pre_compact` / `post_compact`, summarizes older context, and preserves recent work.
@@ -83,7 +84,7 @@ Implemented subgraph builders:
 
 `tool_router` sets `pending_confirmation` for risky calls. `permission_gate` interrupts with that payload. `AssistantGraphRuntime.resume(thread_id, decision)` resumes the same graph checkpoint with `langgraph.types.Command(resume=decision)`.
 
-Rejection creates a structured rejected tool result and returns to the model loop. Approval routes to `tool_executor`.
+Rejection creates a structured rejected tool result and returns to the model loop. Approval routes to the originally requested runtime route. Built-in tools continue to `tool_executor`; MCP tools continue to `mcp_graph`.
 
 ## Streaming Event Flow
 
@@ -119,3 +120,11 @@ The Superpowers adapter injects compact bootstrap context from `superpowers/usin
 Hooks are graph-owned extension points. A graph node reaches a lifecycle point, builds `HookContext`, invokes `HookService`, receives typed `HookResult` records, and applies only controlled effects through the hook result applier.
 
 Plugin hooks are declarative/data-only contributions parsed by `PluginService` and registered in `HookRegistry`. Hook events such as `hook_started`, `hook_finished`, `hook_error`, and `hook_blocked` are streamed and persisted like other `RuntimeEvent` records. Hook-added system context is marked as hook or plugin-hook content; hooks cannot execute side effects or bypass `PermissionService`.
+
+## MCP Client Runtime
+
+`MCPService` owns configured MCP client lifecycle and protocol operations. `load_registries` discovers configured MCP servers, exposes server/tool/resource/prompt state, and registers discovered tools through `MCPToolAdapter` before provider schemas are built.
+
+MCP tools are regular tools with `ToolRuntimeMetadata(kind="mcp", route="mcp_graph")` and conservative `ToolPermissionMetadata(action="mcp", risk="high", requires_permission=True, external=True)`. `tool_router` reads that metadata, asks for permission when required, and routes approved MCP calls to `mcp_graph`; it does not route by `mcp.` name prefix.
+
+MCP events such as `mcp_server_connected`, `mcp_tools_discovered`, `mcp_tool_call_started`, and `mcp_tool_call_finished` are normal `RuntimeEvent` records and are streamed/persisted with the session.

@@ -35,3 +35,18 @@ Runtime status after fixes:
 - Network tools with `requires_permission=True` are no longer auto-allowed just because they are read-only.
 - `permission_required` action/risk values come from tool metadata, not registry names.
 - Confirmation args are recursively redacted with default secret-like keys plus each tool's `sensitive_arg_keys`.
+
+## MCP
+
+MCP tools are external by default. Discovered MCP tools register conservative metadata:
+
+```python
+ToolPermissionMetadata(
+    action="mcp",
+    risk="high",
+    requires_permission=True,
+    external=True,
+)
+```
+
+`tool_router` checks `PermissionService` before routing an MCP call to `mcp_graph`. Approval resumes to `mcp_graph`; rejection appends a rejected `ToolMessage` and does not call the MCP server. MCP resource and prompt content is marked external/untrusted and cannot directly create side effects.

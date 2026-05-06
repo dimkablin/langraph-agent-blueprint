@@ -93,6 +93,21 @@ lg-agent plugins list
 lg-agent doctor
 ```
 
+## MCP Client Runtime
+
+MCP servers are optional and explicit. Phase 2 supports local stdio MCP clients for `initialize`, `tools/list`, `tools/call`, `resources/list/read`, and `prompts/list/get`. Streamable HTTP is modeled but reported as unsupported in this phase.
+
+Example environment config:
+
+```powershell
+$env:MCP_CONFIG_JSON = '{"servers":{"fake":{"enabled":true,"transport":"stdio","command":"python","args":["tests/fixtures/mcp/fake_mcp_server.py"]}}}'
+lg-agent query "/mcp"
+lg-agent query "/mcp tools"
+lg-agent query "/doctor"
+```
+
+Discovered tools register as `mcp.<server>.<tool>` and route through `ToolRuntimeMetadata(kind="mcp", route="mcp_graph")`. Unknown MCP tools require approval by default and cannot bypass `PermissionService`. Resource and prompt content is marked external/untrusted. See `docs/MCP.md`.
+
 ## Optional: Superpowers Plugin
 
 Superpowers can be installed as an external plugin contribution. Git install/update is explicit network work, so enable network first:
@@ -160,13 +175,13 @@ npm --prefix frontend run test:static
 npm --prefix frontend run build
 ```
 
-The test suite uses the fake provider and requires no real API keys, network, MCP server, or Ollama daemon.
+The test suite uses the fake provider and a local fake stdio MCP server fixture. It requires no real API keys, network, external MCP server, or Ollama daemon.
 
 Current final acceptance verification on 2026-05-06:
 
-- `python -m pytest -q -rA`: passed, 73 collected tests.
+- `python -m pytest -q`: passed.
 - `npm.cmd --prefix frontend run test:static`: passed.
-- `npm.cmd --prefix frontend run build`: passed outside sandbox after a Windows sandbox `spawn EPERM`.
+- `npm.cmd --prefix frontend run build`: previously passed outside sandbox after a Windows sandbox `spawn EPERM`.
 - Runtime smoke in `test_runs/final-acceptance-workspace`: 36/36 fake-provider scenarios passed.
 - Ollama `qwen3:14b`: native `read_file` tool call passed through LangGraph, produced a `ToolMessage`, and returned `ACCEPTANCE_README_LINE`.
 
@@ -243,8 +258,9 @@ Slash commands are routed through `CommandRegistry` and `command_router`:
 - `/todo`
 - `/plugins`
 - `/hooks`
+- `/mcp`
 
-Optional commands such as `/mcp`, `/context`, `/rewind`, `/branch`, `/rename`, and `/tag` are recognized with documented limitations.
+Optional commands such as `/context`, `/rewind`, `/branch`, `/rename`, and `/tag` are recognized with documented limitations.
 
 Required commands now perform real runtime work: `/compact` compacts context, `/export` writes a transcript, `/resume` restores session state, `/doctor` runs diagnostics, `/todo` reads persisted todos, and `/memory` reads durable memory.
 
@@ -275,7 +291,7 @@ Sessions are stored under `.storage/projects/{project_hash}/sessions/{session_id
 
 ## Limitations
 
-- MCP is an architectural/service abstraction with mockable registration and disabled-by-default behavior when no config exists.
+- MCP client support currently covers stdio servers and core tools/resources/prompts operations. Streamable HTTP, OAuth, automatic discovery, MCP server mode, and prompt-to-skill registration are not implemented yet.
 - Plugin support validates local manifests and exposes contributions; marketplace install/update is not implemented.
 - IDE/LSP is documented as architectural/minimal.
 - Provider JSON repair is minimal. Native tool calling is tested through fake provider and manually verified with Ollama `qwen3:14b`.

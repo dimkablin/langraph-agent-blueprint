@@ -86,7 +86,7 @@ class ModelProviderService:
             return {"id": new_id("tool"), "name": "write_file", "args": {"path": parts[1], "content": content}}
         if command.startswith("agent "):
             return {"id": new_id("tool"), "name": "agent", "args": {"prompt": command[6:]}}
-        match = re.match(r"(\w+)(?:\s+(.+))?", command)
+        match = re.match(r"([A-Za-z_][\w.\-/]*)(?:\s+(.+))?", command)
         if match:
             args: dict[str, Any] = {}
             if match.group(2):

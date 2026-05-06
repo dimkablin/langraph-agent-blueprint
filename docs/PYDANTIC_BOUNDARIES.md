@@ -16,6 +16,7 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - tool classification -> `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect`
 - plugin config/manifests/discovery -> `PluginSource`, `PluginManifest`, `PluginContribution`, and `PluginInstallResult`
 - hook discovery/invocation/results -> `HookContribution`, `HookContext`, `HookInvocation`, `HookResult`, and `HookRunSummary`
+- MCP config/discovery/invocation -> `MCPServerConfig`, `MCPConnectionState`, `MCPToolContribution`, `MCPResourceContribution`, `MCPPromptContribution`, `MCPToolCallRequest`, `MCPToolCallResult`, `MCPResourceReadResult`, and `MCPPromptGetResult`
 
 The LangGraph state remains checkpointer-safe: nodes store dictionaries and lists in state, and validate them at node/service boundaries with `model_validate(...)`. Outgoing DTOs are serialized with `model_dump(mode="json")`.
 
@@ -102,6 +103,18 @@ Hook runtime boundaries live in `langgraph_agent_blueprint.models.hooks`:
 - `HookRunSummary` carries typed results plus validated runtime events.
 
 Graph state stores hook records as JSON-safe dictionaries. Nodes apply `HookResult` through the controlled applier; hooks cannot replace arbitrary graph state fields.
+
+## MCP
+
+MCP boundary models live in `langgraph_agent_blueprint.models.mcp`.
+
+- `MCPServerConfig`, `MCPStdioConfig`, and `MCPHttpConfig` validate explicit server config.
+- `MCPConnectionState` records serializable connection status and capabilities.
+- `MCPToolContribution`, `MCPResourceContribution`, and `MCPPromptContribution` validate discovered server capabilities before they enter graph state or registries.
+- `MCPToolCallRequest` and `MCPToolCallResult` wrap `tools/call`.
+- `MCPResourceReadResult` and `MCPPromptGetResult` mark external content as untrusted.
+
+Graph state stores MCP snapshots as JSON-safe dictionaries. The stdio transport and service keep process objects outside LangGraph state.
 
 ## Sessions
 

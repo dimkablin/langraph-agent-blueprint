@@ -36,7 +36,7 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
     }
     metadata = dict(state.get("metadata", {}))
     if approved:
-        metadata["tool_route"] = "execute"
+        metadata["tool_route"] = metadata.pop("after_permission_route", "execute")
         update = {
             "metadata": metadata,
             "pending_confirmation": None,

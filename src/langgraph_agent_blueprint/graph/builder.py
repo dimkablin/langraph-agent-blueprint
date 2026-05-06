@@ -99,7 +99,11 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
             "error": "error_recovery",
         },
     )
-    graph.add_conditional_edges("permission_gate", route_after_permission, {"execute": "tool_executor", "rejected": "model_call"})
+    graph.add_conditional_edges(
+        "permission_gate",
+        route_after_permission,
+        {"execute": "tool_executor", "mcp_tool": "mcp_graph", "rejected": "model_call"},
+    )
     graph.add_conditional_edges("tool_executor", route_after_tool_execution, {"model_call": "model_call", "error_recovery": "error_recovery"})
     graph.add_edge("agent_graph", "model_call")
     graph.add_edge("mcp_graph", "model_call")

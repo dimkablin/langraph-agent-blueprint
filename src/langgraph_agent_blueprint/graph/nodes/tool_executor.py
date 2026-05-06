@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
+from langgraph_agent_blueprint.models.messages import event
 from langgraph_agent_blueprint.models.base import validate_list
 from langgraph_agent_blueprint.models.tools import ToolCall, ToolResult, tool_result_to_tool_message
 
@@ -25,12 +26,36 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
     messages = []
     for call in calls:
         call_payload = call.model_dump(mode="json")
+        tool = deps.tool_registry.get(call.name)
+        is_mcp = tool.runtime.kind == "mcp" or tool.runtime.route == "mcp_graph"
+        mcp_metadata = tool.metadata().get("mcp", {}) if is_mcp else {}
+        if is_mcp:
+            events.append(
+                event(
+                    "mcp_tool_call_started",
+                    id=call.id,
+                    name=call.name,
+                    server_name=mcp_metadata.get("server_name"),
+                    tool_name=mcp_metadata.get("tool_name"),
+                )
+            )
         events.append(deps.tool_execution_service.started_event(call_payload))
         record = deps.tool_execution_service.execute(call_payload, state)
         result = ToolResult.model_validate(record)
         results.append(record)
         messages.append(tool_result_to_tool_message(result))
         events.append(deps.tool_execution_service.finished_event(record))
+        if is_mcp:
+            events.append(
+                event(
+                    "mcp_tool_call_error" if result.status == "error" else "mcp_tool_call_finished",
+                    id=result.id,
+                    name=result.name,
+                    status=result.status,
+                    server_name=mcp_metadata.get("server_name"),
+                    tool_name=mcp_metadata.get("tool_name"),
+                )
+            )
         deps.session_storage.append_tool_call(state["project_root"], state["session_id"], record)
         state_update = record.get("state_update", {})
         if "todos" in state_update:

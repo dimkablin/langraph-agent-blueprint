@@ -172,5 +172,5 @@ The current command lists registered hooks, hook point, plugin name, priority, a
 - `session_end` is modeled but not called by a dedicated shutdown node.
 - Declarative plugin hooks are intentionally small and data-only.
 - `request_permission` is represented but not wired to create permission interrupts.
-- There is no MCP hook execution in this phase.
+- MCP tool calls use the normal `pre_tool`, `permission_request`, `permission_resolved`, `post_tool`, and `error` hook points; hooks still cannot execute MCP calls directly.
 - Hook-added context is prompt content and must be treated as untrusted when it comes from external plugins.

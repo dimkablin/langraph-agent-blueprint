@@ -20,10 +20,13 @@ Current acceptance status as of 2026-05-06. Pre-fix audit findings are historica
 | `/todo` | Show durable todos. | local command reads restored todos | `final_response` | command + final events | `todos.json` | After `todo_write`, later `/todo` showed `final acceptance todo`. | `working` |
 | `/prompt` | Expand args into model prompt. | prompt command route to model | adds prompt message | model/final events | session messages | Regression `test_prompt_command_continues_to_model`. | `working` |
 | `/skill` | Invoke skill graph. | command route to `skill_graph` | `active_skill`, scoped metadata | `skill_started`, `skill_finished` | skill/session events | Runtime skill tests cover all built-ins. | `working` |
+| `/plugins` | List plugin state. | local command route | `final_response` | command + final events | session event | Superpowers/plugin tests cover discovery output. | `working` |
+| `/hooks` | List hook registry. | local command route | `final_response` | command + final events | session event | Hook tests cover registered hook visibility. | `working` |
+| `/mcp` | List MCP state. | local command route | `final_response` | command + final events | session event | MCP command tests cover servers/tools/resources/prompts. | `working` |
 
 ## Unsupported Optional Commands
 
-`/rewind`, `/branch`, `/rename`, `/tag`, `/context`, `/plugins`, and `/mcp` are recognized as optional/unsupported in help output. They are not counted as required working commands.
+`/rewind`, `/branch`, `/rename`, `/tag`, and `/context` are recognized as optional/unsupported in help output. They are not counted as required working commands.
 
 ## Historical Audit Result
 

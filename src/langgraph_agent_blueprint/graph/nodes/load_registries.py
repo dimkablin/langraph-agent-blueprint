@@ -11,6 +11,7 @@ def load_registries_node(state: dict, deps: AppDependencies) -> dict:
     plugin_state = deps.plugin_service.discover()
     mcp_state = deps.mcp_service.discover()
     events = [event("node_finished", node="load_registries")]
+    events.extend(mcp_state.get("events", []))
     for plugin in plugin_state.get("plugins", []):
         events.append(event("plugin_loaded", name=plugin.get("name"), skills_count=plugin.get("skills_count", 0)))
     for skill_name in plugin_state.get("skills", []):
@@ -26,7 +27,13 @@ def load_registries_node(state: dict, deps: AppDependencies) -> dict:
         "available_hooks": deps.hook_registry.snapshot(),
         "disabled_skills": dict(deps.skill_registry.disabled),
         "plugin_state": plugin_state,
-        "mcp_state": {"tools": list(mcp_state["tools"]), "resources": mcp_state["resources"], "prompts": mcp_state["prompts"]},
+        "mcp_state": {
+            "servers": mcp_state.get("servers", []),
+            "tools": mcp_state.get("tools", {}),
+            "resources": mcp_state.get("resources", {}),
+            "prompts": mcp_state.get("prompts", {}),
+            "transport_support": mcp_state.get("transport_support", {}),
+        },
         "hooks_state": {"registered_hooks": deps.hook_registry.snapshot(), "registered_hook_count": len(deps.hook_registry.list_hooks())},
         "metadata": metadata,
         "ui_events": events,

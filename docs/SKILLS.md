@@ -52,6 +52,8 @@ Optional audited skills are documented but disabled initially: `loop`, `schedule
 
 Skills do not own workflow routing. LangGraph invokes skills through `skill_graph` and `SkillTool`.
 
+MCP prompts are discovered through `MCPService.prompts/list` and can be retrieved as untrusted prompt content with `prompts/get`. Automatic MCP prompt-to-skill registration is not enabled in Phase 2; the planned namespace is `mcp/<server>/prompt/<prompt>`.
+
 Skill arguments are typed with Pydantic schemas. Built-in skills use dedicated schemas such as
 `RememberSkillArgs`, `VerifySkillArgs`, `SimplifySkillArgs`, and `SkillifySkillArgs`; file-based
 skills without a specific schema use `GenericSkillArgs`. The runtime validates raw args before

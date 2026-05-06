@@ -82,11 +82,11 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         output_limit=config.tool_output_limit,
         skill_service=skill_service,
     )
-    mcp_service = MCPService(config.mcp_config)
+    mcp_service = MCPService(config.mcp_config, output_limit=config.tool_output_limit)
     for definition in mcp_service.discover()["tools"].values():
         from langgraph_agent_blueprint.tools.mcp_tools import MCPToolAdapter
 
-        tool_registry.register(MCPToolAdapter(definition))
+        tool_registry.register(MCPToolAdapter(definition, mcp_service))
     command_registry = build_builtin_command_registry()
     session_storage = SessionStorage(config.storage_dir)
     return AppDependencies(
