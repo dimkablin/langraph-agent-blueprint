@@ -29,11 +29,20 @@ python -m pip install -e ".[anthropic]"
 
 ## Configure
 
-Copy `.env.example` values into your environment. Tests and local smoke runs work with:
+Copy `.env.example` to `.env` in the project root or set the variables in your shell. The CLI/API load project-root `.env` automatically, and process environment variables take precedence. Tests and local smoke runs work with:
 
 ```bash
 set LLM_PROVIDER=fake
 set MODEL_NAME=fake-model
+```
+
+OpenAI-compatible example:
+
+```env
+LLM_PROVIDER=openai_compatible
+OPENAI_COMPATIBLE_BASE_URL=http://localhost:11434/v1
+OPENAI_COMPATIBLE_MODEL=qwen3:14b
+OPENAI_COMPATIBLE_API_KEY=not-needed
 ```
 
 Supported provider names:
