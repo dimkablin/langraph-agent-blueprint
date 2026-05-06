@@ -6,9 +6,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
 from claude_code_langgraph.services.mcp_service import MCPToolDefinition
 
-from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
+from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class MCPInput(BaseModel):
@@ -26,9 +27,14 @@ class MCPToolAdapter(BaseTool[MCPInput, MCPOutput]):
     description = "Adapter around an MCP-provided tool."
     input_schema = MCPInput
     output_schema = MCPOutput
-    safety = ToolSafety.MCP
-    is_read_only = False
-    requires_permission = True
+    permission = ToolPermissionMetadata(
+        action="mcp",
+        risk="high",
+        requires_permission=True,
+        external=True,
+        reason="External MCP tool requires approval unless explicitly trusted.",
+    )
+    runtime = ToolRuntimeMetadata(kind="mcp", route="mcp_graph")
 
     def __init__(self, definition: MCPToolDefinition) -> None:
         self.definition = definition

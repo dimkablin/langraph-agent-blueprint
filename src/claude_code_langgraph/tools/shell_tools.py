@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
 from claude_code_langgraph.services.shell_service import ShellService
 
-from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
+from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class ShellInput(BaseModel):
@@ -29,9 +30,8 @@ class BashTool(BaseTool[ShellInput, ShellOutput]):
     description = "Execute a shell command with timeout and output truncation."
     input_schema = ShellInput
     output_schema = ShellOutput
-    safety = ToolSafety.SHELL
-    is_read_only = False
-    requires_permission = True
+    permission = ToolPermissionMetadata(action="shell", risk="high", requires_permission=True, reason="Shell commands can modify the system.")
+    runtime = ToolRuntimeMetadata(kind="shell")
 
     def __init__(self, shell_service: ShellService) -> None:
         self.shell_service = shell_service

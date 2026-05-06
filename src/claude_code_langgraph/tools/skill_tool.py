@@ -6,9 +6,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
 from claude_code_langgraph.services.skill_service import SkillInvocationService
 
-from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
+from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class SkillToolInput(BaseModel):
@@ -29,9 +30,8 @@ class SkillTool(BaseTool[SkillToolInput, SkillToolOutput]):
     description = "Invoke a named skill with arguments through the skill graph."
     input_schema = SkillToolInput
     output_schema = SkillToolOutput
-    safety = ToolSafety.SKILL
-    is_read_only = False
-    requires_permission = False
+    permission = ToolPermissionMetadata(action="skill", risk="low", requires_permission=False, allowed_in_plan_mode=True)
+    runtime = ToolRuntimeMetadata(kind="skill", route="skill_graph")
 
     def __init__(self, skill_service: SkillInvocationService | None = None) -> None:
         self.skill_service = skill_service

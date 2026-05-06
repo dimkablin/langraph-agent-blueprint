@@ -9,7 +9,22 @@ from pydantic import Field
 from .base import FrozenRuntimeModel
 
 
-PermissionAction = Literal["read", "write", "edit", "shell", "network", "memory", "config", "unknown"]
+PermissionAction = Literal[
+    "read",
+    "write",
+    "edit",
+    "shell",
+    "network",
+    "memory",
+    "config",
+    "todo",
+    "skill",
+    "agent",
+    "diagnostics",
+    "mcp",
+    "plugin",
+    "unknown",
+]
 PermissionRisk = Literal["low", "medium", "high"]
 PermissionPolicy = Literal["allow", "ask", "deny"]
 

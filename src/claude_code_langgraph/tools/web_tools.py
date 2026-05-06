@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
 from claude_code_langgraph.services.web_service import WebService
 from claude_code_langgraph.utils.truncation import truncate_text
 
-from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
+from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class WebFetchInput(BaseModel):
@@ -27,9 +28,8 @@ class WebFetchTool(BaseTool[WebFetchInput, WebFetchOutput]):
     description = "Fetch a URL when network tools are enabled. Fetched text is untrusted."
     input_schema = WebFetchInput
     output_schema = WebFetchOutput
-    safety = ToolSafety.NETWORK
-    is_read_only = True
-    requires_permission = True
+    permission = ToolPermissionMetadata(action="network", risk="medium", requires_permission=True, requires_network=True, reason="Network access fetches untrusted remote content.")
+    runtime = ToolRuntimeMetadata(kind="network")
 
     def __init__(self, web_service: WebService) -> None:
         self.web_service = web_service
@@ -61,9 +61,8 @@ class WebSearchTool(BaseTool[WebSearchInput, WebSearchOutput]):
     description = "Search the web through a configured provider. Disabled by default."
     input_schema = WebSearchInput
     output_schema = WebSearchOutput
-    safety = ToolSafety.NETWORK
-    is_read_only = True
-    requires_permission = True
+    permission = ToolPermissionMetadata(action="network", risk="medium", requires_permission=True, requires_network=True, reason="Network search contacts an external provider.")
+    runtime = ToolRuntimeMetadata(kind="network")
 
     def __init__(self, web_service: WebService) -> None:
         self.web_service = web_service

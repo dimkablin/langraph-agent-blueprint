@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
 from claude_code_langgraph.services.notebook_service import NotebookService
 
-from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
+from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class NotebookReadInput(BaseModel):
@@ -25,9 +26,8 @@ class NotebookReadTool(BaseTool[NotebookReadInput, NotebookReadOutput]):
     description = "Read Jupyter notebook cells and metadata."
     input_schema = NotebookReadInput
     output_schema = NotebookReadOutput
-    safety = ToolSafety.READ_ONLY
-    is_read_only = True
-    requires_permission = False
+    permission = ToolPermissionMetadata(action="read", risk="low", is_read_only=True, allowed_in_plan_mode=True)
+    runtime = ToolRuntimeMetadata(kind="notebook")
 
     def __init__(self, notebook_service: NotebookService) -> None:
         self.notebook_service = notebook_service
@@ -56,9 +56,8 @@ class NotebookEditTool(BaseTool[NotebookEditInput, NotebookEditOutput]):
     description = "Edit a Jupyter notebook cell."
     input_schema = NotebookEditInput
     output_schema = NotebookEditOutput
-    safety = ToolSafety.WRITE
-    is_read_only = False
-    requires_permission = True
+    permission = ToolPermissionMetadata(action="edit", risk="medium", requires_permission=True, reason="This tool edits a notebook file.")
+    runtime = ToolRuntimeMetadata(kind="notebook")
 
     def __init__(self, notebook_service: NotebookService) -> None:
         self.notebook_service = notebook_service

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
 from claude_code_langgraph.services.agent_service import AgentService
 
-from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
+from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class AgentInput(BaseModel):
@@ -26,9 +27,8 @@ class AgentTool(BaseTool[AgentInput, AgentOutput]):
     description = "Run a child graph/subagent and merge its result into parent state."
     input_schema = AgentInput
     output_schema = AgentOutput
-    safety = ToolSafety.AGENT
-    is_read_only = False
-    requires_permission = False
+    permission = ToolPermissionMetadata(action="agent", risk="medium", requires_permission=False, allowed_in_plan_mode=True)
+    runtime = ToolRuntimeMetadata(kind="agent", route="agent_graph", state_effects=["append_child_run"])
 
     def __init__(self, agent_service: AgentService) -> None:
         self.agent_service = agent_service

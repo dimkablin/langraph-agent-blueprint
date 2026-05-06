@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
+
+from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class TodoWriteInput(BaseModel):
@@ -23,9 +25,8 @@ class TodoWriteTool(BaseTool[TodoWriteInput, TodoWriteOutput]):
     description = "Update the visible todo list in graph state."
     input_schema = TodoWriteInput
     output_schema = TodoWriteOutput
-    safety = ToolSafety.WRITE
-    is_read_only = False
-    requires_permission = False
+    permission = ToolPermissionMetadata(action="todo", risk="low", requires_permission=False, allowed_in_plan_mode=True)
+    runtime = ToolRuntimeMetadata(kind="todo", state_effects=["replace_todos"])
 
     def run(self, data: TodoWriteInput, context: ToolExecutionContext) -> TodoWriteOutput:
         return TodoWriteOutput(todos=data.todos, content=f"Updated {len(data.todos)} todos")

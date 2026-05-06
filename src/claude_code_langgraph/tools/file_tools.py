@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
 from claude_code_langgraph.services.file_service import FileService
 from claude_code_langgraph.utils.truncation import truncate_text
 
-from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
+from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class FileReadInput(BaseModel):
@@ -28,9 +29,8 @@ class FileReadTool(BaseTool[FileReadInput, FileReadOutput]):
     description = "Read a text file under the project root, optionally with a line range."
     input_schema = FileReadInput
     output_schema = FileReadOutput
-    safety = ToolSafety.READ_ONLY
-    is_read_only = True
-    requires_permission = False
+    permission = ToolPermissionMetadata(action="read", risk="low", is_read_only=True, allowed_in_plan_mode=True)
+    runtime = ToolRuntimeMetadata(kind="file", state_effects=["record_file_read"])
 
     def __init__(self, file_service: FileService) -> None:
         self.file_service = file_service
@@ -61,9 +61,8 @@ class FileWriteTool(BaseTool[FileWriteInput, FileWriteOutput]):
     description = "Create or overwrite a file under the project root."
     input_schema = FileWriteInput
     output_schema = FileWriteOutput
-    safety = ToolSafety.WRITE
-    is_read_only = False
-    requires_permission = True
+    permission = ToolPermissionMetadata(action="write", risk="medium", requires_permission=True, reason="This tool modifies files.")
+    runtime = ToolRuntimeMetadata(kind="file", state_effects=["record_file_write"])
 
     def __init__(self, file_service: FileService) -> None:
         self.file_service = file_service
@@ -93,9 +92,8 @@ class FileEditTool(BaseTool[FileEditInput, FileEditOutput]):
     description = "Replace exact text in a file after it has been read or explicitly approved."
     input_schema = FileEditInput
     output_schema = FileEditOutput
-    safety = ToolSafety.WRITE
-    is_read_only = False
-    requires_permission = True
+    permission = ToolPermissionMetadata(action="edit", risk="medium", requires_permission=True, reason="This tool edits files.")
+    runtime = ToolRuntimeMetadata(kind="file", state_effects=["record_file_edit"])
 
     def __init__(self, file_service: FileService) -> None:
         self.file_service = file_service

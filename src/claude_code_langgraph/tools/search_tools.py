@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
 from claude_code_langgraph.services.search_service import SearchService
 from claude_code_langgraph.utils.paths import resolve_under_root
 
-from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
+from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class GlobInput(BaseModel):
@@ -27,9 +28,8 @@ class GlobTool(BaseTool[GlobInput, GlobOutput]):
     description = "Find files by glob pattern under the project root."
     input_schema = GlobInput
     output_schema = GlobOutput
-    safety = ToolSafety.READ_ONLY
-    is_read_only = True
-    requires_permission = False
+    permission = ToolPermissionMetadata(action="read", risk="low", is_read_only=True, allowed_in_plan_mode=True)
+    runtime = ToolRuntimeMetadata(kind="search")
 
     def __init__(self, search_service: SearchService) -> None:
         self.search_service = search_service
@@ -60,9 +60,8 @@ class GrepTool(BaseTool[GrepInput, GrepOutput]):
     description = "Search file contents under the project root."
     input_schema = GrepInput
     output_schema = GrepOutput
-    safety = ToolSafety.READ_ONLY
-    is_read_only = True
-    requires_permission = False
+    permission = ToolPermissionMetadata(action="read", risk="low", is_read_only=True, allowed_in_plan_mode=True)
+    runtime = ToolRuntimeMetadata(kind="search")
 
     def __init__(self, search_service: SearchService) -> None:
         self.search_service = search_service

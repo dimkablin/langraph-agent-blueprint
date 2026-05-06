@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
 from claude_code_langgraph.services.diagnostics_service import DiagnosticsService
 
-from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
+from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class DiagnosticsInput(BaseModel):
@@ -25,9 +26,8 @@ class DiagnosticsTool(BaseTool[DiagnosticsInput, DiagnosticsOutput]):
     description = "Run project and environment diagnostics."
     input_schema = DiagnosticsInput
     output_schema = DiagnosticsOutput
-    safety = ToolSafety.READ_ONLY
-    is_read_only = True
-    requires_permission = False
+    permission = ToolPermissionMetadata(action="diagnostics", risk="low", is_read_only=True, allowed_in_plan_mode=True)
+    runtime = ToolRuntimeMetadata(kind="diagnostics")
 
     def __init__(self, diagnostics_service: DiagnosticsService) -> None:
         self.diagnostics_service = diagnostics_service

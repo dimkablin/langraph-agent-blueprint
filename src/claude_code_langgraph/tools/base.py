@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata, ToolStateEffect
 
 
 class ToolSafety(StrEnum):
@@ -49,11 +51,22 @@ class BaseTool(Generic[InputT, OutputT]):
     description: str
     input_schema: type[InputT]
     output_schema: type[OutputT]
-    safety: ToolSafety = ToolSafety.READ_ONLY
-    is_read_only: bool = True
-    requires_permission: bool = False
+    permission: ToolPermissionMetadata = ToolPermissionMetadata(action="read", risk="low", is_read_only=True, allowed_in_plan_mode=True)
+    runtime: ToolRuntimeMetadata = ToolRuntimeMetadata()
     timeout_seconds: float | None = None
     output_limit: int = 12000
+
+    @property
+    def safety(self) -> str:
+        return self.permission.action
+
+    @property
+    def is_read_only(self) -> bool:
+        return self.permission.is_read_only
+
+    @property
+    def requires_permission(self) -> bool:
+        return self.permission.requires_permission
 
     def parse_input(self, data: dict[str, object]) -> InputT:
         return self.input_schema.model_validate(data)
@@ -64,6 +77,16 @@ class BaseTool(Generic[InputT, OutputT]):
     async def arun(self, data: InputT, context: ToolExecutionContext) -> OutputT:
         return self.run(data, context)
 
+    def state_effects(
+        self,
+        *,
+        tool_call: Any,
+        result: Any,
+        output: OutputT,
+        state: dict[str, Any],
+    ) -> list[ToolStateEffect]:
+        return []
+
     def metadata(self) -> dict[str, object]:
         return {
             "name": self.name,
@@ -71,6 +94,8 @@ class BaseTool(Generic[InputT, OutputT]):
             "safety": str(self.safety),
             "is_read_only": self.is_read_only,
             "requires_permission": self.requires_permission,
+            "permission": self.permission.model_dump(mode="json"),
+            "runtime": self.runtime.model_dump(mode="json"),
             "input_schema": self.input_schema.model_json_schema(),
             "output_schema": self.output_schema.model_json_schema(),
         }
