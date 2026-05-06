@@ -134,13 +134,13 @@ Tool-use loops, permission flow, skill invocation, subagents, compaction, memory
 
 ## Runtime Boundary Contracts
 
-Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, and skill args use skill-specific schemas.
+Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, skill args use skill-specific schemas, and tools declare `ToolPermissionMetadata` / `ToolRuntimeMetadata`.
 
 See `docs/PYDANTIC_BOUNDARIES.md` for the contract map and extension rules.
 
 ## Tools
 
-Core tools include file read/write/edit, notebook read/edit, glob, grep, bash, PowerShell, web fetch/search, todo write, agent, skill, MCP adapter, and diagnostics. Risky tools require permission unless policy allows them.
+Core tools include file read/write/edit, notebook read/edit, glob, grep, bash, PowerShell, web fetch/search, todo write, agent, skill, MCP adapter, and diagnostics. Tool names are registry/provider identity only; permission action/risk, runtime route, plan-mode behavior, network requirement, and state effects come from tool metadata. Risky tools require permission unless policy allows them.
 
 Examples with the fake provider:
 
@@ -149,7 +149,7 @@ python -m claude_code_langgraph query "tool:read_file {\"path\":\"README.md\"}"
 python -m claude_code_langgraph query --output stream-json "tool:read_file {\"path\":\"README.md\"}"
 ```
 
-Write/edit/shell/network tools request approval through LangGraph interrupt/resume. API and frontend receive `permission_required`; the CLI prompts interactively in `chat` mode.
+Write/edit/shell/network tools request approval through LangGraph interrupt/resume. API and frontend receive `permission_required`; the CLI prompts interactively in `chat` mode. Confirmation payloads are built from metadata and redact secret-like args recursively.
 
 ## Skills
 
@@ -218,5 +218,6 @@ Sessions are stored under `.storage/projects/{project_hash}/sessions/{session_id
 - Provider JSON repair is minimal. Native tool calling is tested through fake provider and manually verified with Ollama `qwen3:14b`.
 - `web_search` is unavailable unless a real search provider is configured. It no longer returns empty success when no provider exists.
 - `web_fetch` is disabled unless `NETWORK_ENABLED=true` and still requires permission. When enabled, fetched content is marked as untrusted in tool metadata.
+- The fake provider keeps a few shorthand aliases (`tool:bash echo hi`, `tool:write_file path content`, `tool:agent ...`) for deterministic tests; the generic supported contract is `tool:<name> <json args>`, and these aliases do not define production permission/routing semantics.
 - Subagent execution remains limited/synthetic compared with the rest of the graph runtime.
 - Data analyst capabilities are optional extensions, not direct-port behavior.

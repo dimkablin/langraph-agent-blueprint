@@ -1,6 +1,19 @@
 # Tool Metadata Refactor Plan
 
-This plan follows `docs/TOOL_NAME_SEMANTICS_AUDIT.md`. It intentionally does not change production code yet.
+This plan follows `docs/TOOL_NAME_SEMANTICS_AUDIT.md`. It was originally written before implementation; the current status is tracked below and the original ordered plan is retained for traceability.
+
+## Implementation Status
+
+Implemented on 2026-05-06:
+
+- Added `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect` in `src/claude_code_langgraph/models/tool_metadata.py`.
+- Added `permission` and `runtime` metadata to `BaseTool`, with backward-compatible `safety`, `is_read_only`, and `requires_permission` properties.
+- Added explicit permission/runtime metadata for all core tools.
+- Reworked `PermissionService` to be policy-only and metadata-driven.
+- Reworked confirmation payloads to use tool metadata and redact sensitive args recursively.
+- Reworked `tool_router` to route via `tool.runtime.route`.
+- Reworked post-tool state updates to use typed state effects instead of `tool.name`.
+- Kept fake-provider shorthand aliases as documented test ergonomics; generic `tool:<name> <json>` remains the recommended deterministic path.
 
 ## Target Design
 
@@ -78,14 +91,14 @@ Initial values should be explicit on each built-in tool class or supplied by a r
 | `grep` | read | low | true | false | true | false | false | search | execute | none |
 | `bash` | shell | high | false | true | false | false | false | shell | execute | none |
 | `powershell` | shell | high | false | true | false | false | false | shell | execute | none |
-| `web_fetch` | network | medium | true | true | false | true | false | network | execute | none |
-| `web_search` | network | medium | true | true | false | true | false | network | execute | none |
-| `todo_write` | write | low | false | false | true | false | false | todo | execute | todos |
-| `skill` | unknown | low | false | false | true | false | false | skill | skill_graph | none |
-| `agent` | unknown | medium | false | false | false | false | false | agent | agent_graph | child_runs |
+| `web_fetch` | network | medium | false | true | false | true | false | network | execute | none |
+| `web_search` | network | medium | false | true | false | true | false | network | execute | none |
+| `todo_write` | todo | low | false | false | true | false | false | todo | execute | replace_todos |
+| `skill` | skill | low | false | false | true | false | false | skill | skill_graph | none |
+| `agent` | agent | medium | false | false | true | false | false | agent | agent_graph | append_child_run |
 | `diagnostics` | read | low | true | false | true | false | false | diagnostics | execute | none |
-| `mcp.*` | unknown | medium | false | true | false | false | true | mcp | mcp_graph | adapter-declared |
-| plugin/custom tools | unknown by default | medium by default | false by default | true by default | false by default | adapter-declared | true by default | plugin/custom | execute unless declared | adapter-declared |
+| `mcp.*` | mcp | high | false | true | false | false | true | mcp | mcp_graph | adapter-declared |
+| plugin/custom tools | unknown/plugin by default | high by default | false by default | true by default | false by default | adapter-declared | true by default | plugin/custom | execute unless declared | adapter-declared |
 
 ## Ordered Fixes
 
@@ -103,17 +116,16 @@ Initial values should be explicit on each built-in tool class or supplied by a r
 
 ## Acceptance Criteria
 
-- No production permission action/risk is derived from `tool.name` or `tool_call.name`.
-- `PermissionService` reads `ToolPermissionMetadata`.
-- `permission_required` includes action/risk from metadata.
-- Plan mode uses `permission.allowed_in_plan_mode`.
-- Network checks use `permission.requires_network` and config.
-- `tool_router` routes special tool categories by runtime metadata, not name or prefix.
-- MCP/plugin/custom tools receive conservative metadata by default.
-- `tool_execution_service` merges state effects through tool metadata or output protocol, not tool names.
-- `/doctor` reports missing/incomplete metadata for registered tools.
-- Existing built-in tools preserve current behavior.
-- Tests include at least one custom tool for each metadata-driven behavior:
+- [x] No production permission action/risk is derived from `tool.name` or `tool_call.name`.
+- [x] `PermissionService` reads `ToolPermissionMetadata`.
+- [x] `permission_required` includes action/risk from metadata.
+- [x] Plan mode uses `permission.allowed_in_plan_mode`.
+- [x] Network checks use `permission.requires_network` and config.
+- [x] `tool_router` routes special tool categories by runtime metadata, not name or prefix.
+- [x] MCP/plugin/custom tools receive conservative metadata by default where adapters provide or lack metadata.
+- [x] `tool_execution_service` merges state effects through tool metadata/hook output, not tool names.
+- [x] Existing built-in tools preserve current behavior.
+- [x] Tests include custom tools for metadata-driven behavior:
   - write/medium permission
   - shell/high permission
   - network requires config
@@ -121,7 +133,8 @@ Initial values should be explicit on each built-in tool class or supplied by a r
   - agent route
   - read-history state effect
   - todo state effect
-- Full `python -m pytest -q` passes after implementation.
+- [ ] `/doctor` can be expanded further to report metadata completeness by group; core metadata is already exposed through registry snapshots.
+- [x] Full `python -m pytest -q` passes after final verification.
 
 ## Migration Notes
 

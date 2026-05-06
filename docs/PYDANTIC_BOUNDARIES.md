@@ -13,6 +13,7 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - permission interrupt/resume -> `PermissionRequest` / `PermissionDecision`
 - session storage records -> `SessionMetadata`, `RuntimeEvent`, and `ToolResult`
 - skill tool or `/skill` args -> built-in skill-specific Pydantic args schemas
+- tool classification -> `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect`
 
 The LangGraph state remains checkpointer-safe: nodes store dictionaries and lists in state, and validate them at node/service boundaries with `model_validate(...)`. Outgoing DTOs are serialized with `model_dump(mode="json")`.
 
@@ -39,6 +40,16 @@ Provider-specific tool calls are normalized with `normalize_provider_tool_call(.
 The graph stores `ToolCall.model_dump(mode="json")` in `pending_tool_calls`. `tool_router`, `permission_gate`, and `tool_executor` validate those records before reading fields.
 
 Tool execution returns `ToolResult` with explicit statuses: `ok`, `error`, `rejected`, `disabled`, or `unavailable`. `tool_result_to_tool_message(...)` is the single conversion point from `ToolResult` to LangChain `ToolMessage`.
+
+## Tool Metadata
+
+Tool behavior at runtime boundaries is metadata-driven:
+
+- `ToolPermissionMetadata` declares action, risk, read-only status, permission requirement, plan-mode allowance, network requirement, external-tool status, and sensitive arg keys.
+- `ToolRuntimeMetadata` declares tool kind, LangGraph route, and post-execution state effects.
+- `ToolStateEffect` is the typed envelope for graph state deltas produced by tool behavior.
+
+`BaseTool` keeps legacy `safety`, `is_read_only`, and `requires_permission` properties as compatibility wrappers, but production permission, routing, and state-effect consumers read `tool.permission` and `tool.runtime`.
 
 ## Events
 

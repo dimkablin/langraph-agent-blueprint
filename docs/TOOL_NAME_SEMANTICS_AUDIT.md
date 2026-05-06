@@ -4,6 +4,33 @@ Audit date: 2026-05-06.
 
 Scope: `src/claude_code_langgraph`, `tests`, and current `docs`. This is an audit-only pass. No production runtime code or tests were changed.
 
+## Post-Implementation Status
+
+Implementation date: 2026-05-06.
+
+The P0/P1 production findings from this audit have been fixed:
+
+- `PermissionService` now reads `tool.permission.action`, `tool.permission.risk`, `requires_permission`, `is_read_only`, and `allowed_in_plan_mode` from `ToolPermissionMetadata`.
+- Permission confirmation payloads are built from the resolved `ToolCall` plus resolved tool metadata; secret-like args are recursively redacted and summaries are stable JSON.
+- `tool_router` now resolves the registry tool and routes by `tool.runtime.route` (`execute`, `skill_graph`, `agent_graph`, `mcp_graph`) instead of hardcoded names or `mcp.` prefixes.
+- `ToolExecutionService` now applies typed `ToolStateEffect` records from tool runtime metadata/hook output. Todo replacement, child-run merge, and file-read history are no longer selected by `tool.name`.
+- `_permission_action` and `_permission_risk` were removed from the production path.
+
+Verification:
+
+```bash
+python -m pytest tests\test_tool_permission_metadata.py tests\test_permission_service_metadata_driven.py tests\test_tool_router_metadata_routes.py tests\test_tool_state_effects_metadata.py -q
+python -m pytest tests\test_file_tools.py tests\test_permission_interrupts.py tests\test_shell_permissions.py tests\runtime_audit\test_skills_e2e_runtime.py tests\runtime_audit\test_commands_e2e.py -q
+rg -n "_permission_action|_permission_risk" src\claude_code_langgraph
+rg -n "tool\.name ==" src\claude_code_langgraph
+rg -n "tool_name in" src\claude_code_langgraph
+rg -n "mcp\." src\claude_code_langgraph
+```
+
+The remaining `mcp.` production reference is the MCP adapter display/registry identity (`self.name = f"mcp.{definition.name}"`), not route classification. The fake provider still supports test-only shorthand aliases such as `tool:bash echo hi` and `tool:write_file path content`; these produce deterministic provider tool-call fixtures and do not define permission, risk, route, or state-effect semantics.
+
+The original audit findings below are retained as historical evidence.
+
 ## Summary
 
 - Total semantic tool-name references checked: 42

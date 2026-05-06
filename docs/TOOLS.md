@@ -5,9 +5,8 @@ Tools implement `BaseTool` with:
 - name
 - description
 - Pydantic input/output schemas
-- safety classification
-- read-only flag
-- permission requirement
+- `ToolPermissionMetadata`
+- `ToolRuntimeMetadata`
 - sync/async run methods
 - timeout/output limit metadata
 
@@ -32,7 +31,39 @@ Core tools:
 
 Tool workflow is graph-owned: UI/API call the graph, the graph routes to permission and execution nodes, and services perform low-level operations.
 
+Tool names are identity only: registry key, provider function name, display/logging/persistence id, and skill `allowed_tools` matching. Semantic behavior comes from metadata:
+
+- `tool.permission.action`
+- `tool.permission.risk`
+- `tool.permission.is_read_only`
+- `tool.permission.requires_permission`
+- `tool.permission.allowed_in_plan_mode`
+- `tool.permission.requires_network`
+- `tool.runtime.kind`
+- `tool.runtime.route`
+- `tool.runtime.state_effects`
+
 At the runtime boundary, provider-specific tool calls are normalized into `ToolCall` DTOs and tool execution returns `ToolResult` DTOs. The graph stores serialized DTO payloads in state and converts results to `ToolMessage` through one shared converter.
+
+Post-execution graph state changes are represented as typed `ToolStateEffect` records. Built-in effects include file-read history, todo replacement, and child-run append. `ToolExecutionService` applies these effects by effect kind, not by `tool.name`.
+
+To add a new side-effecting tool, declare metadata on the tool class:
+
+```python
+class MyWriteTool(BaseTool[MyInput, MyOutput]):
+    name = "my_write_tool"
+    permission = ToolPermissionMetadata(
+        action="write",
+        risk="medium",
+        requires_permission=True,
+        reason="This tool modifies files.",
+    )
+    runtime = ToolRuntimeMetadata(
+        kind="custom",
+        route="execute",
+        state_effects=["record_file_write"],
+    )
+```
 
 Runtime status after fixes:
 
@@ -42,3 +73,4 @@ Runtime status after fixes:
 - Ollama `qwen3:14b` was manually verified for native `read_file` tool calling.
 - `web_fetch` is disabled unless network is enabled and approved; when enabled it returns untrusted-content warning metadata.
 - `web_search` reports unavailable when no provider is configured.
+- Tool routing for skill, agent, and MCP tools is metadata-driven through `tool.runtime.route`.

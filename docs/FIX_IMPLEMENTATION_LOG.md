@@ -30,6 +30,16 @@ Current as of 2026-05-06.
 - `src/claude_code_langgraph/tools/search_tools.py`: relative `path` values for `glob`/`grep` resolve under `project_root`, preserving confinement and making `path="src"` work from any process cwd.
 - `src/claude_code_langgraph/tools/web_tools.py`: `web_fetch` propagates untrusted-content warning metadata from `WebService`.
 
+## Tool Metadata Refactor Added
+
+- `src/claude_code_langgraph/models/tool_metadata.py`: added `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect`.
+- `src/claude_code_langgraph/tools/base.py`: `BaseTool` now exposes `permission` and `runtime` metadata plus compatibility wrappers for legacy properties.
+- Core tools now declare explicit permission/runtime metadata.
+- `src/claude_code_langgraph/services/permission_service.py`: permission policy uses `tool.permission`; `_permission_action` and `_permission_risk` were removed.
+- `src/claude_code_langgraph/graph/nodes/tool_router.py`: skill/agent/MCP routing uses `tool.runtime.route`, not hardcoded tool names or `mcp.` prefixes.
+- `src/claude_code_langgraph/services/tool_execution_service.py`: todo replacement, child-run merge, and file-read history are applied through typed `ToolStateEffect` records, not central `tool.name` checks.
+- Fake-provider `tool:bash`, `tool:write_file`, and `tool:agent` shorthands remain documented compatibility aliases for deterministic tests; generic `tool:<name> <json>` is the preferred fake-provider contract.
+
 ## Tests Added or Extended
 
 - `tests/runtime_audit/test_skills_e2e_runtime.py`
@@ -38,6 +48,10 @@ Current as of 2026-05-06.
   - `test_grep_relative_path_is_resolved_under_project_root`
   - `test_bash_accepts_json_fake_tool_arguments_after_approval`
   - `test_web_fetch_enabled_marks_content_untrusted_after_approval`
+- `tests/test_tool_permission_metadata.py`
+- `tests/test_permission_service_metadata_driven.py`
+- `tests/test_tool_router_metadata_routes.py`
+- `tests/test_tool_state_effects_metadata.py`
 
 ## Verification
 

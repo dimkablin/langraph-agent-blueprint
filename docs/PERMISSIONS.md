@@ -1,6 +1,6 @@
 # Permissions
 
-`PermissionService` classifies tool calls and returns `allow`, `ask`, or `deny`.
+`PermissionService` is policy-only: it reads the resolved tool's `ToolPermissionMetadata` and returns `allow`, `ask`, or `deny`. Tool names are not used to infer action, risk, plan-mode behavior, shell/network/write status, or external-tool safety.
 
 Modes:
 
@@ -12,12 +12,12 @@ Modes:
 
 Policy:
 
-- read-only file/search tools can run in default mode
-- write/edit tools require approval unless policy allows
-- shell tools require approval
-- network tools require approval and config enablement
-- MCP/plugin tools default conservative
-- plan mode blocks side effects until approval
+- tools with `permission.is_read_only=True` can run in default mode
+- tools with `permission.requires_permission=True` ask for approval unless a mode explicitly allows that action
+- `accept_edits` allows `write`/`edit` actions only; it does not allow shell or network actions
+- network tools declare `permission.requires_network=True`, still require approval, and also depend on network config
+- MCP/plugin/custom tools default conservative when adapters do not provide safer metadata
+- plan mode blocks non-read-only side effects unless `permission.allowed_in_plan_mode=True`
 
 Human approval uses LangGraph interrupt/resume. `pending_confirmation` is stored in graph state before `permission_gate` interrupts.
 
@@ -27,3 +27,5 @@ Runtime status after fixes:
 - Decisions append to `permission_decisions` and persist with session events.
 - Rejected tool calls append a structured `ToolMessage` so the model can explain the rejection.
 - Network tools with `requires_permission=True` are no longer auto-allowed just because they are read-only.
+- `permission_required` action/risk values come from tool metadata, not registry names.
+- Confirmation args are recursively redacted with default secret-like keys plus each tool's `sensitive_arg_keys`.
