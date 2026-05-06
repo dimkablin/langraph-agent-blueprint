@@ -65,17 +65,17 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
             "errors": [{"message": str(exc), "type": "UnknownTool", "recoverable": True}],
         }
     decision = deps.permission_service.decide(tool, state, call.args)
-    if decision["decision"] == "ask":
+    if decision.decision == "ask":
         metadata["tool_route"] = "needs_permission"
-        pending = deps.permission_service.confirmation_payload(dump_model(call), decision["reason"])
+        pending = dump_model(deps.permission_service.confirmation_payload(call, tool, decision.reason))
         return {
             "metadata": metadata,
             "pending_confirmation": pending,
             "ui_events": [event("permission_required", **pending)],
         }
-    if decision["decision"] == "deny":
+    if decision.decision == "deny":
         metadata["tool_route"] = "rejected"
-        result = ToolResult(id=call.id, name=name, status="rejected", content=decision["reason"])
+        result = ToolResult(id=call.id, name=name, status="rejected", content=decision.reason)
         result_payload = dump_model(result)
         return {
             "metadata": metadata,

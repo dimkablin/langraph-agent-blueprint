@@ -9,6 +9,7 @@ from claude_code_langgraph.commands.parser import parse_slash_command
 from claude_code_langgraph.models.commands import CommandResult, ParsedCommand
 from claude_code_langgraph.models.permissions import PermissionDecision, PermissionRequest
 from claude_code_langgraph.services.permission_service import PermissionService
+from claude_code_langgraph.tools.registry import build_core_tool_registry
 
 
 def test_parse_slash_command_returns_typed_command_payload():
@@ -25,13 +26,15 @@ def test_command_result_infers_final_response_route():
     assert result.final_response == "ok"
 
 
-def test_permission_payload_is_typed_request():
+def test_permission_payload_is_typed_request(tmp_path):
+    tool = build_core_tool_registry(project_root=tmp_path).get("write_file")
     payload = PermissionService.confirmation_payload(
         {"id": "call_1", "name": "write_file", "args": {"path": "x.txt", "content": "x"}},
+        tool,
         "write_file requires approval",
     )
 
-    request = PermissionRequest.model_validate(payload)
+    request = PermissionRequest.model_validate(payload.model_dump(mode="json"))
 
     assert request.tool_call_id == "call_1"
     assert request.tool_name == "write_file"

@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from claude_code_langgraph.config import PermissionMode
-from claude_code_langgraph.models.base import dump_model
 from claude_code_langgraph.models.permissions import PermissionCheck, PermissionRequest
+from claude_code_langgraph.models.tools import ToolCall
+from claude_code_langgraph.models.tool_metadata import ToolPermissionMetadata
+
+
+DEFAULT_SENSITIVE_ARG_KEYS = {
+    "api_key",
+    "apikey",
+    "token",
+    "password",
+    "secret",
+    "authorization",
+    "auth",
+    "credential",
+    "credentials",
+}
 
 
 class PermissionService:
@@ -15,59 +30,72 @@ class PermissionService:
     def __init__(self, mode: PermissionMode = "default") -> None:
         self.mode = mode
 
-    def decide(self, tool: Any, state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
+    def decide(self, tool: Any, state: dict[str, Any], args: dict[str, Any]) -> PermissionCheck:
         """Return allow/ask/deny for a tool call under the active permission mode and plan state."""
 
-        if state.get("plan_mode", {}).get("enabled") and not getattr(tool, "is_read_only", False):
-            return dump_model(PermissionCheck(decision="ask", reason="plan mode blocks side effects until approval"))
-        if self.mode == "strict" and getattr(tool, "requires_permission", False):
-            return dump_model(PermissionCheck(decision="ask", reason="strict mode requires approval"))
-        if self.mode == "accept_edits" and getattr(tool, "safety", "") == "write":
-            return dump_model(PermissionCheck(decision="allow", reason="accept_edits allows file edits"))
-        if getattr(tool, "requires_permission", False):
-            return dump_model(PermissionCheck(decision="ask", reason=f"{tool.name} requires approval"))
-        if getattr(tool, "is_read_only", False) and self.mode in {"default", "bypass_read_only", "accept_edits"}:
-            return dump_model(PermissionCheck(decision="allow", reason="read-only tool allowed"))
-        return dump_model(PermissionCheck(decision="allow", reason="tool allowed by policy"))
+        permission = _tool_permission(tool)
+        if state.get("plan_mode", {}).get("enabled") and not permission.is_read_only and not permission.allowed_in_plan_mode:
+            return PermissionCheck(decision="ask", reason="plan mode blocks side effects until approval")
+        if self.mode == "strict" and permission.requires_permission:
+            return PermissionCheck(decision="ask", reason=permission.reason or "strict mode requires approval")
+        if self.mode == "accept_edits" and permission.action in {"write", "edit"}:
+            return PermissionCheck(decision="allow", reason="accept_edits allows file edits")
+        if permission.requires_permission:
+            return PermissionCheck(decision="ask", reason=permission.reason or f"{getattr(tool, 'name', 'tool')} requires approval")
+        if permission.is_read_only and self.mode in {"default", "bypass_read_only", "accept_edits"}:
+            return PermissionCheck(decision="allow", reason="read-only tool allowed")
+        return PermissionCheck(decision="allow", reason="tool allowed by policy")
 
     @staticmethod
-    def confirmation_payload(tool_call: dict[str, Any], reason: str) -> dict[str, Any]:
+    def confirmation_payload(tool_call: ToolCall | dict[str, Any], tool: Any, reason: str) -> PermissionRequest:
+        call = ToolCall.model_validate(tool_call)
+        permission = _tool_permission(tool)
+        sensitive_keys = DEFAULT_SENSITIVE_ARG_KEYS | set(permission.sensitive_arg_keys)
         request = PermissionRequest(
-            tool_name=str(tool_call["name"]),
-            tool_call_id=str(tool_call["id"]),
-            action=_permission_action(str(tool_call["name"])),
-            args_summary=_args_summary(tool_call.get("args", {})),
-            risk=_permission_risk(str(tool_call["name"])),
-            args=tool_call.get("args", {}) if isinstance(tool_call.get("args", {}), dict) else {},
+            tool_name=call.name,
+            tool_call_id=call.id,
+            action=permission.action,
+            args_summary=summarize_args(call.args, sensitive_keys=sensitive_keys),
+            risk=permission.risk,
+            args=redact_args(call.args, sensitive_keys),
             reason=reason,
         )
-        return dump_model(request)
+        return request
 
 
-def _permission_action(tool_name: str) -> str:
-    if tool_name in {"write_file"}:
-        return "write"
-    if tool_name in {"edit_file", "notebook_edit"}:
-        return "edit"
-    if tool_name in {"bash", "powershell"}:
-        return "shell"
-    if tool_name in {"web_fetch", "web_search"}:
-        return "network"
-    if tool_name in {"memory", "remember"}:
-        return "memory"
-    return "unknown"
+def redact_args(args: dict[str, Any], sensitive_keys: set[str]) -> dict[str, Any]:
+    """Return args with sensitive keys recursively replaced by redaction markers."""
+
+    return _redact_value(args, {key.lower() for key in (DEFAULT_SENSITIVE_ARG_KEYS | sensitive_keys)})
 
 
-def _permission_risk(tool_name: str) -> str:
-    if tool_name in {"bash", "powershell"}:
-        return "high"
-    if tool_name in {"write_file", "edit_file", "notebook_edit", "web_fetch", "web_search"}:
-        return "medium"
-    return "low"
+def summarize_args(args: dict[str, Any], *, sensitive_keys: set[str], limit: int = 500) -> str:
+    """Render stable, redacted, truncated JSON for approval prompts and events."""
 
-
-def _args_summary(args: Any) -> str:
-    if not isinstance(args, dict) or not args:
+    if not args:
         return "{}"
-    rendered = ", ".join(f"{key}={value!r}" for key, value in sorted(args.items()))
-    return rendered[:500]
+    rendered = json.dumps(redact_args(args, sensitive_keys), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    if len(rendered) <= limit:
+        return rendered
+    return rendered[: max(0, limit - 13)] + "...<truncated>"
+
+
+def _tool_permission(tool: Any) -> ToolPermissionMetadata:
+    permission = getattr(tool, "permission", None)
+    if isinstance(permission, ToolPermissionMetadata):
+        return permission
+    return ToolPermissionMetadata(
+        action="unknown",
+        risk="high",
+        requires_permission=True,
+        external=True,
+        reason="Unknown tool permission metadata requires approval.",
+    )
+
+
+def _redact_value(value: Any, sensitive_keys: set[str]) -> Any:
+    if isinstance(value, dict):
+        return {key: ("***" if str(key).lower() in sensitive_keys else _redact_value(item, sensitive_keys)) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_value(item, sensitive_keys) for item in value]
+    return value
