@@ -55,7 +55,7 @@ LANGFUSE_CAPTURE_OUTPUTS=true
 LANGFUSE_INCLUDE_PROJECT_PATHS=false
 ```
 
-`LANGFUSE_BASE_URL` is preferred. `LANGFUSE_HOST` is accepted as a compatibility alias. `LANGFUSE_ENVIRONMENT` is preferred over `LANGFUSE_TRACING_ENVIRONMENT`.
+Process environment variables override project-root `.env`. Within the same source layer, `LANGFUSE_BASE_URL` is preferred over `LANGFUSE_HOST`, and `LANGFUSE_ENVIRONMENT` is preferred over `LANGFUSE_TRACING_ENVIRONMENT`.
 
 Keys should come from environment or `.env`; do not commit real keys. Project-root `.env` is loaded by `AppConfig.from_env()`, and process environment variables take precedence.
 

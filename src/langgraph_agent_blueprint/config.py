@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
 
@@ -59,16 +60,23 @@ class AppConfig(BaseModel):
 
         dotenv = _load_dotenv_values(Path(overrides.get("project_root") or Path.cwd()) / ".env")
 
-        def env_value(key: str, default: str | None = None) -> str | None:
-            value = os.getenv(key)
-            return value if value is not None else dotenv.get(key, default)
+        environ = os.environ
 
-        storage_dir = env_value("CC_LANGGRAPH_STORAGE_DIR") or env_value("langgraph_agent_blueprint_STORAGE_DIR")
+        def env_value(key: str, default: str | None = None) -> str | None:
+            return layered_get(key, dotenv_values=dotenv, environ=environ, default=default)
+
+        storage_dir = layered_get("CC_LANGGRAPH_STORAGE_DIR", "langgraph_agent_blueprint_STORAGE_DIR", dotenv_values=dotenv, environ=environ)
         provider = env_value("LLM_PROVIDER", "fake")
-        model_name = env_value("MODEL_NAME") or env_value("OLLAMA_MODEL") or "fake-model"
+        model_name = layered_get("MODEL_NAME", "OLLAMA_MODEL", dotenv_values=dotenv, environ=environ, default="fake-model")
         langfuse_enabled = cls._bool(env_value("LANGFUSE_ENABLED"), default=False)
-        langfuse_base_url = env_value("LANGFUSE_BASE_URL") or env_value("LANGFUSE_HOST")
-        langfuse_environment = env_value("LANGFUSE_ENVIRONMENT") or env_value("LANGFUSE_TRACING_ENVIRONMENT") or "dev"
+        langfuse_base_url = layered_get("LANGFUSE_BASE_URL", "LANGFUSE_HOST", dotenv_values=dotenv, environ=environ)
+        langfuse_environment = layered_get(
+            "LANGFUSE_ENVIRONMENT",
+            "LANGFUSE_TRACING_ENVIRONMENT",
+            dotenv_values=dotenv,
+            environ=environ,
+            default="dev",
+        )
         values: dict[str, Any] = {
             "llm_provider": provider,
             "model_name": model_name,
@@ -84,9 +92,15 @@ class AppConfig(BaseModel):
             "openai_compatible_base_url": env_value("OPENAI_COMPATIBLE_BASE_URL"),
             "openai_compatible_api_key": env_value("OPENAI_COMPATIBLE_API_KEY"),
             "openai_compatible_model": env_value("OPENAI_COMPATIBLE_MODEL"),
-            "skills_paths": [Path(item) for item in cls._split_path_list(env_value("SKILLS_PATHS") or env_value("LG_AGENT_SKILLS_PATHS"))],
-            "plugin_paths": [Path(item) for item in cls._split_path_list(env_value("PLUGIN_PATHS") or env_value("LG_AGENT_PLUGIN_PATHS"))],
-            "mcp_config": cls._json_config(env_value("MCP_CONFIG_JSON") or env_value("LG_AGENT_MCP_CONFIG_JSON")),
+            "skills_paths": [
+                Path(item)
+                for item in cls._split_path_list(layered_get("SKILLS_PATHS", "LG_AGENT_SKILLS_PATHS", dotenv_values=dotenv, environ=environ))
+            ],
+            "plugin_paths": [
+                Path(item)
+                for item in cls._split_path_list(layered_get("PLUGIN_PATHS", "LG_AGENT_PLUGIN_PATHS", dotenv_values=dotenv, environ=environ))
+            ],
+            "mcp_config": cls._json_config(layered_get("MCP_CONFIG_JSON", "LG_AGENT_MCP_CONFIG_JSON", dotenv_values=dotenv, environ=environ)),
             "langfuse": LangfuseConfig(
                 enabled=langfuse_enabled,
                 public_key=env_value("LANGFUSE_PUBLIC_KEY"),
@@ -176,6 +190,27 @@ def _redact_for_display(value: Any, key: str | None = None) -> Any:
     if isinstance(value, list):
         return [_redact_for_display(item) for item in value]
     return value
+
+
+def layered_get(
+    primary: str,
+    alias: str | None = None,
+    *,
+    dotenv_values: Mapping[str, str],
+    environ: Mapping[str, str],
+    default: str | None = None,
+) -> str | None:
+    """Read config with process env above dotenv and primary above alias per layer."""
+
+    if primary in environ:
+        return environ[primary]
+    if alias and alias in environ:
+        return environ[alias]
+    if primary in dotenv_values:
+        return dotenv_values[primary]
+    if alias and alias in dotenv_values:
+        return dotenv_values[alias]
+    return default
 
 
 def _load_dotenv_values(path: Path) -> dict[str, str]:
