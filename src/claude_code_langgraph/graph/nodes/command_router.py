@@ -22,12 +22,12 @@ def command_router_node(state: dict, deps: AppDependencies) -> dict:
     parsed = parse_slash_command(state.get("input_text", ""))
     if not parsed:
         return {"command_handled": False}
-    name, args = parsed
+    name, args = parsed.name, parsed.args
     command = deps.command_registry.find(name)
     if command is None:
         return {
             "command_handled": True,
-            "active_command": {"name": name, "args": args, "type": "unknown"},
+            "active_command": parsed.model_dump(mode="json"),
             "final_response": f"Unknown command /{name}. Use /help to list available commands.",
             "ui_events": [event("command_finished", name=name, status="unknown")],
         }

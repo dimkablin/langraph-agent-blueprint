@@ -1,0 +1,47 @@
+"""Tests for typed command and permission boundary contracts."""
+
+from __future__ import annotations
+
+import pytest
+from pydantic import ValidationError
+
+from claude_code_langgraph.commands.parser import parse_slash_command
+from claude_code_langgraph.models.commands import CommandResult, ParsedCommand
+from claude_code_langgraph.models.permissions import PermissionDecision, PermissionRequest
+from claude_code_langgraph.services.permission_service import PermissionService
+
+
+def test_parse_slash_command_returns_typed_command_payload():
+    parsed = parse_slash_command("/skill verify run tests")
+
+    assert parsed == ParsedCommand(name="skill", args="verify run tests", raw="/skill verify run tests", command_type="skill")
+    assert parse_slash_command("normal chat") is None
+
+
+def test_command_result_infers_final_response_route():
+    result = CommandResult(True, "ok")
+
+    assert result.route == "finalize"
+    assert result.final_response == "ok"
+
+
+def test_permission_payload_is_typed_request():
+    payload = PermissionService.confirmation_payload(
+        {"id": "call_1", "name": "write_file", "args": {"path": "x.txt", "content": "x"}},
+        "write_file requires approval",
+    )
+
+    request = PermissionRequest.model_validate(payload)
+
+    assert request.tool_call_id == "call_1"
+    assert request.tool_name == "write_file"
+    assert request.action == "write"
+    assert request.risk == "medium"
+
+
+def test_permission_decision_validates_resume_payload():
+    approved = PermissionDecision.model_validate({"tool_call_id": "call_1", "decision": "approved"})
+
+    assert approved.decision == "approved"
+    with pytest.raises(ValidationError):
+        PermissionDecision.model_validate({"tool_call_id": "call_1", "decision": "maybe"})

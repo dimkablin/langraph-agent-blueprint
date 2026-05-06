@@ -7,6 +7,7 @@ from langgraph.types import interrupt
 from claude_code_langgraph.dependencies import AppDependencies
 from claude_code_langgraph.models.base import dump_model
 from claude_code_langgraph.models.messages import event
+from claude_code_langgraph.models.permissions import PermissionDecision, PermissionRequest
 from claude_code_langgraph.models.tools import ToolCall, ToolResult, tool_result_to_tool_message
 
 
@@ -20,13 +21,17 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
     pending = state.get("pending_confirmation")
     if not pending:
         return {}
+    request = PermissionRequest.model_validate(pending)
     decision = interrupt(pending)
-    approved = bool(decision.get("approved") if isinstance(decision, dict) else decision)
+    permission_decision = _resume_decision(request, decision)
+    approved = permission_decision.decision == "approved"
     record = {
-        "tool_call_id": pending["tool_call_id"],
-        "tool_name": pending["tool_name"],
+        "tool_call_id": request.tool_call_id,
+        "tool_name": request.tool_name,
         "approved": approved,
-        "reason": decision.get("reason") if isinstance(decision, dict) else None,
+        "decision": permission_decision.decision,
+        "reason": permission_decision.reason,
+        "remember": permission_decision.remember,
     }
     metadata = dict(state.get("metadata", {}))
     if approved:
@@ -39,7 +44,7 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
         }
     metadata["tool_route"] = "rejected"
     call = ToolCall.model_validate(state.get("pending_tool_calls", [{}])[0])
-    result = ToolResult(id=call.id, name=pending["tool_name"], status="rejected", content="Tool call rejected by user.")
+    result = ToolResult(id=call.id, name=request.tool_name, status="rejected", content="Tool call rejected by user.")
     result_payload = dump_model(result)
     return {
         "metadata": metadata,
@@ -50,3 +55,19 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
         "messages": [tool_result_to_tool_message(result)],
         "ui_events": [event("permission_resolved", **record)],
     }
+
+
+def _resume_decision(request: PermissionRequest, decision: object) -> PermissionDecision:
+    """Validate LangGraph resume payloads while preserving the existing approved-bool shape."""
+
+    if isinstance(decision, dict) and "decision" in decision:
+        return PermissionDecision.model_validate({"tool_call_id": request.tool_call_id, **decision})
+    if isinstance(decision, dict):
+        approved = bool(decision.get("approved"))
+        return PermissionDecision(
+            tool_call_id=request.tool_call_id,
+            decision="approved" if approved else "rejected",
+            reason=decision.get("reason"),
+            remember=bool(decision.get("remember", False)),
+        )
+    return PermissionDecision(tool_call_id=request.tool_call_id, decision="approved" if bool(decision) else "rejected")

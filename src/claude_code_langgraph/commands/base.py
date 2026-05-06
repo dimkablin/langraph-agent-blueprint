@@ -6,18 +6,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from claude_code_langgraph.models.commands import CommandResult
+
 
 CommandType = Literal["local", "prompt", "skill", "session", "diagnostic"]
-
-
-@dataclass(frozen=True)
-class CommandResult:
-    """Immutable result returned by slash-command handlers to drive graph routing and state updates."""
-    handled: bool
-    response: str | None = None
-    prompt: str | None = None
-    skill: dict[str, Any] | None = None
-    metadata: dict[str, Any] | None = None
 
 
 CommandHandler = Callable[[str, dict[str, Any]], CommandResult]
