@@ -40,7 +40,15 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
             "pending_tool_calls": [],
             "ui_events": [event("tool_call_error", id=call.id, name=name, status="rejected", reason="disallowed_by_skill")],
         }
-    if name in {"skill", "SkillTool"}:
+    try:
+        tool = deps.tool_registry.get(name)
+    except KeyError as exc:
+        metadata["tool_route"] = "error"
+        return {
+            "metadata": metadata,
+            "errors": [{"message": str(exc), "type": "UnknownTool", "recoverable": True}],
+        }
+    if tool.runtime.route == "skill_graph":
         metadata["tool_route"] = "skill_tool"
         return {
             "metadata": metadata,
@@ -50,20 +58,12 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
                 "tool_call_id": call.id,
             },
         }
-    if name in {"agent", "task"}:
+    if tool.runtime.route == "agent_graph":
         metadata["tool_route"] = "agent_tool"
         return {"metadata": metadata}
-    if name.startswith("mcp."):
+    if tool.runtime.route == "mcp_graph":
         metadata["tool_route"] = "mcp_tool"
         return {"metadata": metadata}
-    try:
-        tool = deps.tool_registry.get(name)
-    except KeyError as exc:
-        metadata["tool_route"] = "error"
-        return {
-            "metadata": metadata,
-            "errors": [{"message": str(exc), "type": "UnknownTool", "recoverable": True}],
-        }
     decision = deps.permission_service.decide(tool, state, call.args)
     if decision.decision == "ask":
         metadata["tool_route"] = "needs_permission"

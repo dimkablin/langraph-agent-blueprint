@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from claude_code_langgraph.models.base import dump_model
 from claude_code_langgraph.models.messages import event
+from claude_code_langgraph.models.tool_metadata import ToolStateEffect
 from claude_code_langgraph.models.tools import ToolCall, ToolResult
 from claude_code_langgraph.tools.base import BaseTool, ToolExecutionContext
 from claude_code_langgraph.tools.registry import ToolRegistry
@@ -43,12 +44,12 @@ class ToolExecutionService:
                 "metadata": getattr(output, "metadata", {}) or {},
                 "output": output.model_dump(mode="json"),
             }
-            if tool.name == "todo_write":
-                record["state_update"] = {"todos": record["output"].get("todos", [])}
-            if tool.name in {"read_file", "edit_file", "write_file"}:
-                record.setdefault("state_update", {}).setdefault("metadata", {})["read_files"] = sorted(context.read_files)
-            if tool.name == "agent":
-                record["state_update"] = {"child_runs": [record["output"]["child_run"]]}
+            result = ToolResult.model_validate(record)
+            if result.status == "ok":
+                effects = tool.state_effects(tool_call=call, result=result, output=output, state=state)
+                state_update = apply_tool_state_effects(effects, state, context)
+                if state_update:
+                    record["state_update"] = state_update
             return dump_model(ToolResult.model_validate(record))
         except (ValidationError, Exception) as exc:
             return dump_model(
@@ -72,4 +73,30 @@ class ToolExecutionService:
         result = ToolResult.model_validate(record)
         event_type = "tool_call_error" if result.status == "error" else "tool_call_finished"
         return event(event_type, id=result.id, name=result.name, status=result.status)
+
+
+def apply_tool_state_effects(
+    effects: list[ToolStateEffect],
+    state: dict[str, Any],
+    context: ToolExecutionContext,
+) -> dict[str, Any]:
+    """Convert typed tool state effects into a serializable graph state delta."""
+
+    state_update: dict[str, Any] = {}
+    read_files = set(context.read_files)
+    for effect in effects:
+        if effect.kind == "record_file_read":
+            path = effect.data.get("path")
+            if path:
+                read_files.add(str(path))
+            state_update.setdefault("metadata", {})["read_files"] = sorted(read_files)
+        elif effect.kind in {"record_file_write", "record_file_edit"}:
+            state_update.setdefault("metadata", {})["read_files"] = sorted(read_files)
+        elif effect.kind == "replace_todos":
+            state_update["todos"] = effect.data.get("todos", [])
+        elif effect.kind == "append_child_run":
+            child_run = effect.data.get("child_run")
+            if child_run:
+                state_update.setdefault("child_runs", []).append(child_run)
+    return state_update
 

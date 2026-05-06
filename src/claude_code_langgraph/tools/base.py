@@ -85,7 +85,8 @@ class BaseTool(Generic[InputT, OutputT]):
         output: OutputT,
         state: dict[str, Any],
     ) -> list[ToolStateEffect]:
-        return []
+        output_data = output.model_dump(mode="json") if hasattr(output, "model_dump") else {}
+        return [ToolStateEffect(kind=kind, data=output_data) for kind in self.runtime.state_effects]
 
     def metadata(self) -> dict[str, object]:
         return {
