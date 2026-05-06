@@ -12,6 +12,7 @@ from rich.console import Console
 from langgraph_agent_blueprint.config import AppConfig
 from langgraph_agent_blueprint.dependencies import build_dependencies
 from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.utils.ids import new_id
 
 app = typer.Typer(help="LangGraph Agent Blueprint CLI")
 sessions_app = typer.Typer(help="Session commands")
@@ -61,6 +62,8 @@ def chat() -> None:
     """Start an interactive terminal chat adapter."""
 
     runtime = _runtime()
+    session_id = new_id("session")
+    turn_index = 0
     console.print("lg-agent chat. Type /exit to quit.")
     while True:
         try:
@@ -70,11 +73,16 @@ def chat() -> None:
             break
         if message.strip() in {"/exit", "exit", "quit"}:
             break
-        result = runtime.invoke(message, input_kind="interactive")
+        turn_index += 1
+        result = runtime.invoke(message, input_kind="interactive", session_id=session_id, turn_index=turn_index)
         if "__interrupt__" in result:
             payload = result["__interrupt__"][0].value
             answer = console.input(f"Approve {payload.get('tool_name')}? [y/N] ")
-            resumed = runtime.resume(result["thread_id"], {"approved": answer.strip().lower() in {"y", "yes"}})
+            resumed = runtime.resume(
+                result["thread_id"],
+                {"approved": answer.strip().lower() in {"y", "yes"}},
+                session_id=result.get("session_id"),
+            )
             console.print(resumed.get("final_response", ""))
         else:
             console.print(result.get("final_response", ""))

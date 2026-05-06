@@ -7,9 +7,9 @@ Phase 3 adds optional Langfuse observability as a runtime layer. Langfuse observ
 The integration has two layers:
 
 1. LangChain/LangGraph callbacks.
-   `AssistantGraphRuntime.invoke`, `resume`, and `stream` attach a Langfuse callback handler through LangGraph config. Existing `configurable.thread_id` is preserved.
+   `AssistantGraphRuntime.invoke`, `resume`, and `stream` open one Langfuse root observation per user turn, then attach a Langfuse callback handler through LangGraph config while that observation is active. Existing `configurable.thread_id` is preserved.
 2. RuntimeEvent mapping.
-   `ObservabilityService` maps selected `RuntimeEvent` records to small, redacted Langfuse events for graph-specific lifecycle details that LangChain callbacks do not fully describe.
+   `ObservabilityService` maps selected `RuntimeEvent` records to small, redacted child observations or compact trace metadata for graph-specific lifecycle details that LangChain callbacks do not fully describe.
 
 Key components:
 
@@ -53,6 +53,7 @@ LANGFUSE_DEBUG=false
 LANGFUSE_CAPTURE_INPUTS=true
 LANGFUSE_CAPTURE_OUTPUTS=true
 LANGFUSE_INCLUDE_PROJECT_PATHS=false
+LANGFUSE_RUNTIME_EVENTS_MODE=high_signal
 ```
 
 Process environment variables override project-root `.env`. Within the same source layer, `LANGFUSE_BASE_URL` is preferred over `LANGFUSE_HOST`, and `LANGFUSE_ENVIRONMENT` is preferred over `LANGFUSE_TRACING_ENVIRONMENT`.
@@ -77,9 +78,20 @@ When Langfuse is enabled but keys or the SDK are missing:
 
 Langfuse network/auth failures are warnings at the observability boundary, not workflow failures.
 
+## Trace Scoping
+
+Trace semantics are turn-scoped:
+
+- one user turn creates one top-level Langfuse trace
+- one interactive `lg-agent chat` process creates multiple traces grouped by the same Langfuse `session_id`
+- headless `lg-agent query` invocations may each create their own session unless a session id is explicitly supplied
+- RuntimeEvents are never emitted through unscoped `client.create_event(...)`
+
+For streaming, the trace context stays open until the returned generator is exhausted. Streamed runtime events are recorded while the same turn trace is active.
+
 ## Graph Callback Config
 
-The graph config includes:
+Inside the active turn trace, the graph config includes:
 
 - `callbacks`
 - `metadata`
@@ -87,18 +99,16 @@ The graph config includes:
 - `run_name`
 - existing `configurable.thread_id`
 
-Metadata includes session/thread ids, provider/model, permission mode, environment, release, enabled plugin names when available, MCP server names from config, and a project-root hash. Full local project paths are not sent unless `LANGFUSE_INCLUDE_PROJECT_PATHS=true`.
+Metadata includes session/thread ids, provider/model, permission mode, environment, release, enabled plugin names when available, MCP server names from config, turn index when available, and a project-root hash. Full local project paths are not sent unless `LANGFUSE_INCLUDE_PROJECT_PATHS=true`.
 
-The callback handler follows the official Langfuse LangChain/LangGraph integration shape: `from langfuse.langchain import CallbackHandler` and passing the handler through graph config callbacks.
+The callback handler follows the official Langfuse LangChain/LangGraph integration shape: `from langfuse.langchain import CallbackHandler` and passing the handler through graph config callbacks. The handler is created inside the active root observation so LangGraph/LLM/tool observations nest under the turn trace.
 
 ## RuntimeEvent Mapping
 
-The mapper records compact semantic events for:
+The default mode is `LANGFUSE_RUNTIME_EVENTS_MODE=high_signal`.
 
-- `session_started`
-- `command_started`
-- `command_finished`
-- `model_message`
+High-signal RuntimeEvents become child observations:
+
 - `tool_call_started`
 - `tool_call_finished`
 - `tool_call_error`
@@ -106,22 +116,23 @@ The mapper records compact semantic events for:
 - `permission_resolved`
 - `skill_started`
 - `skill_finished`
-- `hook_started`
-- `hook_finished`
 - `hook_blocked`
 - `hook_error`
-- `mcp_server_connected`
-- `mcp_tools_discovered`
 - `mcp_tool_call_started`
 - `mcp_tool_call_finished`
 - `mcp_tool_call_error`
-- `compact_started`
-- `compact_finished`
-- `session_persisted`
 - `final_response`
 - `error`
 
-LangChain callbacks remain the primary model/tool internal trace path. RuntimeEvent mapping adds graph-specific policy and lifecycle information such as permissions, skills, hooks, MCP, compaction, and persistence.
+Low-signal lifecycle events such as `session_started`, `session_persisted`, normal hook start/finish events, MCP discovery events, and compaction events are stored as compact `runtime_timeline` metadata by default.
+
+Other modes:
+
+- `all`: record every mapped RuntimeEvent as a child observation
+- `metadata_only`: store mapped RuntimeEvents only in compact metadata
+- `off`: disable RuntimeEvent export while leaving LangGraph callbacks enabled
+
+LangChain callbacks remain the primary model/tool internal trace path. RuntimeEvent mapping adds graph-specific policy and lifecycle information such as permissions, skills, hooks, MCP, compaction, and persistence without creating separate top-level traces.
 
 ## Hooks
 
@@ -157,6 +168,8 @@ This applies to config/status views, trace metadata, RuntimeEvent data, tool arg
 
 Large event payloads are truncated. `LANGFUSE_CAPTURE_INPUTS=false` redacts input-like event payloads. `LANGFUSE_CAPTURE_OUTPUTS=false` redacts output-like event payloads such as final responses and tool outputs while preserving structural event metadata.
 
+`LANGFUSE_INCLUDE_PROJECT_PATHS=false` is the default. Full `project_root`, `cwd`, and private absolute Windows/POSIX paths are replaced with a basename and hash before they enter trace input, output, metadata, child observations, or timeline metadata. Set `LANGFUSE_INCLUDE_PROJECT_PATHS=true` only for local debugging where full paths are acceptable.
+
 External plugin content, MCP resources, and MCP prompts are untrusted prompt content. Observability does not change instruction priority: user instructions remain higher priority than plugin methodology or hook-provided context.
 
 ## Commands
@@ -187,6 +200,7 @@ $env:LANGFUSE_ENABLED = "true"
 $env:LANGFUSE_PUBLIC_KEY = "pk-lf-..."
 $env:LANGFUSE_SECRET_KEY = "sk-lf-..."
 $env:LANGFUSE_BASE_URL = "https://your-langfuse-host"
+$env:LANGFUSE_INCLUDE_PROJECT_PATHS = "false"
 
 lg-agent doctor
 lg-agent query "hello"
@@ -201,6 +215,27 @@ Expected:
 - tool calls and critical runtime events are visible or attached
 - no keys, tokens, or authorization values are visible
 
+Interactive chat smoke:
+
+```powershell
+lg-agent chat
+```
+
+Send:
+
+```text
+привет
+что ты умеешь?
+```
+
+Expected Langfuse UI result:
+
+- exactly two top-level traces
+- both traces have the same Langfuse session id
+- no `runtime.*` entries appear as separate top-level traces
+- runtime events are child observations or compact metadata inside each turn trace
+- full `project_root` / `cwd` paths are absent when `LANGFUSE_INCLUDE_PROJECT_PATHS=false`
+
 ## Tests
 
 Tests use mocked Langfuse adapters. They do not require real Langfuse keys or a live Langfuse server.
@@ -213,12 +248,17 @@ Coverage includes:
 - graph callback config attachment
 - RuntimeEvent mapping
 - privacy/redaction/capture flags
+- turn-scoped trace grouping and stream context lifetime
 - `/doctor`, `/config`, and `/observability`
 - graph runs with tools, skills, hooks, permissions, and MCP events
+
+## Troubleshooting
+
+If Langfuse shows many top-level `runtime.*` traces for one chat turn, verify that the runtime is using `ObservabilityService.trace_turn(...)` around graph execution. RuntimeEvent export outside an active trace context is intentionally skipped to avoid unscoped traces.
 
 ## Current Limitations
 
 - Live Langfuse smoke is manual and requires user-provided keys.
 - The base runtime does not perform an online auth check during tests.
-- RuntimeEvent mapping is intentionally lightweight to avoid duplicating every callback trace.
+- RuntimeEvent mapping defaults to `high_signal` to avoid duplicating every callback trace.
 - Full custom trace-id grouping and richer span hierarchies can be added later if needed.

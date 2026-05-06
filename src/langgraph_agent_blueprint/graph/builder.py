@@ -142,6 +142,7 @@ class AssistantGraphRuntime:
         session_id: str | None = None,
         thread_id: str | None = None,
         project_root: str | Path | None = None,
+        turn_index: int | None = None,
     ) -> dict[str, Any]:
         """Run one graph turn, hydrating persisted session state when a session id is supplied."""
 
@@ -155,55 +156,99 @@ class AssistantGraphRuntime:
         )
         if session_id:
             self._hydrate_session_state(state)
-        config = self._graph_config(state)
-        result = self.app.invoke(state, config)
-        self._record_result_events(result)
-        self.dependencies.observability_service.flush()
+        if turn_index is not None:
+            state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
+        trace_context = self._trace_context(state)
+        with self.dependencies.observability_service.trace_turn(
+            trace_context,
+            self._trace_metadata(state),
+            input_data={"input_text": input_text, "input_kind": input_kind},
+            name="lg-agent chat turn",
+        ) as trace:
+            config = trace.graph_config({"configurable": {"thread_id": state["thread_id"]}}, self._trace_metadata(state))
+            result = self.app.invoke(state, config)
+            result_context = self._trace_context(result) if isinstance(result, dict) else trace_context
+            trace.record_runtime_events(result.get("ui_events", []) if isinstance(result, dict) else [], result_context)
+            if isinstance(result, dict):
+                trace.set_output(result.get("final_response"))
         return result
 
-    def resume(self, thread_id: str, decision: dict[str, Any]) -> dict[str, Any]:
+    def resume(self, thread_id: str, decision: dict[str, Any], session_id: str | None = None) -> dict[str, Any]:
         initial_context = TraceContext(
-            session_id=thread_id,
+            session_id=session_id or thread_id,
             thread_id=thread_id,
             environment=self.dependencies.config.langfuse.environment,
             release=self.dependencies.config.langfuse.release,
             user_id=self.dependencies.config.langfuse.trace_user_id,
         )
-        config = self.dependencies.observability_service.build_graph_config(
-            {"configurable": {"thread_id": thread_id}},
+        with self.dependencies.observability_service.trace_turn(
             initial_context,
             self._trace_metadata({}),
-        )
-        result = self.app.invoke(Command(resume=decision), config)
-        self._record_result_events(result)
-        self.dependencies.observability_service.flush()
+            input_data={"resume": decision},
+            name="lg-agent resume turn",
+        ) as trace:
+            config = trace.graph_config({"configurable": {"thread_id": thread_id}}, self._trace_metadata({}))
+            result = self.app.invoke(Command(resume=decision), config)
+            result_context = self._trace_context(result) if isinstance(result, dict) else initial_context
+            trace.record_runtime_events(result.get("ui_events", []) if isinstance(result, dict) else [], result_context)
+            if isinstance(result, dict):
+                trace.set_output(result.get("final_response"))
         return result
 
-    def stream(self, input_text: str, input_kind: str = "headless") -> Iterable[dict[str, Any]]:
+    def stream(
+        self,
+        input_text: str,
+        input_kind: str = "headless",
+        session_id: str | None = None,
+        thread_id: str | None = None,
+        project_root: str | Path | None = None,
+        turn_index: int | None = None,
+    ) -> Iterable[dict[str, Any]]:
         """Yield newly appended UI events from LangGraph value-stream state updates."""
 
-        previous_count = 0
-        state = create_initial_state(
-            input_text,
-            project_root=self.dependencies.config.project_root or Path.cwd(),
-            cwd=self.dependencies.config.cwd or self.dependencies.config.project_root or Path.cwd(),
-            input_kind=input_kind,
-        )
-        config = self._graph_config(state)
-        try:
-            for chunk in self.app.stream(
-                state,
-                config,
-                stream_mode="values",
-            ):
-                context = self._trace_context(chunk if isinstance(chunk, dict) else state)
-                events = chunk.get("ui_events", [])
-                for item in events[previous_count:]:
-                    self.dependencies.observability_service.record_runtime_event(item, context)
-                    yield item
-                previous_count = len(events)
-        finally:
-            self.dependencies.observability_service.flush()
+        def generator() -> Iterable[dict[str, Any]]:
+            previous_count = 0
+            state = create_initial_state(
+                input_text,
+                project_root=project_root or self.dependencies.config.project_root or Path.cwd(),
+                cwd=self.dependencies.config.cwd or project_root or self.dependencies.config.project_root or Path.cwd(),
+                input_kind=input_kind,
+                session_id=session_id,
+                thread_id=thread_id,
+            )
+            if session_id:
+                self._hydrate_session_state(state)
+            if turn_index is not None:
+                state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
+            final_chunk: dict[str, Any] | None = None
+            trace_context = self._trace_context(state)
+            with self.dependencies.observability_service.trace_turn(
+                trace_context,
+                self._trace_metadata(state),
+                input_data={"input_text": input_text, "input_kind": input_kind},
+                name="lg-agent chat turn",
+            ) as trace:
+                config = trace.graph_config({"configurable": {"thread_id": state["thread_id"]}}, self._trace_metadata(state))
+                for chunk in self.app.stream(
+                    state,
+                    config,
+                    stream_mode="values",
+                ):
+                    if isinstance(chunk, dict):
+                        final_chunk = chunk
+                        context = self._trace_context(chunk)
+                        events = chunk.get("ui_events", [])
+                    else:
+                        context = trace_context
+                        events = []
+                    for item in events[previous_count:]:
+                        trace.record_runtime_event(item, context)
+                        yield item
+                    previous_count = len(events)
+                if final_chunk is not None:
+                    trace.set_output(final_chunk.get("final_response"))
+
+        return generator()
 
     def _hydrate_session_state(self, state: dict[str, Any]) -> None:
         """Mutate initial state with persisted session messages, todos, memory, usage, and metadata."""
@@ -261,6 +306,9 @@ class AssistantGraphRuntime:
         if config.llm_provider:
             tags.append(str(config.llm_provider))
         metadata = {"project_root_hash": root_hash}
+        state_metadata = state.get("metadata", {}) if isinstance(state.get("metadata"), dict) else {}
+        if "turn_index" in state_metadata:
+            metadata["turn_index"] = state_metadata["turn_index"]
         return TraceContext(
             session_id=str(state.get("session_id") or "unknown"),
             thread_id=state.get("thread_id"),

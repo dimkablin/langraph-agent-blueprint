@@ -73,7 +73,20 @@ def test_graph_invoke_attaches_callbacks_and_records_final_response(tmp_path: Pa
 
     assert result["final_response"] == "Fake response: hello"
     assert factory.callbacks_created == 1
-    assert any(event["name"] == "runtime.final_response" for event in factory.client.events)
+    assert len(factory.client.top_level_traces) == 1
+    assert factory.client.unscoped_events == []
+    assert any(event["name"] == "runtime.final_response" for event in factory.client.child_observations)
+    assert factory.client.top_level_traces[0]["trace_id"] == factory.client.child_observations[0]["trace_id"]
+    assert factory.client.top_level_traces[0]["session_id"] == result["session_id"]
+
+
+def test_graph_callback_nested_under_turn_trace(tmp_path: Path) -> None:
+    runtime, factory = _runtime(tmp_path)
+
+    runtime.invoke("hello", input_kind="headless", project_root=tmp_path, thread_id="obs-callback")
+
+    assert factory.client.top_level_traces
+    assert factory.handlers[0].active_trace_id == factory.client.top_level_traces[0]["trace_id"]
 
 
 def test_graph_records_tool_skill_permission_hook_and_mcp_events(tmp_path: Path) -> None:
@@ -91,7 +104,7 @@ def test_graph_records_tool_skill_permission_hook_and_mcp_events(tmp_path: Path)
     finally:
         runtime.dependencies.mcp_service.close()
 
-    names = [event["name"] for event in factory.client.events]
+    names = [event["name"] for event in factory.client.child_observations]
     assert read_result["final_response"]
     assert skill_result["final_response"]
     assert "__interrupt__" in first
@@ -101,4 +114,28 @@ def test_graph_records_tool_skill_permission_hook_and_mcp_events(tmp_path: Path)
     assert "runtime.permission_required" in names
     assert "runtime.permission_resolved" in names
     assert "runtime.mcp_tool_call_finished" in names
-    assert any(name.startswith("runtime.hook_") for name in names)
+    assert any("runtime.hook_" in str(update) for update in factory.client.metadata_updates)
+    assert factory.client.unscoped_events == []
+
+
+def test_stream_trace_context_lives_until_generator_exhausted(tmp_path: Path) -> None:
+    runtime, factory = _runtime(tmp_path)
+
+    events = list(runtime.stream("hello", input_kind="headless", project_root=tmp_path, thread_id="obs-stream"))
+
+    assert events
+    assert len(factory.client.top_level_traces) == 1
+    assert factory.client.unscoped_events == []
+    assert any(event["name"] == "runtime.final_response" for event in factory.client.child_observations)
+    assert factory.client.flushed is True
+
+
+def test_two_headless_invocations_can_have_separate_sessions(tmp_path: Path) -> None:
+    runtime, factory = _runtime(tmp_path)
+
+    first = runtime.invoke("hello", input_kind="headless", project_root=tmp_path)
+    second = runtime.invoke("again", input_kind="headless", project_root=tmp_path)
+
+    assert first["session_id"] != second["session_id"]
+    assert len(factory.client.top_level_traces) == 2
+    assert {trace["session_id"] for trace in factory.client.top_level_traces} == {first["session_id"], second["session_id"]}

@@ -100,7 +100,7 @@ Optional Langfuse tracing is attached at the graph runtime boundary:
 - `AssistantGraphRuntime.resume(...)`
 - `AssistantGraphRuntime.stream(...)`
 
-`ObservabilityService` preserves `configurable.thread_id` and adds callbacks, metadata, tags, and a run name to LangGraph config. RuntimeEvents are mapped after invoke/resume or as stream chunks yield new events. This keeps LangGraph as workflow owner; Langfuse observes graph execution and does not call tools, skills, hooks, MCP, permissions, or storage directly.
+`ObservabilityService` opens one turn-scoped root observation, preserves `configurable.thread_id`, and adds callbacks, metadata, tags, and a run name to LangGraph config while that root observation is active. RuntimeEvents are recorded before the turn trace closes, either after invoke/resume returns or while stream chunks are consumed. This keeps LangGraph as workflow owner; Langfuse observes graph execution and does not call tools, skills, hooks, MCP, permissions, or storage directly.
 
 Trace metadata avoids full local project paths by default and sends a project-root basename plus hash. Full paths are opt-in through `LANGFUSE_INCLUDE_PROJECT_PATHS=true`.
 
@@ -143,4 +143,4 @@ MCP events such as `mcp_server_connected`, `mcp_tools_discovered`, `mcp_tool_cal
 
 ## Langfuse Event Mapping
 
-RuntimeEvent mapping records compact, redacted semantic events for permissions, skills, hooks, MCP, compaction, persistence, final responses, and errors. LangChain/LangGraph callbacks remain the primary automatic model/tool tracing integration.
+RuntimeEvent mapping records compact, redacted semantic events for permissions, skills, hooks, MCP, compaction, persistence, final responses, and errors. High-signal events become child observations by default; low-signal lifecycle events are compact `runtime_timeline` metadata. LangChain/LangGraph callbacks remain the primary automatic model/tool tracing integration.

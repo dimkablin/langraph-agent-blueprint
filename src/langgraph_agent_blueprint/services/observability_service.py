@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from collections.abc import Iterable
+from contextlib import nullcontext
+from pathlib import PurePosixPath, PureWindowsPath
+import re
+from types import TracebackType
 from typing import Any
 
 from pydantic import ValidationError
@@ -26,11 +31,7 @@ SENSITIVE_KEY_PARTS = (
 )
 OUTPUT_EVENT_TYPES = {"final_response", "tool_call_finished", "mcp_tool_call_finished", "model_message"}
 INPUT_EVENT_TYPES = {"command_started", "model_message", "tool_call_started", "mcp_tool_call_started"}
-IMPORTANT_RUNTIME_EVENTS = {
-    "session_started",
-    "command_started",
-    "command_finished",
-    "model_message",
+HIGH_SIGNAL_RUNTIME_EVENTS = {
     "tool_call_started",
     "tool_call_finished",
     "tool_call_error",
@@ -38,21 +39,33 @@ IMPORTANT_RUNTIME_EVENTS = {
     "permission_resolved",
     "skill_started",
     "skill_finished",
-    "hook_started",
-    "hook_finished",
     "hook_blocked",
     "hook_error",
-    "mcp_server_connected",
-    "mcp_tools_discovered",
     "mcp_tool_call_started",
     "mcp_tool_call_finished",
     "mcp_tool_call_error",
-    "compact_started",
-    "compact_finished",
-    "session_persisted",
     "final_response",
     "error",
 }
+LOW_SIGNAL_RUNTIME_EVENTS = {
+    "session_started",
+    "command_started",
+    "command_finished",
+    "model_message",
+    "hook_started",
+    "hook_finished",
+    "mcp_server_connected",
+    "mcp_tools_discovered",
+    "mcp_resources_discovered",
+    "mcp_prompts_discovered",
+    "compact_started",
+    "compact_finished",
+    "session_persisted",
+}
+IMPORTANT_RUNTIME_EVENTS = HIGH_SIGNAL_RUNTIME_EVENTS | LOW_SIGNAL_RUNTIME_EVENTS
+WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
+WINDOWS_USER_PATH_RE = re.compile(r"^[A-Za-z]:[\\/](Users|Documents)[\\/]", re.IGNORECASE)
+POSIX_PRIVATE_PATH_PREFIXES = ("/home/", "/Users/", "/var/", "/tmp/", "/opt/", "/srv/", "/workspace/", "/mnt/", "/root/")
 
 
 class LangfuseCallbackFactory:
@@ -181,7 +194,36 @@ class RuntimeEventTraceMapper:
             return [self._redact_value(item) for item in value]
         if isinstance(value, tuple):
             return [self._redact_value(item) for item in value]
+        if isinstance(value, str):
+            return self._sanitize_path(value, key)
         return value
+
+    def _sanitize_path(self, value: str, key: str | None = None) -> Any:
+        if self.config.include_project_paths:
+            return value
+        if not self._looks_like_private_path(value, key):
+            return value
+        normalized = value.rstrip("\\/")
+        if "\\" in normalized or WINDOWS_ABSOLUTE_PATH_RE.match(normalized):
+            basename = PureWindowsPath(normalized).name
+        else:
+            basename = PurePosixPath(normalized).name
+        return {
+            "basename": basename or "<root>",
+            "path_hash": hashlib.sha256(value.encode("utf-8")).hexdigest()[:12],
+        }
+
+    @staticmethod
+    def _looks_like_private_path(value: str, key: str | None = None) -> bool:
+        if not value or "://" in value:
+            return False
+        key_text = (key or "").lower()
+        path_key = any(part in key_text for part in ("path", "root", "cwd", "directory", "dir", "file"))
+        if WINDOWS_ABSOLUTE_PATH_RE.match(value) or value.startswith("\\\\"):
+            return path_key or bool(WINDOWS_USER_PATH_RE.match(value)) or "\\Users\\" in value or "\\Documents\\" in value
+        if value.startswith(POSIX_PRIVATE_PATH_PREFIXES):
+            return True
+        return path_key and value.startswith("/")
 
     def _truncate(self, value: Any) -> Any:
         limit = max(256, int(self.config.max_event_chars))
@@ -215,10 +257,14 @@ class ObservabilityService:
         self._client_checked = False
         self._sdk_installed: bool | None = None
         self._last_error: str | None = None
+        self._unscoped_event_warning_emitted = False
 
     @property
     def client_events(self) -> list[dict[str, Any]]:
         client = self._client
+        child_observations = getattr(client, "child_observations", None)
+        if isinstance(child_observations, list):
+            return child_observations
         events = getattr(client, "events", None)
         return events if isinstance(events, list) else []
 
@@ -283,26 +329,37 @@ class ObservabilityService:
         graph_config.setdefault("run_name", "lg-agent graph run")
         return graph_config
 
+    def trace_turn(
+        self,
+        trace_context: TraceContext,
+        trace_metadata: TraceMetadata | None = None,
+        *,
+        input_data: Any | None = None,
+        name: str = "lg-agent graph run",
+    ) -> "ScopedObservabilityTurn":
+        """Open one Langfuse root observation for one user/runtime turn."""
+
+        return ScopedObservabilityTurn(self, trace_context, trace_metadata, input_data=input_data, name=name)
+
     def record_runtime_events(self, events: Iterable[RuntimeEvent | dict[str, Any]], trace_context: TraceContext) -> None:
         for item in events:
             self.record_runtime_event(item, trace_context)
 
     def record_runtime_event(self, event: RuntimeEvent | dict[str, Any], trace_context: TraceContext) -> None:
+        """Skip unscoped RuntimeEvent export.
+
+        Production graph runs call this through ``ScopedObservabilityTurn``. Calling it
+        directly must not create top-level Langfuse traces for runtime.* events.
+        """
+
         if not self.is_enabled():
             return
         if not self._has_credentials():
             self._last_error = "Langfuse enabled but public/secret keys are not configured."
             return
-        client = self._ensure_client()
-        if client is None:
-            return
-        payload = self.mapper.map(event, trace_context)
-        if payload is None:
-            return
-        try:
-            self._emit_event(client, payload)
-        except Exception as exc:  # pragma: no cover - defensive SDK boundary
-            self._last_error = str(exc)
+        if not self._unscoped_event_warning_emitted:
+            self._last_error = "RuntimeEvent export skipped because no active Langfuse trace context is open."
+            self._unscoped_event_warning_emitted = True
 
     def flush(self) -> None:
         if not self.is_enabled():
@@ -342,6 +399,7 @@ class ObservabilityService:
             "release": self.config.release,
             "capture_inputs": self.config.capture_inputs,
             "capture_outputs": self.config.capture_outputs,
+            "runtime_events_mode": self.config.runtime_events_mode,
             "auth_check": "not_run",
             "last_error": self._last_error,
         }
@@ -375,17 +433,244 @@ class ObservabilityService:
     def _has_credentials(self) -> bool:
         return bool(self.config.public_key and self.config.secret_key)
 
-    @staticmethod
-    def _emit_event(client: Any, payload: dict[str, Any]) -> None:
-        if hasattr(client, "create_event"):
-            client.create_event(**payload)
+    def _record_runtime_event_scoped(
+        self,
+        event: RuntimeEvent | dict[str, Any],
+        trace_context: TraceContext,
+        turn: "ScopedObservabilityTurn",
+    ) -> None:
+        if not self.is_enabled() or self.config.runtime_events_mode == "off":
             return
-        if hasattr(client, "start_as_current_observation"):
-            with client.start_as_current_observation(as_type="event", **payload):
+        payload = self.mapper.map(event, trace_context)
+        if payload is None:
+            return
+        event_type = payload.get("metadata", {}).get("runtime_event_type")
+        if self.config.runtime_events_mode == "metadata_only":
+            turn.add_timeline_event(payload)
+            return
+        if self.config.runtime_events_mode == "high_signal" and event_type not in HIGH_SIGNAL_RUNTIME_EVENTS:
+            turn.add_timeline_event(payload)
+            return
+        turn.emit_child_observation(payload)
+
+
+class ScopedObservabilityTurn:
+    """Trace-scoped facade used by graph runtime for one user turn."""
+
+    def __init__(
+        self,
+        service: ObservabilityService,
+        trace_context: TraceContext,
+        trace_metadata: TraceMetadata | None = None,
+        *,
+        input_data: Any | None = None,
+        name: str = "lg-agent graph run",
+    ) -> None:
+        self.service = service
+        self.trace_context = trace_context
+        self.trace_metadata = trace_metadata
+        self.input_data = input_data
+        self.name = name
+        self.client: Any | None = None
+        self.root_observation: Any | None = None
+        self._observation_cm: Any | None = None
+        self._propagation_cm: Any | None = None
+        self._active = False
+        self._timeline: list[dict[str, Any]] = []
+        self._output_set = False
+        self._output: Any | None = None
+
+    def __enter__(self) -> "ScopedObservabilityTurn":
+        if not self.service.is_enabled():
+            return self
+        if not self.service._has_credentials():
+            self.service._last_error = "Langfuse enabled but public/secret keys are not configured."
+            return self
+        self.client = self.service._ensure_client()
+        if self.client is None:
+            return self
+        self._observation_cm = self._start_root_observation()
+        try:
+            self.root_observation = self._observation_cm.__enter__()
+        except Exception as exc:  # pragma: no cover - defensive SDK boundary
+            self.service._last_error = str(exc)
+            self._observation_cm = None
+            return self
+        self._active = self.root_observation is not None
+        self._propagation_cm = self._propagation_context()
+        try:
+            self._propagation_cm.__enter__()
+        except Exception as exc:  # pragma: no cover - defensive SDK boundary
+            self.service._last_error = str(exc)
+            self._propagation_cm = None
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if exc is not None:
+            self.set_output({"error": str(exc)})
+        if self._timeline:
+            self._update_root(metadata={"runtime_timeline": self._timeline[-100:]})
+        if self._output_set:
+            self._update_root(output=self._output)
+        for context_manager in (self._propagation_cm, self._observation_cm):
+            if context_manager is None:
+                continue
+            try:
+                context_manager.__exit__(exc_type, exc, traceback)
+            except Exception as close_exc:  # pragma: no cover - defensive SDK boundary
+                self.service._last_error = str(close_exc)
+        self._active = False
+        self.service.flush()
+
+    def graph_config(self, base_config: dict[str, Any], trace_metadata: TraceMetadata | None = None) -> dict[str, Any]:
+        return self.service.build_graph_config(base_config, self.trace_context, trace_metadata or self.trace_metadata)
+
+    def record_runtime_events(self, events: Iterable[RuntimeEvent | dict[str, Any]], trace_context: TraceContext | None = None) -> None:
+        for item in events:
+            self.record_runtime_event(item, trace_context)
+
+    def record_runtime_event(self, event: RuntimeEvent | dict[str, Any], trace_context: TraceContext | None = None) -> None:
+        self.service._record_runtime_event_scoped(event, trace_context or self.trace_context, self)
+
+    def emit_child_observation(self, payload: dict[str, Any]) -> None:
+        if not self._active or self.client is None:
+            self.add_timeline_event(payload)
+            return
+        try:
+            with self.client.start_as_current_observation(as_type="span", **payload):
                 return
-        event_method = getattr(client, "event", None)
-        if event_method is not None:
-            event_method(**payload)
+        except AttributeError:
+            self.add_timeline_event(payload)
+        except Exception as exc:  # pragma: no cover - defensive SDK boundary
+            self.service._last_error = str(exc)
+            self.add_timeline_event(payload)
+
+    def add_timeline_event(self, payload: dict[str, Any]) -> None:
+        metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
+        self._timeline.append(
+            self.service.mapper.redact(
+                {
+                    "name": payload.get("name"),
+                    "runtime_event_type": metadata.get("runtime_event_type"),
+                    "level": payload.get("level"),
+                    "status_message": payload.get("status_message"),
+                    "node": metadata.get("node"),
+                }
+            )
+        )
+
+    def set_output(self, output: Any) -> None:
+        if output is None:
+            return
+        self._output = self.service.mapper.redact(output if self.service.config.capture_outputs else "<redacted>")
+        self._output_set = True
+
+    def _start_root_observation(self) -> Any:
+        if self.client is None or not hasattr(self.client, "start_as_current_observation"):
+            return nullcontext(None)
+        payload = {
+            "as_type": "span",
+            "name": self.name,
+            "input": self.service.mapper.redact(self.input_data if self.service.config.capture_inputs else "<redacted>"),
+            "metadata": self._base_metadata(),
+        }
+        for candidate in (
+            payload,
+            {key: value for key, value in payload.items() if key != "metadata"},
+            {"as_type": "span", "name": self.name},
+        ):
+            try:
+                return self.client.start_as_current_observation(**candidate)
+            except TypeError:
+                continue
+            except Exception as exc:  # pragma: no cover - defensive SDK boundary
+                self.service._last_error = str(exc)
+                return nullcontext(None)
+        return nullcontext(None)
+
+    def _propagation_context(self) -> Any:
+        if self.client is None:
+            return nullcontext()
+        kwargs = {
+            "session_id": self.trace_context.session_id,
+            "user_id": self.trace_context.user_id,
+            "tags": self._tags(),
+            "metadata": self._base_metadata(),
+            "version": self.trace_context.release,
+        }
+        clean = {key: value for key, value in kwargs.items() if value not in (None, [], {})}
+        method = getattr(self.client, "propagate_attributes", None)
+        if method is not None:
+            try:
+                return method(**clean)
+            except TypeError:
+                return method()
+        try:
+            from langfuse import propagate_attributes
+        except ImportError:
+            return nullcontext()
+        try:
+            return propagate_attributes(**clean)
+        except TypeError:
+            return nullcontext()
+
+    def _base_metadata(self) -> dict[str, Any]:
+        metadata = {
+            "session_id": self.trace_context.session_id,
+            "thread_id": self.trace_context.thread_id,
+            "environment": self.trace_context.environment,
+            "release": self.trace_context.release,
+            **self.trace_context.metadata,
+        }
+        if self.trace_context.project_root:
+            metadata["project_root"] = self.trace_context.project_root
+        if self.trace_metadata:
+            metadata.update(self.trace_metadata.model_dump(mode="json", exclude_none=True))
+        return self.service.mapper.redact(metadata)
+
+    def _tags(self) -> list[str]:
+        return [
+            tag
+            for tag in dict.fromkeys(["langgraph-agent-blueprint", self.trace_context.environment, *self.trace_context.tags])
+            if tag
+        ]
+
+    def _update_root(self, **payload: Any) -> None:
+        clean = {key: self.service.mapper.redact(value) for key, value in payload.items() if value is not None}
+        if not clean:
+            return
+        target = self.root_observation
+        update = getattr(target, "update", None)
+        if update is not None:
+            try:
+                update(**clean)
+                return
+            except TypeError:
+                try:
+                    update(clean)
+                    return
+                except TypeError:
+                    pass
+        if self.client is None:
+            return
+        for method_name in ("update_current_span", "update_current_observation", "set_current_trace_io"):
+            method = getattr(self.client, method_name, None)
+            if method is None:
+                continue
+            try:
+                method(**clean)
+                return
+            except TypeError:
+                try:
+                    method(clean)
+                    return
+                except TypeError:
+                    continue
 
 
 class NoopObservabilityService(ObservabilityService):

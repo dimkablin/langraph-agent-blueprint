@@ -126,7 +126,7 @@ Observability boundary models live in `langgraph_agent_blueprint.models.observab
 - `TraceMetadata` describes provider/model/tool/skill/plugin/MCP runtime dimensions.
 - `ObservabilityEvent` normalizes RuntimeEvent-derived payloads before they are sent to an observability backend.
 
-Langfuse SDK clients and callback handlers are never stored in graph state. RuntimeEvent payloads are redacted/truncated before export.
+Langfuse SDK clients, callback handlers, and active observation scopes are never stored in graph state. RuntimeEvent payloads are redacted/truncated before export, and `LangfuseConfig.runtime_events_mode` controls whether mapped events become child observations, compact metadata, or are skipped.
 
 ## Sessions
 

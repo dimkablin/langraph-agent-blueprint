@@ -24,6 +24,7 @@ class LangfuseConfig(RuntimeModel):
     capture_outputs: bool = True
     include_project_paths: bool = False
     max_event_chars: int = 4000
+    runtime_events_mode: Literal["high_signal", "all", "metadata_only", "off"] = "high_signal"
 
     def redacted(self) -> dict[str, Any]:
         """Return a status/config view safe for commands, events, and logs."""

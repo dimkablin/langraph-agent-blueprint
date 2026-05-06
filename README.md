@@ -124,6 +124,8 @@ lg-agent query "hello"
 
 The graph attaches Langfuse callbacks at invoke/stream boundaries and maps critical RuntimeEvents for tools, skills, hooks, MCP, permissions, compaction, persistence, final responses, and errors. If disabled, missing, or misconfigured, normal runtime behavior continues with no-op observability. `/doctor`, `/config`, and `/observability` redact keys. See `docs/OBSERVABILITY.md`.
 
+Trace scoping is turn-based: one user turn creates one top-level Langfuse trace, while an interactive `lg-agent chat` process groups all turn traces under one shared Langfuse session id. Runtime events are scoped as child observations or compact metadata, not separate top-level `runtime.*` traces. Full local project paths are hidden by default unless `LANGFUSE_INCLUDE_PROJECT_PATHS=true`.
+
 ## Optional: Superpowers Plugin
 
 Superpowers can be installed as an external plugin contribution. Git install/update is explicit network work, so enable network first:

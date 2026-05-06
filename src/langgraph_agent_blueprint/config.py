@@ -113,6 +113,7 @@ class AppConfig(BaseModel):
                 capture_inputs=cls._bool(env_value("LANGFUSE_CAPTURE_INPUTS"), default=True),
                 capture_outputs=cls._bool(env_value("LANGFUSE_CAPTURE_OUTPUTS"), default=True),
                 include_project_paths=cls._bool(env_value("LANGFUSE_INCLUDE_PROJECT_PATHS"), default=False),
+                runtime_events_mode=env_value("LANGFUSE_RUNTIME_EVENTS_MODE", "high_signal"),
             ),
             "cors_allowed_origins": cls._split_csv(
                 env_value("CORS_ALLOWED_ORIGINS"),

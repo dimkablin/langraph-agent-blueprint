@@ -17,6 +17,7 @@ def test_langfuse_env_loading_prefers_base_url_over_host(monkeypatch, tmp_path) 
     monkeypatch.setenv("LANGFUSE_DEBUG", "true")
     monkeypatch.setenv("LANGFUSE_CAPTURE_INPUTS", "false")
     monkeypatch.setenv("LANGFUSE_CAPTURE_OUTPUTS", "false")
+    monkeypatch.setenv("LANGFUSE_RUNTIME_EVENTS_MODE", "metadata_only")
 
     config = AppConfig.from_env(project_root=tmp_path)
 
@@ -30,6 +31,7 @@ def test_langfuse_env_loading_prefers_base_url_over_host(monkeypatch, tmp_path) 
     assert config.langfuse.debug is True
     assert config.langfuse.capture_inputs is False
     assert config.langfuse.capture_outputs is False
+    assert config.langfuse.runtime_events_mode == "metadata_only"
 
 
 def test_langfuse_tracing_environment_alias(monkeypatch, tmp_path) -> None:
