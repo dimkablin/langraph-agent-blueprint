@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage, ToolMessage
 
 from claude_code_langgraph.dependencies import AppDependencies
 from claude_code_langgraph.models.messages import event
+from claude_code_langgraph.skills.args import SkillArgumentValidationError
 
 
 def skill_router_node(state: dict, deps: AppDependencies) -> dict:
@@ -20,14 +21,21 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
     active = state.get("active_skill")
     if not active:
         return {}
-    result = deps.skill_service.invoke(active["name"], active.get("args", ""), state)
+    raw_args = active.get("args", "")
+    try:
+        result = deps.skill_service.invoke(active["name"], raw_args, state)
+    except SkillArgumentValidationError as exc:
+        return _skill_validation_error_update(state, active, exc)
+    except KeyError as exc:
+        return _skill_lookup_error_update(state, active, str(exc))
+    skill_args = result["args"]
     metadata = {
         **state.get("metadata", {}),
         "allowed_tools_override": result.get("allowed_tools", []),
         "active_skill_name": active["name"],
         "skill_invocation": {
             "name": active["name"],
-            "args": active.get("args", ""),
+            "args": skill_args,
             "source_path": result.get("source_path"),
             "allowed_tools": result.get("allowed_tools", []),
         },
@@ -37,8 +45,9 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
     final_response = None
     memory = None
     if active["name"] == "remember":
-        scope, text = _parse_memory_args(active.get("args", ""))
-        path = deps.memory_service.remember(scope, text)
+        typed_args = result["typed_args"]
+        scope, text = typed_args["scope"], typed_args["text"]
+        path = deps.memory_service.remember(scope, text, state.get("session_id"))
         memory = deps.memory_service.load_memory(state.get("project_root"), state.get("session_id"))
         final_response = f"Remembered in {scope} memory: {text}"
         events.append(event("memory_updated", scope=scope, path=str(path)))
@@ -57,7 +66,7 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
         )
     events.append(event("skill_finished", name=active["name"]))
     update = {
-        "active_skill": {"name": active["name"], "args": active.get("args", ""), "result": result},
+        "active_skill": {"name": active["name"], "args": skill_args, "result": result},
         "messages": messages,
         "metadata": metadata,
         "ui_events": events,
@@ -69,13 +78,40 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
     return update
 
 
-def _parse_memory_args(args: str) -> tuple[str, str]:
-    """Parse optional `scope: text` syntax for memory writes, defaulting to project memory."""
+def _skill_validation_error_update(state: dict, active: dict, exc: SkillArgumentValidationError) -> dict:
+    """Return a structured graph update for invalid typed skill args."""
 
-    stripped = args.strip()
-    if ":" in stripped:
-        maybe_scope, text = stripped.split(":", 1)
-        scope = maybe_scope.strip().lower()
-        if scope in {"user", "project", "session"} and text.strip():
-            return scope, text.strip()
-    return "project", stripped
+    content = f"Invalid arguments for skill {exc.skill_name}: {exc.errors}"
+    return _skill_error_update(
+        state,
+        active,
+        content,
+        {"error_type": "skill_args_validation", "errors": exc.errors, "skill": exc.skill_name},
+    )
+
+
+def _skill_lookup_error_update(state: dict, active: dict, message: str) -> dict:
+    """Return a structured graph update for unknown skill names."""
+
+    return _skill_error_update(state, active, message, {"error_type": "unknown_skill", "skill": active.get("name")})
+
+
+def _skill_error_update(state: dict, active: dict, content: str, metadata: dict) -> dict:
+    tool_call_id = active.get("tool_call_id")
+    result = {"id": tool_call_id or "skill", "name": "skill", "status": "error", "content": content, "metadata": metadata}
+    messages = []
+    if tool_call_id:
+        messages.append(
+            ToolMessage(
+                content=json.dumps({"name": "skill", "status": "error", "content": content, "metadata": metadata}, ensure_ascii=False),
+                tool_call_id=str(tool_call_id),
+            )
+        )
+    return {
+        "active_skill": {"name": active.get("name"), "args": active.get("args", ""), "error": metadata},
+        "pending_tool_calls": [],
+        "tool_results": [result],
+        "messages": messages,
+        "final_response": content if not tool_call_id else None,
+        "ui_events": [event("skill_started", name=active.get("name")), event("skill_finished", name=active.get("name"), status="error")],
+    }

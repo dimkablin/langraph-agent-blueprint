@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 
 from claude_code_langgraph.config import AppConfig
 from claude_code_langgraph.dependencies import build_dependencies
@@ -90,6 +92,35 @@ def test_web_search_without_provider_is_unavailable_after_approval(tmp_path):
     assert "provider is not configured" in result["tool_results"][-1]["content"]
 
 
+def test_web_fetch_enabled_marks_content_untrusted_after_approval(tmp_path):
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            self.send_response(200)
+            self.send_header("content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"local web acceptance")
+
+        def log_message(self, format, *args):  # noqa: A002
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    runtime = _runtime(tmp_path, network_enabled=True)
+    url = f"http://127.0.0.1:{server.server_port}/"
+    try:
+        first = runtime.invoke(f'tool:web_fetch {{"url":"{url}"}}', input_kind="headless", project_root=tmp_path, thread_id="web-fetch")
+        assert "__interrupt__" in first
+
+        result = runtime.resume("web-fetch", {"approved": True})
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert "local web acceptance" in result["final_response"]
+    assert "untrusted" in result["tool_results"][-1]["metadata"]["warning"].lower()
+
+
 def test_powershell_runs_after_permission_approval_on_windows(tmp_path):
     runtime = _runtime(tmp_path)
 
@@ -104,3 +135,24 @@ def test_powershell_runs_after_permission_approval_on_windows(tmp_path):
     result = runtime.resume("powershell", {"approved": True})
 
     assert "smoke-powershell" in result["final_response"]
+
+
+def test_grep_relative_path_is_resolved_under_project_root(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "math_utils.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+    runtime = _runtime(tmp_path)
+
+    result = runtime.invoke('tool:grep {"pattern":"def add","path":"src"}', input_kind="headless", project_root=tmp_path)
+
+    assert "def add" in result["final_response"]
+
+
+def test_bash_accepts_json_fake_tool_arguments_after_approval(tmp_path):
+    runtime = _runtime(tmp_path)
+
+    first = runtime.invoke('tool:bash {"command":"echo smoke-bash"}', input_kind="headless", project_root=tmp_path, thread_id="bash-json")
+    assert "__interrupt__" in first
+
+    result = runtime.resume("bash-json", {"approved": True})
+
+    assert "smoke-bash" in result["final_response"]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from claude_code_langgraph.services.search_service import SearchService
+from claude_code_langgraph.utils.paths import resolve_under_root
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 
@@ -34,7 +35,7 @@ class GlobTool(BaseTool[GlobInput, GlobOutput]):
         self.search_service = search_service
 
     def run(self, data: GlobInput, context: ToolExecutionContext) -> GlobOutput:
-        root = data.path or context.project_root
+        root = resolve_under_root(data.path, context.project_root) if data.path else context.project_root
         matches = self.search_service.glob(root, data.pattern)
         return GlobOutput(matches=matches, content="\n".join(matches))
 
@@ -67,7 +68,7 @@ class GrepTool(BaseTool[GrepInput, GrepOutput]):
         self.search_service = search_service
 
     def run(self, data: GrepInput, context: ToolExecutionContext) -> GrepOutput:
-        root = data.path or context.project_root
+        root = resolve_under_root(data.path, context.project_root) if data.path else context.project_root
         matches = self.search_service.grep(root, data.pattern, data.include, data.exclude, data.max_results)
         content = "\n".join(f"{m['path']}:{m['line']}: {m['text']}" for m in matches)
         return GrepOutput(matches=matches, content=content)

@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from .args import BaseSkillArgs, GenericSkillArgs
 
 
 class SkillMetadata(BaseModel):
@@ -35,10 +37,13 @@ class SkillMetadata(BaseModel):
 class SkillDefinition(BaseModel):
     """Loaded prompt-driven capability."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     metadata: SkillMetadata
     prompt_template: str
     source_path: Path | None = None
     references: list[Path] = Field(default_factory=list)
+    args_schema: type[BaseSkillArgs] = GenericSkillArgs
 
     def render(self, args: str = "", state: dict[str, Any] | None = None) -> str:
         rendered = self.prompt_template.replace("{{args}}", args)

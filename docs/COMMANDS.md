@@ -8,16 +8,16 @@ Implemented commands:
 | --- | --- | --- |
 | `/help` | local | Lists commands. |
 | `/clear` | local | Clears current conversation state. |
-| `/compact` | session | Requests compaction in graph metadata. |
-| `/resume` | session | Records resume intent. |
-| `/export` | local | Records export intent. |
+| `/compact` | session | Runs manual context compaction and emits compact events. |
+| `/resume` | session | Loads latest or named session state. |
+| `/export` | local | Writes a transcript export file. |
 | `/skills` | local | Lists available skills. |
-| `/status` | local | Shows session/model status. |
-| `/cost` | local | Shows usage telemetry. |
-| `/config` | local | Shows redacted runtime config. |
-| `/doctor` | diagnostic | Points to diagnostics tool/service. |
-| `/memory` | local | Shows memory scopes. |
-| `/todo` | local | Shows todos. |
+| `/status` | local | Shows provider/model/session/project root/cwd/storage/tool/skill/command counts. |
+| `/cost` | local | Shows usage telemetry and honest unavailable cost when pricing is absent. |
+| `/config` | local | Shows redacted runtime config and path separation. |
+| `/doctor` | diagnostic | Calls diagnostics service. |
+| `/memory` | local | Shows durable memory. |
+| `/todo` | local | Shows persisted todos. |
 | `/prompt` | prompt | Expands command args into a model prompt. |
 | `/skill` | skill | Routes to `skill_graph`. |
 

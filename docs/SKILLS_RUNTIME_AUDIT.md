@@ -1,83 +1,51 @@
 # Skills Runtime Audit
 
-## Post-Fix Status (2026-05-06)
+Current acceptance status as of 2026-05-06. The old audit found prompt-only skill behavior; current verification shows explicit skill invocations and SkillTool invocations reach the graph skill route, emit events, enforce allowed-tool scope, and persist session state.
 
-Skills are now graph-routed runtime capabilities instead of only registry entries:
-
-- `/skill <name> ...` enters `skill_graph` from the main graph.
-- `SkillTool` model calls route to the same skill graph.
-- Skill lifecycle events are visible: `skill_started`, `skill_finished`.
-- Skill metadata `allowed_tools` is applied to provider tool binding and enforced again in `tool_router`.
-- Disallowed tools inside a skill scope are rejected with a structured tool result and `ToolMessage`.
-- `remember` writes durable memory through `MemoryService`; `/memory` shows the stored note.
-- Skill invocation metadata is stored in graph metadata and persisted with the session.
-
-Status:
-
-| Skill | Post-fix status | Evidence / limitation |
-| --- | --- | --- |
-| `batch` | `working_with_documented_limits` | Explicit invocation emits skill events and scoped tools; prompt-driven coordination. |
-| `debug` | `working_with_documented_limits` | Explicit and SkillTool invocation reach skill graph. |
-| `remember` | `working` | Writes durable memory and `/memory` reads it. |
-| `simplify` | `working_with_documented_limits` | Uses scoped model/tool loop; edits still require approval. |
-| `skillify` | `working_with_documented_limits` | Uses scoped model/tool loop; writes require approval. |
-| `stuck` | `working_with_documented_limits` | Uses scoped context/model loop. |
-| `update-config` | `working_with_documented_limits` | Uses scoped model/tool loop; config file writes require approval through file tools. |
-| `verify` | `working_with_documented_limits` | Scoped to shell/search/read tools; shell commands require approval. |
-
-Most skills remain prompt-driven capabilities, which matches the file-based `SKILL.md` design. They are no longer prompt-only shortcuts: graph routing, events, provider tool scope, tool-router enforcement, and persistence are active.
-
-## Overall Finding
-
-Skills are loaded and listed, but they are not yet full agentic skills. Current skill execution renders the `SKILL.md` body into a prompt, appends it as a `HumanMessage`, and calls the model. It does not enforce allowed tools, persist skill usage, or run a true skill subgraph with model/tool lifecycle.
-
-`SkillTool` exists, but real providers cannot call it because tools are not bound.
-
-## Skill Runtime Path
-
-Actual explicit invocation path:
+## Runtime Path
 
 ```text
-/skill verify args
--> command_router sets active_skill
--> skill_router renders prompt and allowed_tools_override
--> context_builder -> model_call
--> final_response
+SKILL.md -> SkillLoader -> SkillRegistry -> /skills or SkillTool
+-> command_router/tool_router -> skill_graph node
+-> skill_started event -> allowed_tools_override
+-> skill prompt/model path or remember memory write
+-> skill_finished event -> persist_session/finalize_response
 ```
 
-Actual events visible:
+## Current Skill Matrix
+
+| Skill | File | Metadata loaded | Listed by `/skills` | Explicit invocation | Model SkillTool invocation | Allowed tools enforced | Events visible | Persisted | Current status | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `batch` | `src/claude_code_langgraph/skills/definitions/batch/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | `/skill batch acceptance input` emitted `skill_started` and `skill_finished`; scoped to `agent,todo_write`. |
+| `debug` | `src/claude_code_langgraph/skills/definitions/debug/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | SkillTool path reaches skill graph and adds ToolMessage. |
+| `remember` | `src/claude_code_langgraph/skills/definitions/remember/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working` | `tool:skill {"skill":"remember","args":{"text":"Dima 228","scope":"project"}}` persisted memory; `/memory` showed `Dima 228`. |
+| `simplify` | `src/claude_code_langgraph/skills/definitions/simplify/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph; edits remain permissioned through `edit_file`. |
+| `skillify` | `src/claude_code_langgraph/skills/definitions/skillify/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph; writes remain permissioned through `write_file`. |
+| `stuck` | `src/claude_code_langgraph/skills/definitions/stuck/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph and current state context. |
+| `update-config` | `src/claude_code_langgraph/skills/definitions/update-config/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation uses skill graph; config file edits remain permissioned. |
+| `verify` | `src/claude_code_langgraph/skills/definitions/verify/SKILL.md` | yes | yes | yes | yes | yes | yes | yes | `working_prompt_driven` | Explicit invocation scoped to shell/search/read tools; shell still requires approval. |
+
+## Allowed-Tools Narrowing
+
+Acceptance and regression tests verify that a disallowed tool inside a skill scope is rejected by `tool_router`, receives a structured ToolMessage/policy result, and is not executed.
+
+## Typed Skill Args
+
+Local and real providers may return nested tool arguments. `SkillInvocationService` now validates them through per-skill Pydantic schemas before rendering prompts. Invalid args produce a structured ToolMessage error and do not execute the skill. Example:
 
 ```text
-["final_response"]
+{"skill":"remember","args":{"text":"Dima 228","scope":"project"}}
 ```
 
-Expected but missing:
+validates as `RememberSkillArgs` and formats for prompt interpolation as:
 
 ```text
-skill_started, skill_finished, tool_call_started, tool_call_finished, memory_updated, session_persisted
+text: Dima 228
+scope: project
 ```
 
-## Skill Table
+String args are mapped explicitly by skill name, for example `remember this` becomes `RememberSkillArgs(text="remember this", scope="session")`.
 
-| Skill | File path | Metadata loaded | Listed | Explicitly invokable | Invokable as model tool | Allowed tools respected | Events visible | State changed when expected | Persisted | Status | Runtime evidence | Root cause | Fix needed |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `batch` | `src/claude_code_langgraph/skills/definitions/batch/SKILL.md` | yes | yes | yes | no with Ollama | no | no | no child/todo coordination | no | `partially_working` | `/skill batch` renders prompt and allowed tools `agent,todo_write`. | Prompt-only skill graph; provider tools not bound. | Implement skill subgraph and allowed tool scope. |
-| `debug` | `.../debug/SKILL.md` | yes | yes | yes | no | no | no | no diagnostics/search run | no | `partially_working` | Renders debug prompt. | No tool loop in skill context. | Same. |
-| `remember` | `.../remember/SKILL.md` | yes | yes | yes | no | no | no | no memory write | no | `partially_working` | Renders memory prompt; `/memory` remains none. | MemoryService not invoked by skill runtime. | Add remember graph node/service write with permission policy. |
-| `simplify` | `.../simplify/SKILL.md` | yes | yes | yes | no | no | no | no edit/read | no | `partially_working` | Renders simplify prompt. | No tools bound/enforced. | Same. |
-| `skillify` | `.../skillify/SKILL.md` | yes | yes | yes | no | no | no | no file write | no | `partially_working` | Renders skillify prompt. | No permissioned write path. | Same. |
-| `stuck` | `.../stuck/SKILL.md` | yes | yes | yes | no | no | no | no recovery state | no | `partially_working` | Renders stuck prompt. | No access to errors/todos beyond prompt. | Same. |
-| `update-config` | `.../update-config/SKILL.md` | yes | yes | yes | no | no | no | no config write | no | `partially_working` | Renders update-config prompt. | Config service not called; no approval. | Add config update workflow behind tools/permission. |
-| `verify` | `.../verify/SKILL.md` | yes | yes | yes | no | no | no | no shell evidence | no | `partially_working` | Renders verify prompt; no shell command runs. | Provider cannot call `bash`; skill graph prompt-only. | Provider binding + skill subgraph. |
+## Historical Audit Result
 
-## Specific Root Causes
-
-1. `skill_router_node` returns `metadata.allowed_tools_override`, but no later node reads it to filter tools.
-2. `SkillTool.run` returns prompt text as tool content instead of invoking a graph/subgraph.
-3. `build_skill_graph` contains only `skill_router`; it has no model/tool/permission/persistence loop.
-4. `ui_events` for `skill_started` and `skill_finished` are overwritten before final API/CLI responses.
-5. No session storage writes explicit skill invocation records.
-
-## Optional Skills
-
-`loop`, `schedule`, `keybindings-help`, `lorem-ipsum`, `claude-api`, `claude-api-content`, and `claude-in-chrome` are recorded in `SkillRegistry.disabled`, but `/skills` does not show disabled skills separately.
+Before the fixes, skills were loaded and listed but mostly behaved as prompt expansion. That status is historical only.

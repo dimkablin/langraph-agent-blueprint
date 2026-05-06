@@ -69,7 +69,14 @@ class ModelProviderService:
         if command == "fail":
             return {"id": new_id("tool"), "name": "fail", "args": {}}
         if command.startswith("bash "):
-            return {"id": new_id("tool"), "name": "bash", "args": {"command": command[5:]}}
+            rest = command[5:].strip()
+            if rest.startswith("{"):
+                try:
+                    args = json.loads(rest)
+                except json.JSONDecodeError:
+                    args = {"command": rest}
+                return {"id": new_id("tool"), "name": "bash", "args": args if isinstance(args, dict) else {"command": rest}}
+            return {"id": new_id("tool"), "name": "bash", "args": {"command": rest}}
         if command.startswith("write_file ") and not command[len("write_file ") :].lstrip().startswith("{"):
             parts = command.split(" ", 2)
             content = parts[2] if len(parts) > 2 else ""

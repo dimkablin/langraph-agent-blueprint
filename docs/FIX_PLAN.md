@@ -44,14 +44,14 @@ This plan is ordered by runtime blast radius. P0 items block most tools/skills.
 
 | Priority | Affected capabilities | Root cause | Files to change | Concrete code change | Required tests | Expected result | Risk | Blocking many features |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| P1 | `grep` | Windows `C:\...` path parsing. | `services/search_service.py` | Use `rg --json` or parse from right around line number. | Windows path grep test. | `grep` works in project root. | Low. | no |
-| P1 | `/compact` | Manual flag not surfaced correctly; command proceeds to model. | `commands/builtin.py`, `routing.py`, `compact_decision.py`, `compact_context.py` | Route manual compact directly to compaction; respect `compact_requested`; return summary. | `/compact` E2E test. | Manual compaction produces summary and events. | Medium. | no |
-| P1 | `/export` | Command only sets metadata. | `command_router.py`, `commands/builtin.py`, `services/export_service.py`, storage | Execute export service and add `exported_outputs`. | `/export` creates file test. | Transcript export works from command/API. | Low. | no |
+| P1 | `grep` | Windows `C:\...` path parsing and relative search paths. | `services/search_service.py`, `tools/search_tools.py` | Use `rg --json`; resolve relative `path` under `project_root`. | Windows path grep test; final acceptance grep smoke. | `grep` works in project root. | Low. | yes |
+| P1 | `/compact` | Manual flag not surfaced correctly; command proceeds to model. | `commands/builtin.py`, `routing.py`, `compact_decision.py`, `compact_context.py` | Route manual compact directly to compaction; respect `compact_requested`; return summary. | `/compact` E2E test. | Manual compaction produces summary and events. | Medium. | yes |
+| P1 | `/export` | Command only sets metadata. | `command_router.py`, `commands/builtin.py`, `services/export_service.py`, storage | Execute export service and add `exported_outputs`. | `/export` creates file test. | Transcript export works from command/API. | Low. | yes |
 | P1 | `/resume` and sessions | Session command does not restore graph state. | `graph/subgraphs/session_lifecycle_graph.py`, `builder.py`, `session_service.py`, CLI/API | Load messages/todos/memory/tool refs into initial state. | Resume then continue chat test. | Session continuation works. | Medium/high. | yes for long-running sessions |
-| P1 | `/doctor` | Not wired to diagnostics. | `commands/builtin.py`, `services/diagnostics_service.py` | Return actual diagnostics result. | `/doctor` command test. | User sees provider/root/registry issues. | Low. | no |
-| P1 | `web_search` | No provider; returns empty success. | `services/web_service.py`, config, docs | Add disabled/unavailable status unless provider configured. | Network false/true no-provider tests. | No false claim that web search works. | Low. | no |
-| P1 | Notebook editing | No E2E approval test. | tests first, maybe notebook service | Add fake-provider approval test; fix if needed. | Notebook edit E2E. | Status known/proven. | Low. | no |
-| P1 | CLI stream-json | Not true streaming; Rich/Windows encoding can crash on Unicode. | `cli.py`, `graph/streaming.py` | Use plain `print`/UTF-8 safe output and LangGraph streaming. | Unicode stream-json test. | Machine-readable stream works. | Low. | no |
+| P1 | `/doctor` | Not wired to diagnostics. | `commands/builtin.py`, `services/diagnostics_service.py` | Return actual diagnostics result. | `/doctor` command test. | User sees provider/root/registry issues. | Low. | yes |
+| P1 | `web_search` | No provider; returns empty success. | `services/web_service.py`, config, docs | Add disabled/unavailable status unless provider configured. | Network false/true no-provider tests. | No false claim that web search works. | Low. | yes |
+| P1 | Notebook editing | No E2E approval test. | tests first, maybe notebook service | Add fake-provider approval test; fix if needed. | Notebook edit E2E. | Status known/proven. | Low. | yes |
+| P1 | CLI stream-json | Not true streaming; Rich/Windows encoding can crash on Unicode. | `cli.py`, `graph/streaming.py` | Use plain `print`/UTF-8 safe output and LangGraph streaming. | stream-json CLI smoke and tests. | Machine-readable stream works. | Low. | yes |
 
 ## P2 Fixes
 

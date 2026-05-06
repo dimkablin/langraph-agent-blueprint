@@ -116,6 +116,14 @@ npm --prefix frontend run build
 
 The test suite uses the fake provider and requires no real API keys, network, MCP server, or Ollama daemon.
 
+Current final acceptance verification on 2026-05-06:
+
+- `python -m pytest -q -rA`: passed, 73 collected tests.
+- `npm.cmd --prefix frontend run test:static`: passed.
+- `npm.cmd --prefix frontend run build`: passed outside sandbox after a Windows sandbox `spawn EPERM`.
+- Runtime smoke in `test_runs/final-acceptance-workspace`: 36/36 fake-provider scenarios passed.
+- Ollama `qwen3:14b`: native `read_file` tool call passed through LangGraph, produced a `ToolMessage`, and returned `ACCEPTANCE_README_LINE`.
+
 ## Graph Overview
 
 The main runtime is a LangGraph `StateGraph`:
@@ -203,6 +211,6 @@ Sessions are stored under `.storage/projects/{project_hash}/sessions/{session_id
 - IDE/LSP is documented as architectural/minimal.
 - Provider JSON repair is minimal. Native tool calling is tested through fake provider and manually verified with Ollama `qwen3:14b`.
 - `web_search` is unavailable unless a real search provider is configured. It no longer returns empty success when no provider exists.
-- `web_fetch` is disabled unless `NETWORK_ENABLED=true` and still requires permission.
+- `web_fetch` is disabled unless `NETWORK_ENABLED=true` and still requires permission. When enabled, fetched content is marked as untrusted in tool metadata.
 - Subagent execution remains limited/synthetic compared with the rest of the graph runtime.
 - Data analyst capabilities are optional extensions, not direct-port behavior.

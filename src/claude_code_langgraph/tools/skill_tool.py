@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from claude_code_langgraph.services.skill_service import SkillInvocationService
@@ -12,7 +14,7 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput, ToolSafety
 class SkillToolInput(BaseModel):
     """Pydantic input schema for the skill tool operation."""
     skill: str
-    args: str = ""
+    args: Any = ""
 
 
 class SkillToolOutput(ToolOutput):

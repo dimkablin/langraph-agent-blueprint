@@ -37,6 +37,12 @@ Optional audited skills are documented but disabled initially: `loop`, `schedule
 
 Skills do not own workflow routing. LangGraph invokes skills through `skill_graph` and `SkillTool`.
 
+Skill arguments are typed with Pydantic schemas. Built-in skills use dedicated schemas such as
+`RememberSkillArgs`, `VerifySkillArgs`, `SimplifySkillArgs`, and `SkillifySkillArgs`; file-based
+skills without a specific schema use `GenericSkillArgs`. The runtime validates raw args before
+skill execution and returns a structured ToolMessage validation error if args are invalid.
+Prompt interpolation is handled separately by `format_skill_args_for_prompt`.
+
 Runtime status after fixes:
 
 - `/skill <name>` enters the graph skill route.

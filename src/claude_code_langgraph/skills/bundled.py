@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .args import args_schema_for_skill
 from .loader import SkillLoader
 
 
@@ -17,5 +18,9 @@ def bundled_skills_root() -> Path:
 
 def load_bundled_skills() -> list:
     loader = SkillLoader()
-    return [loader.load_skill_dir(bundled_skills_root() / name) for name in BUILTIN_SKILLS]
+    skills = []
+    for name in BUILTIN_SKILLS:
+        skill = loader.load_skill_dir(bundled_skills_root() / name)
+        skills.append(skill.model_copy(update={"args_schema": args_schema_for_skill(name)}))
+    return skills
 

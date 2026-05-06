@@ -38,5 +38,5 @@ Runtime status after fixes:
 - Tool results are returned as `ToolMessage` and then routed back to `model_call`.
 - File/search/shell/notebook/todo tools have end-to-end fake-provider tests.
 - Ollama `qwen3:14b` was manually verified for native `read_file` tool calling.
-- `web_fetch` remains disabled unless network is enabled and approved.
+- `web_fetch` is disabled unless network is enabled and approved; when enabled it returns untrusted-content warning metadata.
 - `web_search` reports unavailable when no provider is configured.

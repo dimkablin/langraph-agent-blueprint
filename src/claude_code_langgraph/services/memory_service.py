@@ -21,8 +21,9 @@ class MemoryService:
         }
         return memory
 
-    def remember(self, scope: str, text: str) -> Path:
-        return self.storage.append(scope, text)
+    def remember(self, scope: str, text: str, session_id: str | None = None) -> Path:
+        storage_scope = f"session-{session_id}" if scope == "session" and session_id else scope
+        return self.storage.append(storage_scope, text)
 
     def build_context(self, memory: dict[str, str], budget: int = 2000) -> str:
         parts = []

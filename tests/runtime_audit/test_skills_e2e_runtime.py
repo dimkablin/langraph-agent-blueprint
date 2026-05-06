@@ -37,6 +37,15 @@ def test_skill_tool_invocation_reaches_skill_graph_and_adds_tool_message(tmp_pat
     assert any(event["type"] == "skill_started" for event in result["ui_events"])
 
 
+def test_skill_tool_accepts_structured_args_from_model(tmp_path):
+    runtime = _runtime(tmp_path)
+
+    runtime.invoke('tool:skill {"skill":"remember","args":{"text":"Dima 228","scope":"project"}}', input_kind="headless", project_root=tmp_path)
+    result = runtime.invoke("/memory", input_kind="headless", project_root=tmp_path)
+
+    assert "Dima 228" in result["final_response"]
+
+
 def test_disallowed_tool_inside_skill_scope_is_rejected(tmp_path):
     deps = build_dependencies(AppConfig(storage_dir=tmp_path / "storage", project_root=tmp_path, cwd=tmp_path, llm_provider="fake"))
     state = create_initial_state("call", project_root=tmp_path)
