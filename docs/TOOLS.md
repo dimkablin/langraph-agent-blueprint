@@ -32,6 +32,8 @@ Core tools:
 
 Tool workflow is graph-owned: UI/API call the graph, the graph routes to permission and execution nodes, and services perform low-level operations.
 
+At the runtime boundary, provider-specific tool calls are normalized into `ToolCall` DTOs and tool execution returns `ToolResult` DTOs. The graph stores serialized DTO payloads in state and converts results to `ToolMessage` through one shared converter.
+
 Runtime status after fixes:
 
 - Provider tool schemas are bound to supported models with registry names preserved.

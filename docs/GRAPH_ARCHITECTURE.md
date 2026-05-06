@@ -41,6 +41,8 @@ flowchart TD
 
 Large tool outputs are intended to be stored by reference in storage, not kept unbounded in state.
 
+Boundary data is validated with Pydantic before nodes act on it. State stores JSON-safe dicts for `ToolCall`, `ToolResult`, `RuntimeEvent`, command results, permission requests/decisions, and session records so checkpointing remains serializable.
+
 ## Nodes
 
 - `bootstrap_config`: resolves config, permissions, project root, session metadata.

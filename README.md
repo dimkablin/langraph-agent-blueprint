@@ -132,6 +132,12 @@ The main runtime is a LangGraph `StateGraph`:
 
 Tool-use loops, permission flow, skill invocation, subagents, compaction, memory, and session lifecycle are represented as graph nodes/subgraphs.
 
+## Runtime Boundary Contracts
+
+Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, and skill args use skill-specific schemas.
+
+See `docs/PYDANTIC_BOUNDARIES.md` for the contract map and extension rules.
+
 ## Tools
 
 Core tools include file read/write/edit, notebook read/edit, glob, grep, bash, PowerShell, web fetch/search, todo write, agent, skill, MCP adapter, and diagnostics. Risky tools require permission unless policy allows them.

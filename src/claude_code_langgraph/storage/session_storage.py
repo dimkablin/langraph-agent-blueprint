@@ -8,7 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import BaseMessage
+from pydantic import BaseModel, ValidationError
 
+from claude_code_langgraph.models.base import dump_model
+from claude_code_langgraph.models.events import RuntimeEvent
+from claude_code_langgraph.models.sessions import SessionMetadata
+from claude_code_langgraph.models.tools import ToolResult
 from claude_code_langgraph.utils.paths import ensure_dir
 from claude_code_langgraph.utils.serialization import message_from_dict, message_to_dict
 
@@ -47,6 +52,7 @@ class SessionStorage:
         current.setdefault("project_root", str(Path(project_root).resolve()))
         current.update(metadata)
         current["updated_at"] = now
+        current = SessionMetadata.from_record(current).to_record()
         metadata_path.write_text(json.dumps(current, indent=2), encoding="utf-8")
         (session_dir / "events.jsonl").touch(exist_ok=True)
         (session_dir / "tool_calls.jsonl").touch(exist_ok=True)
@@ -56,18 +62,20 @@ class SessionStorage:
         """Append a session event once, deduplicating by event id when available."""
 
         session_dir = self.create_session(project_root, session_id, {})
-        event_id = event.get("id")
+        payload = dump_model(RuntimeEvent.model_validate(event))
+        event_id = payload.get("id")
         if event_id:
             for existing in self._read_jsonl(session_dir / "events.jsonl"):
                 if existing.get("id") == event_id:
                     return
         with (session_dir / "events.jsonl").open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
     def append_tool_call(self, project_root: str | Path, session_id: str, record: dict[str, Any]) -> None:
         session_dir = self.create_session(project_root, session_id, {})
+        payload = dump_model(ToolResult.model_validate(record))
         with (session_dir / "tool_calls.jsonl").open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
     def save_messages(self, project_root: str | Path, session_id: str, messages: list[BaseMessage]) -> None:
         session_dir = self.create_session(project_root, session_id, {})
@@ -84,13 +92,13 @@ class SessionStorage:
         """Load persisted session metadata, messages, events, tool calls, todos, memory, and usage."""
 
         session_dir = self.session_dir(project_root, session_id)
-        metadata = json.loads((session_dir / "metadata.json").read_text(encoding="utf-8"))
+        metadata = SessionMetadata.from_record(json.loads((session_dir / "metadata.json").read_text(encoding="utf-8"))).to_record()
         messages_path = session_dir / "messages.json"
         messages = []
         if messages_path.exists():
             messages = [message_from_dict(item) for item in json.loads(messages_path.read_text(encoding="utf-8"))]
-        events = self._read_jsonl(session_dir / "events.jsonl")
-        tool_calls = self._read_jsonl(session_dir / "tool_calls.jsonl")
+        events = self._read_jsonl(session_dir / "events.jsonl", RuntimeEvent)
+        tool_calls = self._read_jsonl(session_dir / "tool_calls.jsonl", ToolResult)
         todos_path = session_dir / "todos.json"
         memory_refs_path = session_dir / "memory_refs.json"
         todos = json.loads(todos_path.read_text(encoding="utf-8")) if todos_path.exists() else []
@@ -131,13 +139,20 @@ class SessionStorage:
         return messages
 
     @staticmethod
-    def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-        """Read a JSONL file into dictionaries, ignoring absent files."""
+    def _read_jsonl(path: Path, model_cls: type[BaseModel] | None = None) -> list[dict[str, Any]]:
+        """Read JSONL records, optionally validating each record and skipping corrupt rows."""
 
         if not path.exists():
             return []
         rows = []
         for line in path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                rows.append(json.loads(line))
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+                if model_cls is not None:
+                    payload = dump_model(model_cls.model_validate(payload))
+            except (json.JSONDecodeError, ValidationError, TypeError, ValueError):
+                continue
+            rows.append(payload)
         return rows
