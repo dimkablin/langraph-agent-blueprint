@@ -2,16 +2,25 @@
 
 Date: 2026-05-07
 
+## Batch 1 Closed Items
+
+Fixed on 2026-05-07:
+
+- P0 storage/API runtime id validation and final session path confinement.
+- P1 tool execution context no longer exposes mutable whole graph state.
+- P1 `edit_file` rejects ambiguous multi-match snippets without changing files.
+- P1 `web_fetch` has scheme, private-host, size, binary-content, redirect-final-url, and config guardrails.
+
 | Priority | Area | Problem | Files | Suggested fix | Tests needed | Risk |
 | --- | --- | --- | --- | --- | --- | --- |
-| P0 | Storage/API | User-controlled session ids are path segments. | `storage/session_storage.py`, `api/schemas.py`, `api/routes_sessions.py`, `graph/builder.py` | Add strict `SessionId`/`ThreadId` validation and final-path confinement under session root. | Storage/API traversal rejection tests for `../`, `..\\`, absolute paths, empty ids. | Medium: affects resume compatibility for hand-written ids. |
-| P1 | Tool architecture | Tools receive mutable whole graph state. | `tools/base.py`, `services/tool_execution_service.py`, core/custom tool tests | Replace with read-only/minimal context and typed state effect applier. | Malicious test tool mutating context does not alter graph state. | Medium: custom tools may depend on `context.state`. |
+| P0 | Storage/API | User-controlled session ids are path segments. | `storage/session_storage.py`, `api/schemas.py`, `api/routes_sessions.py`, `graph/builder.py` | Fixed in Batch 1: strict runtime id validation plus final-path confinement under session root. | Added storage/API traversal rejection tests for `../`, `..\\`, absolute paths, empty ids. | Medium: affects resume compatibility for hand-written ids. |
+| P1 | Tool architecture | Tools receive mutable whole graph state. | `tools/base.py`, `services/tool_execution_service.py`, core/custom tool tests | Fixed in Batch 1: read-only/minimal context plus typed state effect applier. | Added malicious tool mutation regression test. | Medium: custom tools may depend on `context.state`. |
 | P1 | Plugin policy | Superpowers policy is hardwired. | `graph/nodes/plugin_policy.py`, `plugins/superpowers.py`, `services/plugin_service.py` | Introduce generic plugin policy contribution registry and move Superpowers into adapter contribution. | Superpowers acceptance still triggers; fake second plugin policy works without graph edit. | Medium. |
 | P1 | Skill effects | `remember` writes memory inside skill router by name. | `graph/nodes/skill_router.py`, `services/skill_service.py`, `skills/args.py` | Add typed skill effects or move memory write behind a normal tool. | Remember skill persists; unknown skill cannot create side effects. | Medium. |
-| P1 | File edit correctness | Ambiguous `old_text` edits are not rejected. | `services/file_service.py`, `tools/file_tools.py` | Require exactly one occurrence or add explicit occurrence selector. | Multiple-match edit leaves file unchanged and returns structured error. | Low. |
+| P1 | File edit correctness | Ambiguous `old_text` edits are not rejected. | `services/file_service.py`, `tools/file_tools.py` | Fixed in Batch 1: require exactly one occurrence; occurrence selector remains future work. | Added multiple-match and missing-match edit tests. | Low. |
 | P1 | MCP lifecycle | Dependency construction starts MCP servers. | `dependencies.py`, `services/mcp_service.py`, `graph/nodes/load_registries.py` | Make MCP discovery lazy/explicit during graph registry load or command diagnostics. | Dependency construction does not spawn fake server; `/mcp tools` does. | Medium. |
 | P1 | MCP diagnostics | Invalid MCP config entries are silently skipped. | `services/mcp_service.py`, `commands/builtin.py` | Preserve validation warnings in snapshot/diagnostics. | Malformed server appears in `/doctor` and `/mcp`. | Low. |
-| P1 | Network fetch | No URL/scheme/body policy. | `services/web_service.py`, `tools/web_tools.py` | Add scheme allowlist, optional private-host policy, max bytes, binary handling. | SSRF/private-host policy tests, large-body cap tests. | Medium: behavior change for local fetch smoke. |
+| P1 | Network fetch | No URL/scheme/body policy. | `services/web_service.py`, `tools/web_tools.py` | Fixed in Batch 1: scheme allowlist, default private-host denylist, max bytes, binary handling, redirect-final-url validation. | Added scheme/private-host/local-opt-in/large-body/binary/redirect tests. | Medium: behavior change for local fetch smoke. |
 | P1 | Plugin install | Git subprocesses have no timeout. | `services/plugin_service.py` | Add timeout and structured install/update errors. | Fake hanging git command times out. | Low. |
 | P1 | API observability | Approval resume loses session id in root trace. | `api/schemas.py`, `api/server.py`, `api/routes_chat.py`, `graph/builder.py` | Add/pass `session_id`, or resolve from checkpoint before `trace_turn`. | API chat+approval traces share session id in fake Langfuse client. | Low/medium. |
 | P1 | Hook state discipline | Hook applier shallow-copies metadata and may mutate nested lists. | `hooks/applier.py` | Rebuild nested lists immutably or deep-copy touched subtrees. | Incoming state object remains unchanged after hook apply. | Low. |
@@ -28,4 +37,3 @@ Date: 2026-05-07
 | P3 | Packaging smoke | `python -m langgraph_agent_blueprint` requires install or `PYTHONPATH=src`. | README, packaging docs | Document source-tree usage or require editable install before smoke. | CLI smoke test can run with `PYTHONPATH=src`. | Low. |
 | P3 | Encoding | `cli.py` has UTF-8 BOM. | `src/langgraph_agent_blueprint/cli.py` | Remove BOM in formatting-only cleanup. | AST parse with `encoding="utf-8"` succeeds. | Low. |
 | P3 | Test readability | Cyrillic chat test strings are mojibake. | `tests/test_observability_cli.py` | Replace with correct UTF-8 or ASCII. | Existing test remains green. | Low. |
-

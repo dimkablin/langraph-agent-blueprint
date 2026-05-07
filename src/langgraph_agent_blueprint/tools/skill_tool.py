@@ -39,7 +39,15 @@ class SkillTool(BaseTool[SkillToolInput, SkillToolOutput]):
     def run(self, data: SkillToolInput, context: ToolExecutionContext) -> SkillToolOutput:
         if self.skill_service is None:
             raise RuntimeError("SkillInvocationService is not configured")
-        result = self.skill_service.invoke(data.skill, data.args, context.state)
+        state_snapshot = {
+            "session_id": context.session_id,
+            "thread_id": context.thread_id,
+            "project_root": str(context.project_root),
+            "cwd": str(context.cwd),
+            "metadata": dict(context.metadata),
+            "active_skill": dict(context.active_skill) if context.active_skill is not None else None,
+        }
+        result = self.skill_service.invoke(data.skill, data.args, state_snapshot)
         return SkillToolOutput(
             skill=data.skill,
             allowed_tools=result.get("allowed_tools", []),

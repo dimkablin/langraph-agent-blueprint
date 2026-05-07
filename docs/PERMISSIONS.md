@@ -16,6 +16,7 @@ Policy:
 - tools with `permission.requires_permission=True` ask for approval unless a mode explicitly allows that action
 - `accept_edits` allows `write`/`edit` actions only; it does not allow shell or network actions
 - network tools declare `permission.requires_network=True`, still require approval, and also depend on network config
+- `web_fetch` approval does not override URL guardrails: only `http`/`https` URLs are allowed, private/internal hosts are blocked unless `WEB_FETCH_ALLOW_PRIVATE_HOSTS=true`, and response bodies are capped by `WEB_FETCH_MAX_BYTES`
 - MCP/plugin/custom tools default conservative when adapters do not provide safer metadata
 - plan mode blocks non-read-only side effects unless `permission.allowed_in_plan_mode=True`
 

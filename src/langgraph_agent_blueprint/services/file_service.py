@@ -45,12 +45,17 @@ class FileService:
         return {"path": str(target), "diff": self.diff(old, content, str(target))}
 
     def edit_text(self, path: str | Path, old_text: str, new_text: str) -> dict[str, Any]:
-        """Replace the first exact occurrence of old text and return a unified diff."""
+        """Replace a unique exact occurrence of old text and return a unified diff."""
 
         target = self.resolve(path)
         content = target.read_text(encoding="utf-8")
-        if old_text not in content:
-            raise ValueError("old_text was not found exactly once or at all")
+        if not old_text:
+            raise ValueError("old_text must not be empty")
+        occurrence_count = content.count(old_text)
+        if occurrence_count == 0:
+            raise ValueError("old_text was not found")
+        if occurrence_count > 1:
+            raise ValueError("old_text appears multiple times; provide a more specific snippet")
         updated = content.replace(old_text, new_text, 1)
         target.write_text(updated, encoding="utf-8")
         return {"path": str(target), "diff": self.diff(content, updated, str(target))}

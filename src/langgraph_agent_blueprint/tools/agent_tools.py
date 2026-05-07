@@ -34,6 +34,6 @@ class AgentTool(BaseTool[AgentInput, AgentOutput]):
         self.agent_service = agent_service
 
     def run(self, data: AgentInput, context: ToolExecutionContext) -> AgentOutput:
-        child = self.agent_service.run_child(data.prompt, context.state)
+        child = self.agent_service.run_child(data.prompt, {"session_id": context.session_id})
         return AgentOutput(child_run=child, content=child["result"], metadata={"agent_type": data.agent_type})
 

@@ -38,7 +38,6 @@ class FileReadTool(BaseTool[FileReadInput, FileReadOutput]):
     def run(self, data: FileReadInput, context: ToolExecutionContext) -> FileReadOutput:
         target = self.file_service.resolve(data.path)
         content = self.file_service.read_text(target, data.offset, data.limit)
-        context.read_files.add(str(target))
         content, truncated = truncate_text(content, self.output_limit)
         return FileReadOutput(path=str(target), content=content, metadata={"truncated": truncated})
 

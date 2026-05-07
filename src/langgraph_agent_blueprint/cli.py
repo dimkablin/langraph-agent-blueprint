@@ -12,7 +12,7 @@ from rich.console import Console
 from langgraph_agent_blueprint.config import AppConfig
 from langgraph_agent_blueprint.dependencies import build_dependencies
 from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
-from langgraph_agent_blueprint.utils.ids import new_id
+from langgraph_agent_blueprint.utils.ids import new_id, validate_session_id
 
 app = typer.Typer(help="LangGraph Agent Blueprint CLI")
 sessions_app = typer.Typer(help="Session commands")
@@ -97,7 +97,11 @@ def list_sessions() -> None:
 @sessions_app.command("resume")
 def resume_session(session_id: str) -> None:
     runtime = _runtime()
-    loaded = runtime.dependencies.session_service.resume(Path.cwd(), session_id)
+    try:
+        session_id = validate_session_id(session_id)
+        loaded = runtime.dependencies.session_service.resume(Path.cwd(), session_id)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="session_id") from exc
     console.print(f"Loaded {loaded['metadata']['session_id']} with {len(loaded['messages'])} messages")
 
 

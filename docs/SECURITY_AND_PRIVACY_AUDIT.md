@@ -6,9 +6,19 @@ Date: 2026-05-07
 
 Permission metadata, plugin path checks, MCP conservative defaults, and Langfuse redaction are good foundations. The highest-risk issue is unvalidated storage identifiers. The next tier is hardening around tool state access, network fetch behavior, plugin git timeouts, MCP config/process boundaries, and storage/config diagnostics.
 
+## Batch 1 Status
+
+Fixed on 2026-05-07:
+
+- P0 session/thread ids now use strict `[A-Za-z0-9_-]{1,128}` validation at state/API/storage boundaries, and session storage verifies resolved paths stay under the sessions root.
+- P1 tools no longer receive mutable whole graph state through `ToolExecutionContext`; state changes are still applied through typed `ToolStateEffect` records.
+- P1 `web_fetch` now allows only absolute `http`/`https` URLs, blocks private/internal hosts by default, caps response bytes, handles binary content safely, and revalidates redirect final URLs.
+
 ## Findings
 
 ### P0: Session ID Path Traversal Can Escape The Session Namespace
+
+Status: fixed in Batch 1 on 2026-05-07.
 
 - File: `src/langgraph_agent_blueprint/storage/session_storage.py:29`
 - File: `src/langgraph_agent_blueprint/api/schemas.py:13`
@@ -20,6 +30,8 @@ Permission metadata, plugin path checks, MCP conservative defaults, and Langfuse
 
 ### P1: Tools Receive Mutable Whole-Graph State
 
+Status: fixed in Batch 1 on 2026-05-07.
+
 - File: `src/langgraph_agent_blueprint/tools/base.py:40`
 - File: `src/langgraph_agent_blueprint/services/tool_execution_service.py:34`
 - Problem: `ToolExecutionContext.state` is the mutable graph state dict.
@@ -28,6 +40,8 @@ Permission metadata, plugin path checks, MCP conservative defaults, and Langfuse
 - Suggested fix: Pass a read-only snapshot or remove `state` entirely. Expose explicit fields and typed effect APIs only.
 
 ### P1: Web Fetch Has No SSRF/Scheme/Body Guardrails
+
+Status: fixed in Batch 1 on 2026-05-07.
 
 - File: `src/langgraph_agent_blueprint/services/web_service.py:20`
 - Problem: `httpx.Client(...).get(url)` follows redirects and materializes `response.text` without scheme/host policy or pre-truncation.
@@ -96,4 +110,3 @@ Permission metadata, plugin path checks, MCP conservative defaults, and Langfuse
 - Langfuse disabled mode is no-op; no unscoped production `create_event` path was found.
 - Langfuse path redaction is tested for Windows paths.
 - Permission prompts redact default secret-like keys.
-

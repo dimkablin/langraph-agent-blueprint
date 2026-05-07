@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import copy
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from langgraph_agent_blueprint.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata, ToolStateEffect
 
@@ -29,15 +33,30 @@ class ToolOutput(BaseModel):
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
-class ToolExecutionContext(BaseModel):
+@dataclass(frozen=True)
+class ToolExecutionContext:
     """Runtime context passed to tools by the graph tool executor."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     project_root: Path
     cwd: Path
-    read_files: set[str] = Field(default_factory=set)
-    state: dict[str, object] = Field(default_factory=dict)
+    session_id: str = ""
+    thread_id: str | None = None
+    read_files: tuple[str, ...] = ()
+    metadata: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
+    active_skill: Mapping[str, Any] | None = None
+
+
+def freeze_context_value(value: Any) -> Any:
+    """Return an immutable copy of JSON-like values exposed through tool context."""
+
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(key): freeze_context_value(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple, set)):
+        return tuple(freeze_context_value(item) for item in value)
+    try:
+        return copy.deepcopy(value)
+    except Exception:
+        return value
 
 
 InputT = TypeVar("InputT", bound=BaseModel)

@@ -47,6 +47,8 @@ Tool names are identity only: registry key, provider function name, display/logg
 
 At the runtime boundary, provider-specific tool calls are normalized into `ToolCall` DTOs and tool execution returns `ToolResult` DTOs. The graph stores serialized DTO payloads in state and converts results to `ToolMessage` through one shared converter.
 
+`ToolExecutionContext` is a read-only/minimal DTO. Tools receive project/cwd paths, session/thread ids, read-file history, and frozen metadata snapshots; they do not receive the mutable whole LangGraph state. Tool behavior that needs to affect state must return metadata-declared `ToolStateEffect` records.
+
 Post-execution graph state changes are represented as typed `ToolStateEffect` records. Built-in effects include file-read history, todo replacement, and child-run append. `ToolExecutionService` applies these effects by effect kind, not by `tool.name`.
 
 To add a new side-effecting tool, declare metadata on the tool class:
@@ -72,8 +74,9 @@ Runtime status after fixes:
 - Provider tool schemas are bound to supported models with registry names preserved.
 - Tool results are returned as `ToolMessage` and then routed back to `model_call`.
 - File/search/shell/notebook/todo tools have end-to-end fake-provider tests.
+- `edit_file` replaces an exact snippet only when it appears exactly once. Missing snippets and multi-match snippets fail without changing the file.
 - Ollama `qwen3:14b` was manually verified for native `read_file` tool calling.
-- `web_fetch` is disabled unless network is enabled and approved; when enabled it returns untrusted-content warning metadata.
+- `web_fetch` is disabled unless network is enabled and approved; when enabled it returns untrusted-content warning metadata, allows only absolute `http`/`https` URLs, blocks private/internal hosts by default, caps response bytes, validates redirect final URLs, and summarizes binary content.
 - `web_search` reports unavailable when no provider is configured.
 - Tool routing for skill, agent, and MCP tools is metadata-driven through `tool.runtime.route`.
 - MCP tools are discovered through `MCPService`, registered with `ToolRuntimeMetadata(kind="mcp", route="mcp_graph")`, and require approval by default through `ToolPermissionMetadata(action="mcp", risk="high", external=True)`.

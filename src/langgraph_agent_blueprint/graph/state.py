@@ -9,7 +9,7 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-from langgraph_agent_blueprint.utils.ids import new_id
+from langgraph_agent_blueprint.utils.ids import new_id, validate_session_id, validate_thread_id
 
 
 def append_list(current: list[Any] | None, update: list[Any] | None) -> list[Any]:
@@ -75,9 +75,11 @@ def create_initial_state(
 
     root = Path(project_root or Path.cwd()).resolve()
     current = Path(cwd or root).resolve()
+    resolved_session_id = validate_session_id(session_id) if session_id is not None else new_id("session")
+    resolved_thread_id = validate_thread_id(thread_id) if thread_id is not None else new_id("thread")
     return AssistantState(
-        session_id=session_id or new_id("session"),
-        thread_id=thread_id or new_id("thread"),
+        session_id=resolved_session_id,
+        thread_id=resolved_thread_id,
         project_root=str(root),
         cwd=str(current),
         input_text=input_text,

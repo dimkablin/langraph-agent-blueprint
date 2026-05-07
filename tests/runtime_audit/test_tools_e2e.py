@@ -106,7 +106,7 @@ def test_web_fetch_enabled_marks_content_untrusted_after_approval(tmp_path):
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    runtime = _runtime(tmp_path, network_enabled=True)
+    runtime = _runtime(tmp_path, network_enabled=True, web_fetch_allow_private_hosts=True)
     url = f"http://127.0.0.1:{server.server_port}/"
     try:
         first = runtime.invoke(f'tool:web_fetch {{"url":"{url}"}}', input_kind="headless", project_root=tmp_path, thread_id="web-fetch")

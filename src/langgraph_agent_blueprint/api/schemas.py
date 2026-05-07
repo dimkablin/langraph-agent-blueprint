@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from langgraph_agent_blueprint.utils.ids import validate_session_id, validate_thread_id
 
 
 class ChatRequest(BaseModel):
@@ -12,6 +14,16 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
     thread_id: str | None = None
+
+    @field_validator("session_id")
+    @classmethod
+    def _validate_session_id(cls, value: str | None) -> str | None:
+        return validate_session_id(value) if value is not None else None
+
+    @field_validator("thread_id")
+    @classmethod
+    def _validate_thread_id(cls, value: str | None) -> str | None:
+        return validate_thread_id(value) if value is not None else None
 
 
 class ChatResponse(BaseModel):
@@ -27,3 +39,8 @@ class ApprovalRequest(BaseModel):
     """API request payload used to resume an interrupted graph with a human permission decision."""
     thread_id: str
     decision: dict[str, Any]
+
+    @field_validator("thread_id")
+    @classmethod
+    def _validate_thread_id(cls, value: str) -> str:
+        return validate_thread_id(value)

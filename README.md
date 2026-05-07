@@ -231,7 +231,7 @@ See `docs/HOOKS.md`.
 
 ## Tools
 
-Core tools include file read/write/edit, notebook read/edit, glob, grep, bash, PowerShell, web fetch/search, todo write, agent, skill, MCP adapter, and diagnostics. Tool names are registry/provider identity only; permission action/risk, runtime route, plan-mode behavior, network requirement, and state effects come from tool metadata. Risky tools require permission unless policy allows them.
+Core tools include file read/write/edit, notebook read/edit, glob, grep, bash, PowerShell, web fetch/search, todo write, agent, skill, MCP adapter, and diagnostics. Tool names are registry/provider identity only; permission action/risk, runtime route, plan-mode behavior, network requirement, and state effects come from tool metadata. Risky tools require permission unless policy allows them. Tools receive a minimal read-only execution context and return typed state effects; they do not receive mutable whole graph state.
 
 Examples with the fake provider:
 
@@ -315,7 +315,7 @@ Sessions are stored under `.storage/projects/{project_hash}/sessions/{session_id
 - IDE/LSP is documented as architectural/minimal.
 - Provider JSON repair is minimal. Native tool calling is tested through fake provider and manually verified with Ollama `qwen3:14b`.
 - `web_search` is unavailable unless a real search provider is configured. It no longer returns empty success when no provider exists.
-- `web_fetch` is disabled unless `NETWORK_ENABLED=true` and still requires permission. When enabled, fetched content is marked as untrusted in tool metadata.
+- `web_fetch` is disabled unless `NETWORK_ENABLED=true` and still requires permission. When enabled, fetched content is marked as untrusted, private/internal hosts are blocked unless `WEB_FETCH_ALLOW_PRIVATE_HOSTS=true`, and response bodies are capped by `WEB_FETCH_MAX_BYTES`.
 - The fake provider keeps a few shorthand aliases (`tool:bash echo hi`, `tool:write_file path content`, `tool:agent ...`) for deterministic tests; the generic supported contract is `tool:<name> <json args>`, and these aliases do not define production permission/routing semantics.
 - Subagent execution remains limited/synthetic compared with the rest of the graph runtime.
 - Data analyst capabilities are optional extensions, not direct-port behavior.

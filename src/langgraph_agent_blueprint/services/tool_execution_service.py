@@ -11,7 +11,7 @@ from langgraph_agent_blueprint.models.base import dump_model
 from langgraph_agent_blueprint.models.messages import event
 from langgraph_agent_blueprint.models.tool_metadata import ToolStateEffect
 from langgraph_agent_blueprint.models.tools import ToolCall, ToolResult
-from langgraph_agent_blueprint.tools.base import BaseTool, ToolExecutionContext
+from langgraph_agent_blueprint.tools.base import BaseTool, ToolExecutionContext, freeze_context_value
 from langgraph_agent_blueprint.tools.registry import ToolRegistry
 
 
@@ -30,8 +30,11 @@ class ToolExecutionService:
         context = ToolExecutionContext(
             project_root=Path(state["project_root"]),
             cwd=Path(state["cwd"]),
-            read_files=set(state.get("metadata", {}).get("read_files", [])),
-            state=state,
+            session_id=str(state.get("session_id", "")),
+            thread_id=str(state["thread_id"]) if state.get("thread_id") else None,
+            read_files=tuple(str(item) for item in state.get("metadata", {}).get("read_files", [])),
+            metadata=freeze_context_value(state.get("metadata", {})),
+            active_skill=freeze_context_value(state.get("active_skill")) if isinstance(state.get("active_skill"), dict) else None,
         )
         try:
             parsed = tool.parse_input(call.args)

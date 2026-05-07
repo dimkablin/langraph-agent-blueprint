@@ -14,6 +14,7 @@ from langgraph_agent_blueprint.models.base import dump_model
 from langgraph_agent_blueprint.models.events import RuntimeEvent
 from langgraph_agent_blueprint.models.sessions import SessionMetadata
 from langgraph_agent_blueprint.models.tools import ToolResult
+from langgraph_agent_blueprint.utils.ids import validate_session_id
 from langgraph_agent_blueprint.utils.paths import ensure_dir
 from langgraph_agent_blueprint.utils.serialization import message_from_dict, message_to_dict
 
@@ -27,7 +28,14 @@ class SessionStorage:
         self.storage_dir = Path(storage_dir)
 
     def session_dir(self, project_root: str | Path, session_id: str) -> Path:
-        return project_storage_dir(self.storage_dir, project_root) / "sessions" / session_id
+        safe_id = validate_session_id(session_id)
+        sessions_root = (project_storage_dir(self.storage_dir, project_root) / "sessions").resolve()
+        candidate = (sessions_root / safe_id).resolve()
+        try:
+            candidate.relative_to(sessions_root)
+        except ValueError as exc:
+            raise ValueError("Resolved session path escaped the sessions root") from exc
+        return candidate
 
     def create_session(self, project_root: str | Path, session_id: str, metadata: dict[str, Any]) -> Path:
         """Create or update a session directory while preserving existing metadata fields."""

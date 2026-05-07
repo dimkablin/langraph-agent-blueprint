@@ -12,6 +12,7 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - command handler output -> `CommandResult`
 - permission interrupt/resume -> `PermissionRequest` / `PermissionDecision`
 - session storage records -> `SessionMetadata`, `RuntimeEvent`, and `ToolResult`
+- session/thread identifiers -> strict runtime id validation before API/storage/checkpoint use
 - skill tool or `/skill` args -> built-in skill-specific Pydantic args schemas
 - tool classification -> `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect`
 - plugin config/manifests/discovery -> `PluginSource`, `PluginManifest`, `PluginContribution`, and `PluginInstallResult`
@@ -44,6 +45,8 @@ Provider-specific tool calls are normalized with `normalize_provider_tool_call(.
 The graph stores `ToolCall.model_dump(mode="json")` in `pending_tool_calls`. `tool_router`, `permission_gate`, and `tool_executor` validate those records before reading fields.
 
 Tool execution returns `ToolResult` with explicit statuses: `ok`, `error`, `rejected`, `disabled`, or `unavailable`. `tool_result_to_tool_message(...)` is the single conversion point from `ToolResult` to LangChain `ToolMessage`.
+
+`ToolExecutionContext` is intentionally not the graph state. It is a frozen, minimal context object containing only whitelisted runtime fields and immutable metadata snapshots. Tools cannot mutate `pending_tool_calls`, permissions, metadata, or other state directly; state changes flow through `ToolStateEffect`.
 
 ## Tool Metadata
 
@@ -131,6 +134,8 @@ Langfuse SDK clients, callback handlers, and active observation scopes are never
 ## Sessions
 
 `SessionMetadata` validates known metadata fields and preserves historical flat extra fields in `extra`. `SessionStorage` validates events as `RuntimeEvent` and tool execution records as `ToolResult` at JSONL boundaries.
+
+Runtime `session_id` and `thread_id` values must match `[A-Za-z0-9_-]{1,128}`. API DTO validators, `create_initial_state`, `AssistantGraphRuntime.resume`, CLI resume, and session storage reject path syntax such as separators, drive prefixes, empty values, and overlong ids. Session storage also verifies the resolved session directory remains under the project sessions root.
 
 ## Adding New Boundaries
 

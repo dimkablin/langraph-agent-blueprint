@@ -11,6 +11,7 @@ from langgraph.types import Command
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.models.observability import TraceContext, TraceMetadata
+from langgraph_agent_blueprint.utils.ids import validate_session_id, validate_thread_id
 
 from .checkpoints import default_checkpointer
 from .nodes.bootstrap_config import bootstrap_config_node
@@ -174,6 +175,9 @@ class AssistantGraphRuntime:
         return result
 
     def resume(self, thread_id: str, decision: dict[str, Any], session_id: str | None = None) -> dict[str, Any]:
+        thread_id = validate_thread_id(thread_id)
+        if session_id is not None:
+            session_id = validate_session_id(session_id)
         initial_context = TraceContext(
             session_id=session_id or thread_id,
             thread_id=thread_id,

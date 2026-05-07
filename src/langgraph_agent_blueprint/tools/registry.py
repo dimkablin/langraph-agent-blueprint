@@ -49,6 +49,8 @@ class ToolRegistry:
 def build_core_tool_registry(
     project_root: str | Path = ".",
     network_enabled: bool = False,
+    web_fetch_allow_private_hosts: bool = False,
+    web_fetch_max_bytes: int = 1_000_000,
     shell_timeout: float = 30.0,
     output_limit: int = 12000,
     skill_service: Any | None = None,
@@ -59,7 +61,11 @@ def build_core_tool_registry(
     file_service = FileService(root)
     search_service = SearchService()
     shell_service = ShellService(root, timeout=shell_timeout, output_limit=output_limit)
-    web_service = WebService(enabled=network_enabled)
+    web_service = WebService(
+        enabled=network_enabled,
+        allow_private_hosts=web_fetch_allow_private_hosts,
+        max_bytes=web_fetch_max_bytes,
+    )
     notebook_service = NotebookService(file_service)
     registry = ToolRegistry()
     for tool in [
