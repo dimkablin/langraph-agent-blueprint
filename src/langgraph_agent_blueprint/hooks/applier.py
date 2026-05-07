@@ -39,10 +39,11 @@ def apply_hook_results(state: dict[str, Any], results: list[HookResult]) -> dict
             if not content:
                 continue
             fragment = _system_context_fragment(result, content)
-            metadata.setdefault("hook_system_context_fragments", []).append(fragment)
-            hooks_state.setdefault("system_context_fragments", []).append(
-                {"hook_id": result.hook_id, "hook_point": result.hook_point, "content": fragment}
-            )
+            metadata["hook_system_context_fragments"] = [*list(metadata.get("hook_system_context_fragments", [])), fragment]
+            hooks_state["system_context_fragments"] = [
+                *list(hooks_state.get("system_context_fragments", [])),
+                {"hook_id": result.hook_id, "hook_point": result.hook_point, "content": fragment},
+            ]
             existing = str(context_status.get("system_context") or "")
             context_status["system_context"] = f"{existing}\n\n{fragment}".strip() if existing else fragment
             metadata_changed = True
@@ -51,7 +52,7 @@ def apply_hook_results(state: dict[str, Any], results: list[HookResult]) -> dict
         elif result.action == "modify_metadata":
             payload = result.data.get("metadata", {})
             if isinstance(payload, dict):
-                metadata.setdefault("hook_metadata", {})[result.hook_id] = payload
+                metadata["hook_metadata"] = {**dict(metadata.get("hook_metadata", {})), result.hook_id: payload}
                 metadata_changed = True
         elif result.action == "modify_context":
             payload = result.data.get("context_status") or result.data.get("context") or {}

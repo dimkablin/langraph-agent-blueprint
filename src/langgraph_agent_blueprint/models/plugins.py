@@ -34,6 +34,38 @@ class PluginManifest(FrozenRuntimeModel):
     skills_path: str | None = None
     bootstrap_skill: str | None = None
     hooks: list[dict[str, Any]] = Field(default_factory=list)
+    policies: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class PluginPolicyContribution(FrozenRuntimeModel):
+    """Declarative plugin runtime policy contribution."""
+
+    id: str
+    plugin_name: str | None = None
+    priority: int = 100
+    enabled: bool = True
+    policy_type: Literal["skill_activation", "context", "none"] = "skill_activation"
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class PluginPolicyContext(FrozenRuntimeModel):
+    """Read-only context passed to plugin policy evaluators."""
+
+    session_id: str
+    input_text: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    invoked_skills: list[str] = Field(default_factory=list)
+
+
+class PluginPolicyResult(FrozenRuntimeModel):
+    """Controlled result returned by plugin policy evaluation."""
+
+    contribution_id: str
+    plugin_name: str | None = None
+    action: Literal["activate_skill", "continue", "block", "error"] = "continue"
+    skill_name: str | None = None
+    reason: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class PluginContribution(FrozenRuntimeModel):
@@ -47,6 +79,8 @@ class PluginContribution(FrozenRuntimeModel):
     system_context_fragments: list[str] = Field(default_factory=list)
     hooks: list[HookContribution] = Field(default_factory=list)
     hook_warnings: list[dict[str, str]] = Field(default_factory=list)
+    policies: list[PluginPolicyContribution] = Field(default_factory=list)
+    policy_warnings: list[dict[str, str]] = Field(default_factory=list)
 
 
 class PluginInstallResult(FrozenRuntimeModel):

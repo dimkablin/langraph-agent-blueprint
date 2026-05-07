@@ -14,6 +14,15 @@ Fixed on 2026-05-07:
 - P1 tools no longer receive mutable whole graph state through `ToolExecutionContext`; state changes are still applied through typed `ToolStateEffect` records.
 - P1 `web_fetch` now allows only absolute `http`/`https` URLs, blocks private/internal hosts by default, caps response bytes, handles binary content safely, and revalidates redirect final URLs.
 
+## Batch 2 Status
+
+Fixed on 2026-05-07:
+
+- P1 plugin git operations now use a configurable timeout and return structured phase-specific errors.
+- P1 invalid MCP config entries are preserved in redacted diagnostics instead of disappearing.
+- P1 API approval/resume can carry `session_id` through to Langfuse trace context.
+- P1 hook result application no longer mutates nested metadata lists from incoming state.
+
 ## Findings
 
 ### P0: Session ID Path Traversal Can Escape The Session Namespace
@@ -51,10 +60,12 @@ Status: fixed in Batch 1 on 2026-05-07.
 
 ### P1: Plugin Git Install Has No Timeout
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - File: `src/langgraph_agent_blueprint/services/plugin_service.py:388`
-- Problem: `git` subprocess calls have no timeout.
+- Problem: `git` subprocess calls had no timeout.
 - Exploit scenario: Network stalls, credentials prompt, or remote hang blocks the CLI indefinitely.
-- Suggested fix: Use a timeout and return structured `PluginInstallResult(status="error")`.
+- Fix: git clone/fetch/checkout/rev-parse use `PLUGIN_GIT_TIMEOUT_SECONDS` and timeout errors stay structured.
 
 ### P1: MCP CWD Validation Is Existence-Only
 
@@ -66,11 +77,13 @@ Status: fixed in Batch 1 on 2026-05-07.
 
 ### P1: API Approval Resume Does Not Preserve Session ID In Trace Context
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - File: `src/langgraph_agent_blueprint/api/server.py:56`
 - File: `src/langgraph_agent_blueprint/api/routes_chat.py:19`
-- Problem: API resume calls `runtime.resume(thread_id, decision)` without `session_id`.
+- Problem: API resume called `runtime.resume(thread_id, decision)` without `session_id`.
 - Exploit scenario: Observability/privacy attribution can group approval traces under `thread_id` instead of the real session id.
-- Suggested fix: Include `session_id` in approval request/response DTOs and pass it through, or resolve it from checkpoint state before opening the trace.
+- Fix: approval request DTOs accept optional `session_id`, validate it, and pass it to `runtime.resume(...)`.
 
 ### P2: Permission Request Redaction Uses Exact Key Matching
 

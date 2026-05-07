@@ -80,10 +80,13 @@ def _plugins(args: str, state: dict[str, Any]) -> CommandResult:
         bootstrap = plugin.get("bootstrap_skill") or "none"
         lines.append(
             f"- {plugin.get('name')}: enabled, version: {plugin.get('version', 'unknown')}, "
-            f"skills: {plugin.get('skills_count', 0)}, hooks: {plugin.get('hooks_count', 0)}, bootstrap: {bootstrap}"
+            f"skills: {plugin.get('skills_count', 0)}, hooks: {plugin.get('hooks_count', 0)}, "
+            f"policies: {plugin.get('policies_count', 0)}, bootstrap: {bootstrap}"
         )
         for warning in plugin.get("hook_warnings", []):
             lines.append(f"  hook warning: {warning.get('hook')}: {warning.get('error')}")
+        for warning in plugin.get("policy_warnings", []):
+            lines.append(f"  policy warning: {warning.get('policy')}: {warning.get('error')}")
     errors = plugin_state.get("errors", [])
     if errors:
         lines.append("Plugin errors:")
@@ -94,6 +97,11 @@ def _plugins(args: str, state: dict[str, Any]) -> CommandResult:
         lines.append("Plugin hook warnings:")
         for item in warnings:
             lines.append(f"- {item.get('plugin')}/{item.get('hook')}: {item.get('error')}")
+    policy_warnings = plugin_state.get("policy_warnings", [])
+    if policy_warnings:
+        lines.append("Plugin policy warnings:")
+        for item in policy_warnings:
+            lines.append(f"- {item.get('plugin')}/{item.get('policy')}: {item.get('error')}")
     return CommandResult(True, "\n".join(lines))
 
 
@@ -180,6 +188,7 @@ def _mcp(args: str, state: dict[str, Any]) -> CommandResult:
     tools = mcp_state.get("tools", {})
     resources = mcp_state.get("resources", {})
     prompts = mcp_state.get("prompts", {})
+    invalid_servers = mcp_state.get("invalid_servers", [])
     if view in {"servers", "status"}:
         lines = ["MCP servers:"]
         if not servers:
@@ -196,6 +205,10 @@ def _mcp(args: str, state: dict[str, Any]) -> CommandResult:
                 f"(transport: {server.get('transport')}, tools: {counts['tools']}, "
                 f"resources: {counts['resources']}, prompts: {counts['prompts']}){detail}"
             )
+        if invalid_servers:
+            lines.append("Invalid MCP servers:")
+            for invalid in invalid_servers:
+                lines.append(f"- {invalid.get('name')}: {invalid.get('error')}")
         return CommandResult(True, "\n".join(lines))
     if view == "tools":
         lines = ["MCP tools:"]

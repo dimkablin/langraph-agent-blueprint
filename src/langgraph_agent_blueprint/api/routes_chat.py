@@ -16,7 +16,7 @@ def chat_stream(request_body: ChatRequest, request: Request) -> list[dict]:
 @router.post("/approval/events")
 def approval_events(request_body: ApprovalRequest, request: Request) -> list[dict]:
     runtime = request.app.state.runtime
-    result = runtime.resume(request_body.thread_id, request_body.decision)
+    result = runtime.resume(request_body.thread_id, request_body.decision, session_id=request_body.session_id)
     return result.get("ui_events", [])
 
 

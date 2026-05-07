@@ -10,11 +10,13 @@ The runtime is graph-first overall. The main correctness path is expressed throu
 
 ### P1: Superpowers Policy Is Hardwired Into The Graph Policy Node
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - File: `src/langgraph_agent_blueprint/graph/nodes/plugin_policy.py:7`
 - File: `src/langgraph_agent_blueprint/plugins/superpowers.py:66`
-- Problem: `plugin_policy_node` imports `choose_superpowers_activation` directly and calls it for every turn.
+- Problem: `plugin_policy_node` imported `choose_superpowers_activation` directly and called it for every turn.
 - Why it matters: This makes the first real plugin policy a special case, not a generic plugin extension point. Adding another methodology plugin would require editing graph code or adding another policy branch.
-- Suggested fix: Introduce typed `PluginPolicyContribution` or hook/policy contribution metadata. `plugin_policy_node` should iterate registered policy contributions and apply controlled results, similar to hooks.
+- Fix: `PluginPolicyContribution`, `PluginPolicyContext`, and `PluginPolicyResult` now describe controlled plugin policies. `plugin_policy_node` evaluates registered policy contributions generically; Superpowers contributes `superpowers.default_methodology_policy`.
 
 ### P1: PluginService Owns Both Generic Plugin Discovery And Superpowers Adapter Logic
 
@@ -27,10 +29,12 @@ The runtime is graph-first overall. The main correctness path is expressed throu
 
 ### P1: Skill Router Contains Skill-Specific Durable Memory Behavior
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - File: `src/langgraph_agent_blueprint/graph/nodes/skill_router.py:60`
-- Problem: `skill_name == "remember"` writes memory directly in the skill router.
+- Problem: `skill_name == "remember"` wrote memory directly in the skill router.
 - Why it matters: The skill router becomes a business-logic switchboard. Skill side effects do not use the same permission/tool/state-effect model as other runtime changes.
-- Suggested fix: Convert `remember` into a normal skill prompt that calls a memory tool, or add typed skill effects returned by `SkillInvocationService` and applied by a controlled skill-effect applier.
+- Fix: `SkillInvocationService` returns typed `SkillEffect` records and `skill_router` delegates durable writes to a controlled skill-effect applier.
 
 ### P1: ToolExecutionContext Exposes The Whole Graph State To Tools
 
@@ -42,10 +46,12 @@ The runtime is graph-first overall. The main correctness path is expressed throu
 
 ### P1: MCP Discovery Starts During Dependency Construction
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - File: `src/langgraph_agent_blueprint/dependencies.py:87`
-- Problem: `build_dependencies` constructs `MCPService` and immediately calls `mcp_service.discover()` to register tools.
+- Problem: `build_dependencies` constructed `MCPService` and immediately called `mcp_service.discover()` to register tools.
 - Why it matters: Discovery can start stdio MCP server processes for any runtime construction, including diagnostics/listing paths. This is explicit if config is present, but still surprising and heavy for a dependency factory.
-- Suggested fix: Split MCP registration into lazy discovery or an explicit `load_registries` graph phase that can emit discovery errors without causing startup side effects in all command surfaces.
+- Fix: dependency construction now creates `MCPService` without discovery. `load_registries` and explicit diagnostics/commands perform discovery and register MCP tools.
 
 ### P2: Formal MCP Subgraph Adds Little Workflow Structure
 
@@ -91,4 +97,3 @@ The runtime is graph-first overall. The main correctness path is expressed throu
 ## Dependency Shape
 
 A simple AST import graph found no Python module cycles inside `src/langgraph_agent_blueprint`.
-

@@ -66,7 +66,12 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
     project_root = Path(config.project_root or Path.cwd()).resolve()
     cwd = Path(config.cwd or project_root).resolve()
     config = config.model_copy(update={"project_root": project_root, "cwd": cwd, "storage_dir": Path(config.storage_dir).resolve()})
-    plugin_service = PluginService(config.plugin_paths, config.storage_dir, network_enabled=config.network_enabled)
+    plugin_service = PluginService(
+        config.plugin_paths,
+        config.storage_dir,
+        network_enabled=config.network_enabled,
+        git_timeout_seconds=config.plugin_git_timeout_seconds,
+    )
     plugin_contributions = plugin_service.discover_contributions()
     skill_registry = build_builtin_skill_registry()
     skill_registry.load_plugin_contributions(plugin_contributions)
@@ -87,10 +92,6 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         skill_service=skill_service,
     )
     mcp_service = MCPService(config.mcp_config, output_limit=config.tool_output_limit)
-    for definition in mcp_service.discover()["tools"].values():
-        from langgraph_agent_blueprint.tools.mcp_tools import MCPToolAdapter
-
-        tool_registry.register(MCPToolAdapter(definition, mcp_service))
     command_registry = build_builtin_command_registry()
     session_storage = SessionStorage(config.storage_dir)
     return AppDependencies(

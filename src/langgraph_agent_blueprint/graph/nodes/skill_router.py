@@ -10,13 +10,14 @@ from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
 from langgraph_agent_blueprint.models.messages import event
 from langgraph_agent_blueprint.skills.args import SkillArgumentValidationError
+from langgraph_agent_blueprint.skills.effects import SkillEffect, apply_skill_effects
 
 
 def skill_router_node(state: dict, deps: AppDependencies) -> dict:
     """Resolve the active skill and prepare graph state for skill-scoped model/tool execution.
 
     Explicit `/skill` calls become a rendered prompt; model-invoked SkillTool calls also receive a
-    matching ToolMessage. The `remember` skill has a direct durable-memory path.
+    matching ToolMessage. Durable side effects are applied through typed skill effects.
     """
 
     active = state.get("active_skill")
@@ -55,16 +56,9 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
     }
     messages = []
     events = [event("skill_started", name=skill_name)]
-    final_response = None
-    memory = None
-    if skill_name == "remember":
-        typed_args = result["typed_args"]
-        scope, text = typed_args["scope"], typed_args["text"]
-        path = deps.memory_service.remember(scope, text, current.get("session_id"))
-        memory = deps.memory_service.load_memory(current.get("project_root"), current.get("session_id"))
-        final_response = f"Remembered in {scope} memory: {text}"
-        events.append(event("memory_updated", scope=scope, path=str(path)))
-    else:
+    effects = [SkillEffect.model_validate(item) for item in result.get("effects", [])]
+    effect_update = apply_skill_effects(effects, current, deps)
+    if not effect_update.get("final_response"):
         messages.append(HumanMessage(content=result["prompt"]))
     if active.get("tool_call_id"):
         messages.insert(
@@ -84,10 +78,7 @@ def skill_router_node(state: dict, deps: AppDependencies) -> dict:
         "metadata": metadata,
         "ui_events": events,
     }
-    if final_response is not None:
-        update["final_response"] = final_response
-    if memory is not None:
-        update["memory"] = memory
+    update = merge_updates(update, effect_update)
     post_update = run_hook_point(deps, state_with_update(current, update), "post_skill", active_skill=update["active_skill"])
     return merge_updates(pre_update, update, post_update)
 

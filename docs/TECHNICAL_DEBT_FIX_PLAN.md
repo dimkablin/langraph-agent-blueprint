@@ -11,19 +11,31 @@ Fixed on 2026-05-07:
 - P1 `edit_file` rejects ambiguous multi-match snippets without changing files.
 - P1 `web_fetch` has scheme, private-host, size, binary-content, redirect-final-url, and config guardrails.
 
+## Batch 2 Closed Items
+
+Fixed on 2026-05-07:
+
+- P1 plugin policy activation is now a generic `PluginPolicyContribution` flow; Superpowers contributes a policy, and a fake plugin policy can activate a skill without graph-code changes.
+- P1 `remember` durable writes moved out of `skill_router` into typed `SkillEffect` handling from `SkillInvocationService`.
+- P1 dependency construction no longer starts MCP discovery; MCP tools register after explicit graph `/mcp`/chat registry loading or diagnostics discovery.
+- P1 invalid MCP server configs are preserved in snapshot/diagnostics and shown by `/mcp` and `/doctor`.
+- P1 plugin git install/update calls use `PLUGIN_GIT_TIMEOUT_SECONDS` and return structured timeout errors.
+- P1 API approval/resume accepts and passes `session_id` so Langfuse resume traces stay grouped with the original session.
+- P1 hook result application rebuilds touched nested metadata lists immutably.
+
 | Priority | Area | Problem | Files | Suggested fix | Tests needed | Risk |
 | --- | --- | --- | --- | --- | --- | --- |
 | P0 | Storage/API | User-controlled session ids are path segments. | `storage/session_storage.py`, `api/schemas.py`, `api/routes_sessions.py`, `graph/builder.py` | Fixed in Batch 1: strict runtime id validation plus final-path confinement under session root. | Added storage/API traversal rejection tests for `../`, `..\\`, absolute paths, empty ids. | Medium: affects resume compatibility for hand-written ids. |
 | P1 | Tool architecture | Tools receive mutable whole graph state. | `tools/base.py`, `services/tool_execution_service.py`, core/custom tool tests | Fixed in Batch 1: read-only/minimal context plus typed state effect applier. | Added malicious tool mutation regression test. | Medium: custom tools may depend on `context.state`. |
-| P1 | Plugin policy | Superpowers policy is hardwired. | `graph/nodes/plugin_policy.py`, `plugins/superpowers.py`, `services/plugin_service.py` | Introduce generic plugin policy contribution registry and move Superpowers into adapter contribution. | Superpowers acceptance still triggers; fake second plugin policy works without graph edit. | Medium. |
-| P1 | Skill effects | `remember` writes memory inside skill router by name. | `graph/nodes/skill_router.py`, `services/skill_service.py`, `skills/args.py` | Add typed skill effects or move memory write behind a normal tool. | Remember skill persists; unknown skill cannot create side effects. | Medium. |
+| P1 | Plugin policy | Superpowers policy is hardwired. | `graph/nodes/plugin_policy.py`, `plugins/superpowers.py`, `services/plugin_service.py` | Fixed in Batch 2: generic `PluginPolicyContribution` / `PluginPolicyContext` / `PluginPolicyResult` and declarative policy evaluator. | Added fake plugin policy, priority, disabled, error, and Superpowers acceptance tests. | Medium. |
+| P1 | Skill effects | `remember` writes memory inside skill router by name. | `graph/nodes/skill_router.py`, `services/skill_service.py`, `skills/args.py` | Fixed in Batch 2: `SkillInvocationService` returns typed `SkillEffect`; controlled applier writes memory. | Added router source regression and unknown-skill no-memory-write test. | Medium. |
 | P1 | File edit correctness | Ambiguous `old_text` edits are not rejected. | `services/file_service.py`, `tools/file_tools.py` | Fixed in Batch 1: require exactly one occurrence; occurrence selector remains future work. | Added multiple-match and missing-match edit tests. | Low. |
-| P1 | MCP lifecycle | Dependency construction starts MCP servers. | `dependencies.py`, `services/mcp_service.py`, `graph/nodes/load_registries.py` | Make MCP discovery lazy/explicit during graph registry load or command diagnostics. | Dependency construction does not spawn fake server; `/mcp tools` does. | Medium. |
-| P1 | MCP diagnostics | Invalid MCP config entries are silently skipped. | `services/mcp_service.py`, `commands/builtin.py` | Preserve validation warnings in snapshot/diagnostics. | Malformed server appears in `/doctor` and `/mcp`. | Low. |
+| P1 | MCP lifecycle | Dependency construction starts MCP servers. | `dependencies.py`, `services/mcp_service.py`, `graph/nodes/load_registries.py` | Fixed in Batch 2: dependency factory constructs `MCPService` only; explicit graph/command discovery registers MCP tools. | Added dependency no-discovery and graph load-registry discovery tests. | Medium. |
+| P1 | MCP diagnostics | Invalid MCP config entries are silently skipped. | `services/mcp_service.py`, `commands/builtin.py` | Fixed in Batch 2: invalid server diagnostics are preserved and redacted. | Added malformed config `/doctor` and `/mcp` tests. | Low. |
 | P1 | Network fetch | No URL/scheme/body policy. | `services/web_service.py`, `tools/web_tools.py` | Fixed in Batch 1: scheme allowlist, default private-host denylist, max bytes, binary handling, redirect-final-url validation. | Added scheme/private-host/local-opt-in/large-body/binary/redirect tests. | Medium: behavior change for local fetch smoke. |
-| P1 | Plugin install | Git subprocesses have no timeout. | `services/plugin_service.py` | Add timeout and structured install/update errors. | Fake hanging git command times out. | Low. |
-| P1 | API observability | Approval resume loses session id in root trace. | `api/schemas.py`, `api/server.py`, `api/routes_chat.py`, `graph/builder.py` | Add/pass `session_id`, or resolve from checkpoint before `trace_turn`. | API chat+approval traces share session id in fake Langfuse client. | Low/medium. |
-| P1 | Hook state discipline | Hook applier shallow-copies metadata and may mutate nested lists. | `hooks/applier.py` | Rebuild nested lists immutably or deep-copy touched subtrees. | Incoming state object remains unchanged after hook apply. | Low. |
+| P1 | Plugin install | Git subprocesses have no timeout. | `services/plugin_service.py` | Fixed in Batch 2: configurable git timeout with phase-specific structured error. | Added fake hanging git timeout test. | Low. |
+| P1 | API observability | Approval resume loses session id in root trace. | `api/schemas.py`, `api/server.py`, `api/routes_chat.py`, `graph/builder.py` | Fixed in Batch 2: approval DTO includes optional `session_id` and API routes pass it to `runtime.resume`. | Added API fake-Langfuse trace grouping regression. | Low/medium. |
+| P1 | Hook state discipline | Hook applier shallow-copies metadata and may mutate nested lists. | `hooks/applier.py` | Fixed in Batch 2: touched nested lists/maps are rebuilt immutably. | Added hook applier input immutability tests. | Low. |
 | P2 | Service size | Observability service is broad. | `services/observability_service.py` | Split redaction/mapper, factory/status, scoped turn. | Existing observability tests unchanged plus module-level unit tests. | Medium. |
 | P2 | Service size | MCP service is broad. | `services/mcp_service.py` | Split config, discovery, invocation, diagnostics. | Existing MCP tests plus invalid config diagnostics. | Medium. |
 | P2 | Service size | Plugin service is broad. | `services/plugin_service.py` | Split source install/cache from manifest adapters. | Existing plugin/Superpowers tests. | Medium. |

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
-from langgraph_agent_blueprint.models.plugins import PluginContribution
+from langgraph_agent_blueprint.models.plugins import PluginContribution, PluginPolicyContribution
 
 
 SUPERPOWERS_PLUGIN_NAME = "superpowers"
@@ -63,43 +62,28 @@ def is_superpowers_repo(root: str | Path, plugin_name: str) -> bool:
     return plugin_name == SUPERPOWERS_PLUGIN_NAME and (Path(root) / "skills").exists()
 
 
-def choose_superpowers_activation(input_text: str, state: dict[str, Any]) -> dict[str, Any] | None:
-    """Choose a mandatory Superpowers pre-skill for obvious tasks.
+def superpowers_policy_contribution() -> PluginPolicyContribution:
+    """Return the default declarative Superpowers methodology policy."""
 
-    This deterministic policy covers the harness acceptance path and a small
-    extensible set of high-value workflow triggers. The skill runtime still owns
-    actual skill invocation.
-    """
-
-    plugin_state = state.get("plugin_state", {})
-    if not _superpowers_enabled(plugin_state):
-        return None
-    metadata = state.get("metadata", {})
-    invoked = set(metadata.get("skill_invocations", []))
-    text = input_text.lower()
-    if _contains_any(text, DEBUG_TERMS) and "superpowers/systematic-debugging" not in invoked:
-        return {
-            "name": "superpowers/systematic-debugging",
-            "args": input_text,
-            "policy": "superpowers",
-            "reason": "debugging request matched Superpowers policy",
-        }
-    if _contains_any(text, DEVELOPMENT_TERMS) and "superpowers/brainstorming" not in invoked:
-        return {
-            "name": "superpowers/brainstorming",
-            "args": input_text,
-            "policy": "superpowers",
-            "reason": "development request matched Superpowers brainstorming policy",
-        }
-    return None
-
-
-def _superpowers_enabled(plugin_state: dict[str, Any]) -> bool:
-    for plugin in plugin_state.get("plugins", []):
-        if plugin.get("name") == SUPERPOWERS_PLUGIN_NAME and plugin.get("enabled", True):
-            return True
-    return False
-
-
-def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
-    return any(term in text for term in terms)
+    return PluginPolicyContribution(
+        id="superpowers.default_methodology_policy",
+        plugin_name=SUPERPOWERS_PLUGIN_NAME,
+        priority=50,
+        policy_type="skill_activation",
+        metadata={
+            "rules": [
+                {
+                    "skill_name": "superpowers/systematic-debugging",
+                    "match_any": list(DEBUG_TERMS),
+                    "reason": "debugging request matched Superpowers policy",
+                    "once_per_session": True,
+                },
+                {
+                    "skill_name": "superpowers/brainstorming",
+                    "match_any": list(DEVELOPMENT_TERMS),
+                    "reason": "development request matched Superpowers brainstorming policy",
+                    "once_per_session": True,
+                },
+            ]
+        },
+    )

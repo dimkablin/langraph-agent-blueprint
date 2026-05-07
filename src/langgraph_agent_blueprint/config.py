@@ -35,6 +35,7 @@ class AppConfig(BaseModel):
     max_recent_messages_after_compact: int = 6
     skills_paths: list[Path] = Field(default_factory=list)
     plugin_paths: list[Path] = Field(default_factory=list)
+    plugin_git_timeout_seconds: float = 60.0
     mcp_config: dict[str, Any] = Field(default_factory=dict)
     langfuse: LangfuseConfig = Field(default_factory=LangfuseConfig)
     cors_allowed_origins: list[str] = Field(
@@ -104,6 +105,7 @@ class AppConfig(BaseModel):
                 Path(item)
                 for item in cls._split_path_list(layered_get("PLUGIN_PATHS", "LG_AGENT_PLUGIN_PATHS", dotenv_values=dotenv, environ=environ))
             ],
+            "plugin_git_timeout_seconds": cls._float(env_value("PLUGIN_GIT_TIMEOUT_SECONDS"), default=60.0),
             "mcp_config": cls._json_config(layered_get("MCP_CONFIG_JSON", "LG_AGENT_MCP_CONFIG_JSON", dotenv_values=dotenv, environ=environ)),
             "langfuse": LangfuseConfig(
                 enabled=langfuse_enabled,
@@ -160,6 +162,16 @@ class AppConfig(BaseModel):
             return default
         try:
             parsed = int(value)
+        except (TypeError, ValueError):
+            return default
+        return parsed if parsed > 0 else default
+
+    @staticmethod
+    def _float(value: str | None, *, default: float) -> float:
+        if value is None:
+            return default
+        try:
+            parsed = float(value)
         except (TypeError, ValueError):
             return default
         return parsed if parsed > 0 else default

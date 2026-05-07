@@ -14,8 +14,9 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - session storage records -> `SessionMetadata`, `RuntimeEvent`, and `ToolResult`
 - session/thread identifiers -> strict runtime id validation before API/storage/checkpoint use
 - skill tool or `/skill` args -> built-in skill-specific Pydantic args schemas
+- skill durable side effects -> `SkillEffect`
 - tool classification -> `ToolPermissionMetadata`, `ToolRuntimeMetadata`, and `ToolStateEffect`
-- plugin config/manifests/discovery -> `PluginSource`, `PluginManifest`, `PluginContribution`, and `PluginInstallResult`
+- plugin config/manifests/discovery/policy -> `PluginSource`, `PluginManifest`, `PluginContribution`, `PluginPolicyContribution`, `PluginPolicyContext`, `PluginPolicyResult`, and `PluginInstallResult`
 - hook discovery/invocation/results -> `HookContribution`, `HookContext`, `HookInvocation`, `HookResult`, and `HookRunSummary`
 - MCP config/discovery/invocation -> `MCPServerConfig`, `MCPConnectionState`, `MCPToolContribution`, `MCPResourceContribution`, `MCPPromptContribution`, `MCPToolCallRequest`, `MCPToolCallResult`, `MCPResourceReadResult`, and `MCPPromptGetResult`
 - observability config/trace/events -> `LangfuseConfig`, `TraceContext`, `TraceMetadata`, and `ObservabilityEvent`
@@ -87,6 +88,8 @@ String arguments are mapped by skill name, not by generic key guessing. Unknown 
 
 Invalid skill arguments return structured errors through the skill graph/tool loop instead of crashing the runtime.
 
+Durable skill side effects are represented as typed `SkillEffect` records. `remember` currently emits a controlled `write_memory` effect; unknown/custom skills cannot create durable memory writes merely by prompt text.
+
 ## Plugins
 
 External plugin source strings normalize into `PluginSource`. Harness manifests such as `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, and `package.json` are parsed into `PluginManifest`. Discovered plugin roots become `PluginContribution` records before they enter graph state or `SkillRegistry`. Explicit install/update/remove operations return `PluginInstallResult`.
@@ -94,6 +97,8 @@ External plugin source strings normalize into `PluginSource`. Harness manifests 
 Plugin records stored in LangGraph state are JSON-safe dictionaries produced from those models. Plugin skill content remains prompt data; tool execution and permissions continue to use the normal tool and permission boundary models.
 
 Plugin hook entries from manifests are validated into `HookContribution` records before registration. Malformed hook entries remain structured warnings, not raw unvalidated runtime data.
+
+Plugin policy entries from manifests are validated into `PluginPolicyContribution` records. `plugin_policy_node` passes a read-only `PluginPolicyContext` to the generic evaluator and only applies controlled `PluginPolicyResult` actions such as `activate_skill`.
 
 ## Hooks
 

@@ -51,3 +51,23 @@ def test_redacted_config_hides_env_and_header_secrets() -> None:
     assert redacted["stdio"]["env"]["API_TOKEN"] == "***"
     assert redacted["stdio"]["env"]["VISIBLE"] == "ok"
     assert redacted["http"]["headers"]["Authorization"] == "***"
+
+
+def test_invalid_server_config_is_preserved_in_diagnostics() -> None:
+    service = MCPService(
+        {
+            "servers": {
+                "bad": {
+                    "transport": "stdio",
+                    "env": {"API_TOKEN": "secret-token"},
+                }
+            }
+        }
+    )
+
+    diagnostics = service.diagnostics()
+
+    assert diagnostics["invalid_servers"]
+    assert diagnostics["invalid_servers"][0]["name"] == "bad"
+    assert "stdio" in diagnostics["invalid_servers"][0]["error"]
+    assert "secret-token" not in str(diagnostics)

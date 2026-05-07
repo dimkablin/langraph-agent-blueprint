@@ -5,11 +5,13 @@ from __future__ import annotations
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
 from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.tools.mcp_tools import MCPToolAdapter
 
 
 def load_registries_node(state: dict, deps: AppDependencies) -> dict:
     plugin_state = deps.plugin_service.discover()
     mcp_state = deps.mcp_service.discover()
+    _register_mcp_tools(deps, mcp_state)
     events = [event("node_finished", node="load_registries")]
     events.extend(mcp_state.get("events", []))
     for plugin in plugin_state.get("plugins", []):
@@ -33,6 +35,9 @@ def load_registries_node(state: dict, deps: AppDependencies) -> dict:
             "resources": mcp_state.get("resources", {}),
             "prompts": mcp_state.get("prompts", {}),
             "transport_support": mcp_state.get("transport_support", {}),
+            "invalid_servers": mcp_state.get("invalid_servers", []),
+            "warnings": mcp_state.get("warnings", []),
+            "errors": mcp_state.get("errors", []),
         },
         "hooks_state": {"registered_hooks": deps.hook_registry.snapshot(), "registered_hook_count": len(deps.hook_registry.list_hooks())},
         "observability_state": deps.observability_service.status(),
@@ -43,3 +48,14 @@ def load_registries_node(state: dict, deps: AppDependencies) -> dict:
         return update
     hook_update = run_hook_point(deps, state_with_update(state, update), "session_start")
     return merge_updates(update, hook_update)
+
+
+def _register_mcp_tools(deps: AppDependencies, mcp_state: dict) -> None:
+    """Register discovered MCP tools after explicit graph discovery."""
+
+    for definition in mcp_state.get("tools", {}).values():
+        adapter = MCPToolAdapter(definition, deps.mcp_service)
+        try:
+            deps.tool_registry.get(adapter.name)
+        except KeyError:
+            deps.tool_registry.register(adapter)

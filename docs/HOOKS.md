@@ -89,12 +89,14 @@ Supported actions are:
 
 The controlled applier allows only narrow effects:
 
-- `add_system_context` appends a marked hook fragment to metadata and current system context.
+- `add_system_context` appends a marked hook fragment to metadata and current system context by rebuilding touched nested lists immutably.
 - `modify_metadata` stores data under `metadata.hook_metadata[hook_id]`.
 - `modify_context` can update whitelisted `context_status` fields only.
 - `block` emits `hook_blocked` and gives the graph a final response.
 - `request_permission` is not executable in Phase 1; it emits a warning/error event.
 - Hook results cannot replace `messages`, `pending_tool_calls`, `tool_results`, permission records, or arbitrary graph fields.
+
+The applier returns state deltas and must not mutate the incoming graph state object; Batch 2 added regression coverage for nested metadata list immutability.
 
 ## Plugin Hooks
 

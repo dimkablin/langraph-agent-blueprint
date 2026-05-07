@@ -17,25 +17,31 @@ The codebase has good naming and small node modules in many places, but the rece
 
 ### P1: MCP Config Validation Errors Are Silently Dropped
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - File: `src/langgraph_agent_blueprint/services/mcp_service.py:357`
-- Problem: `_parse_server_configs` catches `ValidationError` and continues without preserving a diagnostic.
+- Problem: `_parse_server_configs` caught `ValidationError` and continued without preserving a diagnostic.
 - Why it matters: A typo in config can look like "no MCP servers configured", slowing diagnosis and weakening `/doctor`.
-- Suggested fix: Preserve invalid-server warnings in MCP snapshot/diagnostics and tests.
+- Fix: invalid server entries are preserved as redacted diagnostics and surfaced in `snapshot()`, `diagnostics()`, `/mcp`, and `/doctor`.
 
 ### P1: Git Plugin Commands Have No Timeout
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - File: `src/langgraph_agent_blueprint/services/plugin_service.py:388`
-- Problem: `_run_git` uses `subprocess.run(..., capture_output=True)` without timeout.
+- Problem: `_run_git` used `subprocess.run(..., capture_output=True)` without timeout.
 - Why it matters: A hung network or credential prompt can block plugin install/update indefinitely.
-- Suggested fix: Add a configurable timeout and include command phase in structured `PluginInstallResult` errors.
+- Fix: `_run_git` uses configurable `PLUGIN_GIT_TIMEOUT_SECONDS` and returns phase-specific structured install/update errors.
 
 ### P1: Hook Applier Can Mutate Nested State Lists Through Shallow Copies
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - File: `src/langgraph_agent_blueprint/hooks/applier.py:15`
 - File: `src/langgraph_agent_blueprint/hooks/applier.py:42`
-- Problem: `metadata = dict(state.get("metadata", {}))` is shallow, then `metadata.setdefault("hook_system_context_fragments", []).append(...)` can append to a list object shared with the input state.
+- Problem: `metadata = dict(state.get("metadata", {}))` was shallow, then `metadata.setdefault("hook_system_context_fragments", []).append(...)` could append to a list object shared with the input state.
 - Why it matters: LangGraph nodes should return state deltas, not mutate incoming state, especially for reducers/checkpointing/debugging.
-- Suggested fix: Deep-copy nested metadata values touched by appliers or rebuild lists immutably.
+- Fix: the hook applier now rebuilds touched nested lists/maps immutably.
 
 ### P2: Observability Service Is Too Broad
 
@@ -112,4 +118,3 @@ The codebase has good naming and small node modules in many places, but the rece
 - Problem: The intended Russian strings are mojibake.
 - Why it matters: Test behavior still checks session grouping, but readability suffers.
 - Suggested fix: Replace with ASCII or correct UTF-8 in a test-only cleanup.
-

@@ -32,9 +32,36 @@ def _runtime(tmp_path: Path) -> AssistantGraphRuntime:
     return AssistantGraphRuntime(deps)
 
 
+def test_build_dependencies_does_not_discover_or_register_mcp_tools(tmp_path: Path) -> None:
+    deps = build_dependencies(
+        AppConfig(storage_dir=tmp_path / "storage", project_root=tmp_path, cwd=tmp_path, llm_provider="fake", mcp_config=_mcp_config())
+    )
+
+    assert deps.mcp_service.snapshot()["servers"][0]["status"] == "configured"
+    assert deps.mcp_service.snapshot()["tools"] == {}
+    try:
+        deps.tool_registry.get("mcp.fake.echo")
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("MCP tools should not be registered during dependency construction")
+
+
+def test_load_registries_discovers_and_registers_mcp_tools(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    try:
+        runtime.invoke("hello", input_kind="headless", project_root=tmp_path)
+        tool = runtime.dependencies.tool_registry.get("mcp.fake.echo")
+    finally:
+        runtime.dependencies.mcp_service.close()
+
+    assert tool.metadata()["runtime"]["route"] == "mcp_graph"
+
+
 def test_mcp_tools_register_with_metadata_driven_route_and_permissions(tmp_path: Path) -> None:
     runtime = _runtime(tmp_path)
     try:
+        runtime.invoke("hello", input_kind="headless", project_root=tmp_path)
         tool = runtime.dependencies.tool_registry.get("mcp.fake.echo")
         metadata = tool.metadata()
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
 from langchain_core.messages import ToolMessage
@@ -9,6 +10,7 @@ from langchain_core.messages import ToolMessage
 from langgraph_agent_blueprint.config import AppConfig
 from langgraph_agent_blueprint.dependencies import build_dependencies
 from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.graph.nodes import skill_router as skill_router_module
 from langgraph_agent_blueprint.graph.nodes.tool_router import tool_router_node
 from langgraph_agent_blueprint.graph.state import create_initial_state
 from langgraph_agent_blueprint.skills.args import GenericSkillArgs, RememberSkillArgs, VerifySkillArgs
@@ -34,6 +36,13 @@ def test_remember_accepts_string_and_defaults_to_session_scope(tmp_path):
 
     assert "session:" in result["final_response"]
     assert "remember this" in result["final_response"]
+
+
+def test_skill_router_has_no_remember_name_specific_side_effect_path() -> None:
+    source = inspect.getsource(skill_router_module.skill_router_node)
+
+    assert 'skill_name == "remember"' not in source
+    assert "deps.memory_service.remember" not in source
 
 
 def test_remember_accepts_dict_args_from_skill_tool(tmp_path):
@@ -111,6 +120,31 @@ def test_file_based_unknown_skill_uses_generic_args_schema(tmp_path):
     result = AssistantGraphRuntime(deps).invoke("/skill custom hello generic", input_kind="headless", project_root=tmp_path)
 
     assert "hello generic" in result["active_skill"]["result"]["prompt"]
+
+
+def test_custom_skill_cannot_write_memory_through_prompt_text(tmp_path):
+    skill_dir = tmp_path / "skills" / "memory-looking"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: memory-looking\ndescription: no side effects\n---\nRemember this durably: {{args}}\n",
+        encoding="utf-8",
+    )
+    runtime = AssistantGraphRuntime(
+        build_dependencies(
+            AppConfig(
+                storage_dir=tmp_path / "storage",
+                project_root=tmp_path,
+                cwd=tmp_path,
+                llm_provider="fake",
+                skills_paths=[tmp_path / "skills"],
+            )
+        )
+    )
+
+    runtime.invoke("/skill memory-looking project: should not persist", input_kind="headless", project_root=tmp_path)
+    result = runtime.invoke("/memory", input_kind="headless", project_root=tmp_path)
+
+    assert "should not persist" not in result["final_response"]
 
 
 def test_allowed_tools_narrowing_still_works_after_typed_args(tmp_path):

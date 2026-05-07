@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from .args import format_skill_args_for_prompt, validate_skill_args
+from .effects import SkillEffect
 from .registry import SkillRegistry
 
 
@@ -21,6 +22,7 @@ class SkillInvocationService:
         typed_args = validate_skill_args(name, args, skill.args_schema)
         formatted_args = format_skill_args_for_prompt(name, typed_args)
         prompt = skill.render(formatted_args, state)
+        effects = _skill_effects(skill.metadata.name, typed_args)
         return {
             "name": skill.metadata.name,
             "requested_name": name,
@@ -34,4 +36,14 @@ class SkillInvocationService:
             "context": skill.metadata.context,
             "agent": skill.metadata.agent,
             "source_path": str(skill.source_path) if skill.source_path else None,
+            "effects": [effect.model_dump(mode="json") for effect in effects],
         }
+
+
+def _skill_effects(skill_name: str, typed_args: Any) -> list[SkillEffect]:
+    """Return controlled effects for built-in skills that own side effects."""
+
+    if skill_name == "remember":
+        data = typed_args.model_dump(mode="json")
+        return [SkillEffect(kind="write_memory", data={"scope": data["scope"], "text": data["text"]})]
+    return []

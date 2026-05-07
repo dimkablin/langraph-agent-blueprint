@@ -53,7 +53,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     @api.post("/approval", response_model=ChatResponse)
     def approval(request: ApprovalRequest) -> ChatResponse:
-        result = runtime.resume(request.thread_id, request.decision)
+        result = runtime.resume(request.thread_id, request.decision, session_id=request.session_id)
         return ChatResponse(
             session_id=result["session_id"],
             thread_id=result["thread_id"],

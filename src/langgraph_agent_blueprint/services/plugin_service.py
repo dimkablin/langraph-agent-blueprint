@@ -11,12 +11,13 @@ from typing import Any
 
 from langgraph_agent_blueprint.models.base import dump_model
 from langgraph_agent_blueprint.models.hooks import HookContribution, HookRuntimeMetadata
-from langgraph_agent_blueprint.models.plugins import PluginContribution, PluginInstallResult, PluginManifest, PluginSource
+from langgraph_agent_blueprint.models.plugins import PluginContribution, PluginInstallResult, PluginManifest, PluginPolicyContribution, PluginSource
 from langgraph_agent_blueprint.plugins.superpowers import (
     SUPERPOWERS_BOOTSTRAP_SKILL,
     SUPERPOWERS_PLUGIN_NAME,
     is_superpowers_repo,
     superpowers_bootstrap_context,
+    superpowers_policy_contribution,
 )
 from langgraph_agent_blueprint.utils.paths import ensure_dir
 
@@ -24,10 +25,17 @@ from langgraph_agent_blueprint.utils.paths import ensure_dir
 class PluginService:
     """Discovers external plugin manifests and exposes safe data-only contributions."""
 
-    def __init__(self, plugin_paths: list[str | Path], storage_dir: str | Path = ".storage", network_enabled: bool = False) -> None:
+    def __init__(
+        self,
+        plugin_paths: list[str | Path],
+        storage_dir: str | Path = ".storage",
+        network_enabled: bool = False,
+        git_timeout_seconds: float = 60.0,
+    ) -> None:
         self.plugin_paths = [Path(path) for path in plugin_paths]
         self.storage_dir = Path(storage_dir)
         self.network_enabled = network_enabled
+        self.git_timeout_seconds = git_timeout_seconds
         self.plugins_root = self.storage_dir / "plugins"
 
     def discover(self) -> dict[str, Any]:
@@ -43,11 +51,14 @@ class PluginService:
         skills = []
         plugins = []
         hooks = []
+        policies = []
         hook_warnings: list[dict[str, str]] = []
+        policy_warnings: list[dict[str, str]] = []
         fragments: list[str] = []
         for contribution in contributions:
             skill_names = self._skill_registry_ids(contribution)
             hook_payloads = [hook.model_dump(mode="json", exclude_none=True) for hook in contribution.hooks]
+            policy_payloads = [policy.model_dump(mode="json", exclude_none=True) for policy in contribution.policies]
             plugins.append(
                 {
                     **contribution.manifest.model_dump(mode="json", exclude_none=True),
@@ -58,12 +69,16 @@ class PluginService:
                     "bootstrap_skill": contribution.bootstrap_skill,
                     "skills_count": len(skill_names),
                     "hooks_count": len(contribution.hooks),
+                    "policies_count": len(contribution.policies),
                     "hook_warnings": contribution.hook_warnings,
+                    "policy_warnings": contribution.policy_warnings,
                 }
             )
             skills.extend(skill_names)
             hooks.extend(hook_payloads)
+            policies.extend(policy_payloads)
             hook_warnings.extend(contribution.hook_warnings)
+            policy_warnings.extend(contribution.policy_warnings)
             fragments.extend(contribution.system_context_fragments)
         return {
             "plugins": plugins,
@@ -73,7 +88,9 @@ class PluginService:
             "skills": skills,
             "tools": [],
             "hooks": hooks,
+            "policies": policies,
             "hook_warnings": hook_warnings,
+            "policy_warnings": policy_warnings,
             "mcp": [],
             "system_context_fragments": fragments,
         }
@@ -99,7 +116,10 @@ class PluginService:
         bootstrap_skill = codex.get("bootstrap_skill") or claude.get("bootstrap_skill")
         hooks_declared, manifest_hook_warnings = self._manifest_hook_entries(name, codex, claude)
         hooks, parse_hook_warnings = self._parse_hooks(root_path, name, hooks_declared)
+        policies_declared, manifest_policy_warnings = self._manifest_policy_entries(name, codex, claude)
+        policies, parse_policy_warnings = self._parse_policies(name, policies_declared)
         hook_warnings = [*manifest_hook_warnings, *parse_hook_warnings]
+        policy_warnings = [*manifest_policy_warnings, *parse_policy_warnings]
         if name == SUPERPOWERS_PLUGIN_NAME and skills_path and (Path(skills_path) / SUPERPOWERS_BOOTSTRAP_SKILL / "SKILL.md").exists():
             bootstrap_skill = SUPERPOWERS_BOOTSTRAP_SKILL
         manifest = PluginManifest.model_validate(
@@ -112,6 +132,7 @@ class PluginService:
                 "skills_path": skills_declared,
                 "bootstrap_skill": bootstrap_skill,
                 "hooks": hooks_declared,
+                "policies": policies_declared,
             }
         )
         contribution = PluginContribution(
@@ -123,11 +144,16 @@ class PluginService:
             system_context_fragments=[],
             hooks=hooks,
             hook_warnings=hook_warnings,
+            policies=policies,
+            policy_warnings=policy_warnings,
         )
         if is_superpowers_repo(root_path, name) and skills_path:
             skill_names = self._skill_registry_ids(contribution)
             contribution = contribution.model_copy(
-                update={"system_context_fragments": [superpowers_bootstrap_context(contribution, skill_names)]}
+                update={
+                    "system_context_fragments": [superpowers_bootstrap_context(contribution, skill_names)],
+                    "policies": [*contribution.policies, superpowers_policy_contribution()],
+                }
             )
         return contribution
 
@@ -225,12 +251,12 @@ class PluginService:
         git_url = source.source[4:]
         try:
             if repo_target.exists():
-                self._run_git(["git", "-C", str(repo_target), "fetch", "--all", "--tags"])
+                self._run_git(["git", "-C", str(repo_target), "fetch", "--all", "--tags"], phase="fetch")
             else:
-                self._run_git(["git", "clone", "--no-recurse-submodules", git_url, str(repo_target)])
+                self._run_git(["git", "clone", "--no-recurse-submodules", git_url, str(repo_target)], phase="clone")
             checkout_ref = source.ref or "main"
-            self._run_git(["git", "-C", str(repo_target), "checkout", checkout_ref])
-            resolved_commit = self._run_git(["git", "-C", str(repo_target), "rev-parse", "HEAD"]).strip()
+            self._run_git(["git", "-C", str(repo_target), "checkout", checkout_ref], phase="checkout")
+            resolved_commit = self._run_git(["git", "-C", str(repo_target), "rev-parse", "HEAD"], phase="rev-parse").strip()
             contribution = self.discover_contribution(repo_target)
             lock_path = self._write_lock(plugin_root, source, contribution, resolved_commit=resolved_commit)
             return PluginInstallResult(
@@ -347,6 +373,59 @@ class PluginService:
                 warnings.append({"plugin": plugin_name, "hook": str(raw.get("id", index)) if isinstance(raw, dict) else str(index), "error": str(exc)})
         return hooks, warnings
 
+    @staticmethod
+    def _manifest_policy_entries(plugin_name: str, *manifests: dict[str, Any]) -> tuple[list[Any], list[dict[str, str]]]:
+        entries: list[Any] = []
+        warnings: list[dict[str, str]] = []
+        for manifest in manifests:
+            if "policies" not in manifest:
+                continue
+            raw_policies = manifest.get("policies")
+            if raw_policies is None:
+                continue
+            if not isinstance(raw_policies, list):
+                warnings.append({"plugin": plugin_name, "policy": "policies", "error": "plugin policies field must be a list"})
+                continue
+            entries.extend(raw_policies)
+        return entries, warnings
+
+    @staticmethod
+    def _parse_policies(plugin_name: str, raw_policies: list[Any]) -> tuple[list[PluginPolicyContribution], list[dict[str, str]]]:
+        policies: list[PluginPolicyContribution] = []
+        warnings: list[dict[str, str]] = []
+        for index, raw in enumerate(raw_policies):
+            try:
+                if not isinstance(raw, dict):
+                    raise ValueError("plugin policy entry must be an object")
+                policy_id = str(raw.get("id") or f"{plugin_name}.policy.{index}")
+                metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
+                if raw.get("skill") or raw.get("skill_name") or raw.get("match_any") or raw.get("match_all") or raw.get("terms"):
+                    metadata = {
+                        **metadata,
+                        "rules": [
+                            {
+                                "skill_name": raw.get("skill_name") or raw.get("skill"),
+                                "match_any": raw.get("match_any") or raw.get("terms") or [],
+                                "match_all": raw.get("match_all") or [],
+                                "reason": raw.get("reason"),
+                                "once_per_session": raw.get("once_per_session", True),
+                            }
+                        ],
+                    }
+                policies.append(
+                    PluginPolicyContribution(
+                        id=policy_id,
+                        plugin_name=plugin_name,
+                        priority=int(raw.get("priority", 100)),
+                        enabled=bool(raw.get("enabled", True)),
+                        policy_type=raw.get("policy_type") or raw.get("type") or "skill_activation",
+                        metadata=metadata,
+                    )
+                )
+            except Exception as exc:
+                warnings.append({"plugin": plugin_name, "policy": str(raw.get("id", index)) if isinstance(raw, dict) else str(index), "error": str(exc)})
+        return policies, warnings
+
     def _skill_registry_ids(self, contribution: PluginContribution) -> list[str]:
         if not contribution.skills_path:
             return []
@@ -384,9 +463,11 @@ class PluginService:
             return {}
         return json.loads(path.read_text(encoding="utf-8"))
 
-    @staticmethod
-    def _run_git(args: list[str]) -> str:
-        result = subprocess.run(args, check=False, text=True, capture_output=True)
+    def _run_git(self, args: list[str], *, phase: str) -> str:
+        try:
+            result = subprocess.run(args, check=False, text=True, capture_output=True, timeout=self.git_timeout_seconds)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"git {phase} timed out after {self.git_timeout_seconds:g} seconds") from exc
         if result.returncode != 0:
             raise RuntimeError((result.stderr or result.stdout or "git command failed").strip())
         return result.stdout

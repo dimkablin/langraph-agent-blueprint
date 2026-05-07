@@ -63,3 +63,23 @@ def test_doctor_includes_mcp_status(tmp_path: Path) -> None:
     assert diagnostics["mcp"]["tools_total"] == 3
     assert diagnostics["mcp"]["transport_support"]["stdio"] is True
     assert diagnostics["mcp"]["transport_support"]["streamable_http"] is False
+
+
+def test_mcp_command_and_doctor_show_invalid_config_entries(tmp_path: Path) -> None:
+    deps = build_dependencies(
+        AppConfig(
+            storage_dir=tmp_path / "storage",
+            project_root=tmp_path,
+            cwd=tmp_path,
+            llm_provider="fake",
+            mcp_config={"servers": {"bad": {"transport": "stdio"}}},
+        )
+    )
+    runtime = AssistantGraphRuntime(deps)
+
+    mcp_output = runtime.invoke("/mcp", input_kind="headless", project_root=tmp_path)["final_response"]
+    doctor_output = runtime.invoke("/doctor", input_kind="headless", project_root=tmp_path)["final_response"]
+
+    assert "Invalid MCP servers:" in mcp_output
+    assert "bad" in mcp_output
+    assert json.loads(doctor_output)["mcp"]["invalid_servers"][0]["name"] == "bad"

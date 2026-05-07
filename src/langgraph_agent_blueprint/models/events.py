@@ -29,6 +29,8 @@ EventType = Literal[
     "skill_finished",
     "plugin_loaded",
     "plugin_skill_registered",
+    "plugin_policy_applied",
+    "plugin_policy_error",
     "superpowers_bootstrap_applied",
     "superpowers_skill_policy_applied",
     "mcp_server_starting",

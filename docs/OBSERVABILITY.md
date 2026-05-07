@@ -25,6 +25,8 @@ Key components:
 
 SDK objects stay outside LangGraph state. Graph state remains JSON/checkpointer-safe.
 
+One user turn is one Langfuse trace. An interactive CLI chat produces multiple traces that share one Langfuse `session_id`; each prompt gets its own turn trace, and the shared session id groups them in Langfuse. API approval/resume requests can include `session_id` and pass it to `runtime.resume(...)`, so approval/rejection traces remain grouped with the original chat session instead of falling back to `thread_id`.
+
 ## Install
 
 Langfuse is optional:

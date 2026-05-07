@@ -13,6 +13,10 @@ Scope: audit-only review of the Python/LangGraph runtime, CLI/API adapters, tool
 - `python -m langgraph_agent_blueprint ...` fails without editable install or `PYTHONPATH=src`.
 - With `PYTHONPATH=src` and `LLM_PROVIDER=fake`, `--help`, `doctor`, `query "hello"`, and `query "/status"` run.
 
+## Post-Audit Fix Status
+
+Batch 1 and Batch 2 fixes on 2026-05-07 closed the P0 storage/API identifier risk and the P1 findings for mutable tool state, ambiguous file edits, web fetch guardrails, hardwired Superpowers policy, `remember` side effects in `skill_router`, MCP discovery during dependency construction, invalid MCP config diagnostics, plugin git timeout, API approval trace session id, and hook applier nested-list mutation. Remaining P1/P2 items are primarily architecture/maintainability cleanup such as service splitting and MCP cwd policy.
+
 ## Overall Status
 
 The project is in a solid reference-runtime state: the graph is the central workflow owner, tests cover many historical runtime bugs, permissions are mostly metadata-driven, Langfuse trace scoping has strong fake-client regression coverage, MCP uses an offline fake stdio server in tests, and docs now describe most implemented limitations.
@@ -74,4 +78,3 @@ P0 is reserved for concrete correctness/security risk. Most findings are P1/P2 b
 5. Add exact-once edit validation and regression tests.
 6. Add SSRF/body-size guardrails to web fetch.
 7. Refresh README and `.env.example` to match current runtime.
-

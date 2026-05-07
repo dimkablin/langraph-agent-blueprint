@@ -48,7 +48,7 @@ class MCPService:
     def __init__(self, config: dict[str, Any], output_limit: int = 12000) -> None:
         self.config = config or {}
         self.output_limit = output_limit
-        self.server_configs = self._parse_server_configs(self.config)
+        self.server_configs, self.invalid_servers = self._parse_server_configs(self.config)
         self._transports: dict[str, MCPStdioTransport] = {}
         self._states: dict[str, MCPConnectionState] = {
             server.name: MCPConnectionState(
@@ -114,6 +114,9 @@ class MCPService:
             },
             "events": list(self._events),
             "transport_support": dict(self.transport_support),
+            "invalid_servers": list(self.invalid_servers),
+            "warnings": list(self.invalid_servers),
+            "errors": [],
         }
 
     def diagnostics(self) -> dict[str, Any]:
@@ -126,6 +129,9 @@ class MCPService:
             "resources_total": sum(len(items) for items in snapshot["resources"].values()),
             "prompts_total": sum(len(items) for items in snapshot["prompts"].values()),
             "transport_support": dict(self.transport_support),
+            "invalid_servers": snapshot["invalid_servers"],
+            "warnings": snapshot["warnings"],
+            "errors": snapshot["errors"],
         }
 
     def redacted_config(self) -> dict[str, Any]:
@@ -343,22 +349,25 @@ class MCPService:
         self._events.append(event(event_type, severity=severity, **data))
 
     @staticmethod
-    def _parse_server_configs(config: dict[str, Any]) -> list[MCPServerConfig]:
+    def _parse_server_configs(config: dict[str, Any]) -> tuple[list[MCPServerConfig], list[dict[str, str]]]:
         raw_servers = config.get("servers", {})
         if not raw_servers and config:
             raw_servers = config
         if not isinstance(raw_servers, dict):
-            return []
+            return [], [{"name": "servers", "error": "MCP servers config must be an object"}]
         servers: list[MCPServerConfig] = []
+        invalid_servers: list[dict[str, str]] = []
         for name, raw in raw_servers.items():
             if not isinstance(raw, dict):
+                invalid_servers.append({"name": str(name), "error": "MCP server config must be an object"})
                 continue
             payload = _normalize_server_payload(str(name), raw)
             try:
                 servers.append(MCPServerConfig.model_validate(payload))
-            except ValidationError:
+            except ValidationError as exc:
+                invalid_servers.append({"name": str(name), "error": _redact_text(str(exc), raw)})
                 continue
-        return servers
+        return servers, invalid_servers
 
 
 def _normalize_server_payload(name: str, raw: dict[str, Any]) -> dict[str, Any]:
@@ -405,6 +414,29 @@ def _redact_mapping(values: dict[str, Any]) -> dict[str, Any]:
             redacted[key] = "***" if value else value
         else:
             redacted[key] = value
+    return redacted
+
+
+def _redact_text(text: str, raw: dict[str, Any]) -> str:
+    redacted = text
+
+    def collect(value: Any, key: str | None = None) -> list[str]:
+        if isinstance(value, dict):
+            values: list[str] = []
+            for item_key, item_value in value.items():
+                values.extend(collect(item_value, str(item_key)))
+            return values
+        if isinstance(value, list):
+            values = []
+            for item in value:
+                values.extend(collect(item, key))
+            return values
+        if key and any(marker in key.lower() for marker in ["key", "token", "secret", "password", "authorization", "auth"]):
+            return [str(value)] if value not in (None, "") else []
+        return []
+
+    for secret in collect(raw):
+        redacted = redacted.replace(secret, "***")
     return redacted
 
 

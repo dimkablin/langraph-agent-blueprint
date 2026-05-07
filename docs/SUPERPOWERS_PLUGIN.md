@@ -69,7 +69,7 @@ The upstream `SKILL.md` files are not rewritten.
 
 ## Acceptance Trigger
 
-The runtime does not rely only on model obedience. A `plugin_policy` LangGraph node runs after slash-command routing and before `context_builder`. For an enabled Superpowers plugin, obvious development prompts activate `superpowers/brainstorming` through `skill_graph`.
+The runtime does not rely only on model obedience. A generic `plugin_policy` LangGraph node runs after slash-command routing and before `context_builder`. Superpowers contributes `superpowers.default_methodology_policy` as a `PluginPolicyContribution`; graph code does not import a Superpowers-specific activation function. For an enabled Superpowers plugin, obvious development prompts activate `superpowers/brainstorming` through `skill_graph`.
 
 Acceptance scenario:
 
@@ -80,7 +80,7 @@ user: Let's make a react todo list
 
 Expected graph behavior:
 
-- `superpowers_skill_policy_applied`
+- `plugin_policy_applied` with `policy_id=superpowers.default_methodology_policy`
 - `skill_started` for `superpowers/brainstorming`
 - `skill_finished` for `superpowers/brainstorming`
 - model response happens after the skill prompt is inserted

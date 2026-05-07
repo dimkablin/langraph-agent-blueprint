@@ -68,11 +68,38 @@ Plugin manifests can declare data-only hooks:
 
 External plugin hooks are untrusted by default. Phase 1 supports only safe declarative actions: `continue`, `add_event`, `add_system_context`, `modify_metadata`, and `block`. Script fields, install hooks, package scripts, and arbitrary plugin code are ignored and never executed.
 
+## Policy Contributions
+
+Plugins can contribute declarative runtime policies without changing graph code. Policy entries validate into `PluginPolicyContribution` records and are evaluated by `plugin_policy_node` through a generic policy evaluator.
+
+Example:
+
+```json
+{
+  "name": "example-plugin",
+  "skills": "./skills",
+  "policies": [
+    {
+      "id": "example.activate_design",
+      "type": "skill_activation",
+      "priority": 50,
+      "skill": "example/design",
+      "match_any": ["design", "build", "feature"],
+      "reason": "example design methodology applies"
+    }
+  ]
+}
+```
+
+Supported Batch 2 policy output is controlled: `activate_skill`, `continue`, or structured `error`. Disabled policies are ignored, lower `priority` runs first, and `once_per_session` suppresses repeated skill activation for the same skill id.
+
+Superpowers uses this mechanism through `superpowers.default_methodology_policy`; the graph no longer imports a Superpowers-specific activation function.
+
 ## Security
 
 Plugin install and discovery never execute plugin scripts. Skills and hook-added context are prompt content only. Plugin skill tool calls still go through the normal tool registry, permission service, LangGraph interrupt/resume flow, and skill `allowed_tools` scope.
 
-Git install/update is a network operation and fails with a structured error unless `NETWORK_ENABLED=true`. Path traversal in manifest-declared skill paths is rejected.
+Git install/update is a network operation and fails with a structured error unless `NETWORK_ENABLED=true`. Git clone/fetch/checkout/rev-parse operations use `PLUGIN_GIT_TIMEOUT_SECONDS` (default `60`) so plugin install/update cannot hang indefinitely. Path traversal in manifest-declared skill paths is rejected.
 
 ## Commands
 

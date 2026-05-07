@@ -69,6 +69,7 @@ Runtime status after fixes:
 - Skill lifecycle events are visible.
 - `allowed_tools` narrows provider-bound tools and is enforced by `tool_router`.
 - Plugin bootstrap context can make plugin skills discoverable before the first model response.
-- `remember` writes durable memory; `/memory` reads it.
+- `remember` writes durable memory through a typed `SkillEffect` returned by `SkillInvocationService` and applied by a controlled skill-effect applier; `skill_router` no longer contains a `remember` name-specific memory write path.
+- `/memory` reads durable memory.
 - Other bundled skills remain prompt-driven capabilities that use the shared model/tool loop and normal permission rules for side effects.
 - Skill events, including plugin skills such as `superpowers/brainstorming`, are observable when Langfuse is enabled.

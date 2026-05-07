@@ -47,6 +47,8 @@ $env:MCP_CONFIG_JSON = '{"servers":{"fake":{"enabled":true,"transport":"stdio","
 
 Full project/user TOML config layering is still a future config-system phase. Tests pass MCP config directly through `AppConfig`.
 
+Invalid server entries are preserved as diagnostics instead of being silently skipped. `/mcp` and `/doctor` include `invalid_servers` with redacted validation summaries so config typos remain visible while valid servers continue to work.
+
 ## Stdio Transport
 
 `MCPStdioTransport` starts the configured command with `shell=False`, writes newline-delimited JSON-RPC to stdin, reads responses from stdout, captures a short stderr tail, applies timeouts, validates `cwd`, and cleans up the process on close or timeout.
@@ -62,6 +64,8 @@ prompts/list
 ```
 
 Tool, resource, and prompt calls are made later by `MCPService` against the connected transport.
+
+Dependency construction is side-effect-light: `build_dependencies` constructs `MCPService` but does not start configured stdio processes. Discovery happens during explicit graph registry loading (`load_registries`) or explicit diagnostics/status paths such as `/mcp` and `/doctor`, where discovery events and errors can be surfaced in graph state.
 
 ## ToolRegistry Integration
 
@@ -134,6 +138,7 @@ Slash command visibility:
 ```
 
 `/doctor` includes MCP server counts, enabled counts, discovered tool/resource/prompt counts, server statuses, and transport support.
+Invalid MCP config entries are shown in both `/mcp` and `/doctor`.
 
 There is no `lg-agent mcp ...` CLI subcommand in Phase 2; use `/mcp` through `lg-agent query` or chat.
 

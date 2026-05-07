@@ -38,7 +38,13 @@ class ChatResponse(BaseModel):
 class ApprovalRequest(BaseModel):
     """API request payload used to resume an interrupted graph with a human permission decision."""
     thread_id: str
+    session_id: str | None = None
     decision: dict[str, Any]
+
+    @field_validator("session_id")
+    @classmethod
+    def _validate_session_id(cls, value: str | None) -> str | None:
+        return validate_session_id(value) if value is not None else None
 
     @field_validator("thread_id")
     @classmethod

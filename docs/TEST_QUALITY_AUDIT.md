@@ -20,12 +20,16 @@ Date: 2026-05-07
 
 ### P1: No Regression Test For Session Identifier Path Traversal
 
+Status: fixed in Batch 1 on 2026-05-07.
+
 - Area: `SessionStorage`, API chat/session routes.
 - Evidence: searches found many session-id tests but none for `../`, `..\\`, absolute paths, or path separators.
 - Why it matters: `session_id` is user-controllable through API schemas and storage uses it as a path segment.
 - Suggested test: `SessionStorage.session_dir/create_session/load_session` rejects IDs containing separators, `..`, drive prefixes, reserved names, and empty strings. API schemas should reject them too.
 
 ### P1: No Test For Ambiguous `edit_file` Match
+
+Status: fixed in Batch 1 on 2026-05-07.
 
 - Area: file tools.
 - Evidence: tests cover prior-read requirement and happy path, but not multiple `old_text` matches.
@@ -34,19 +38,25 @@ Date: 2026-05-07
 
 ### P1: No Test For Invalid MCP Config Diagnostics
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - Area: MCP config.
-- Evidence: invalid config test checks model rejection, but service parser silently skips invalid server entries.
+- Original evidence: invalid config test checked model rejection, but service parser silently skipped invalid server entries.
 - Why it matters: `/doctor` should tell users about invalid configured servers.
 - Suggested test: malformed server config appears in diagnostics with a structured warning.
 
 ### P1: No Test Proving MCP Discovery Is Lazy Or Explicit
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - Area: dependency construction and MCP lifecycle.
-- Evidence: `build_dependencies` calls `mcp_service.discover()` immediately.
+- Original evidence: `build_dependencies` called `mcp_service.discover()` immediately.
 - Why it matters: Tests prove discovery works, but not when process startup is allowed to happen.
 - Suggested test: dependency construction with configured MCP does not start process until load/registry phase if architecture is changed.
 
 ### P1: Web Fetch Lacks Security/Size Tests
+
+Status: fixed in Batch 1 on 2026-05-07.
 
 - Area: network tools.
 - Evidence: existing runtime audit covers disabled mode and local HTTP happy path.
@@ -55,14 +65,18 @@ Date: 2026-05-07
 
 ### P1: Tool Context Mutability Is Not Tested
 
+Status: fixed in Batch 1 on 2026-05-07.
+
 - Area: tools and state effects.
 - Evidence: tests verify state effects but do not assert tools cannot mutate input state through `ToolExecutionContext.state`.
 - Suggested test: malicious test tool mutates `context.state`; graph state should not reflect it unless a typed `ToolStateEffect` is returned.
 
 ### P2: Observability API Resume Session Grouping Is Not Covered
 
+Status: fixed in Batch 2 on 2026-05-07.
+
 - Area: FastAPI approval route and `AssistantGraphRuntime.resume`.
-- Evidence: CLI grouping is tested, graph resume event tracing is tested, API resume does not pass `session_id`.
+- Original evidence: CLI grouping was tested and graph resume event tracing was tested, but API resume did not pass `session_id`.
 - Suggested test: API `/chat` + `/approval` with mocked Langfuse keeps root trace session id consistent with the persisted session.
 
 ### P2: CLI Tests Are Mostly Headless
@@ -83,4 +97,3 @@ Date: 2026-05-07
 - Area: docs/test expectations.
 - Evidence: docs contain old audit tables with `broken`, `partially_working`, and Claude Code-like source references.
 - Suggested test: docs-current-status test should target README and current docs only, excluding historical audit docs.
-

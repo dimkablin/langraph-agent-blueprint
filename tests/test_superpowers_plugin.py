@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 from langchain_core.messages import ToolMessage
@@ -13,6 +14,7 @@ from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
 from langgraph_agent_blueprint.graph.nodes.tool_router import tool_router_node
 from langgraph_agent_blueprint.graph.state import create_initial_state
 from langgraph_agent_blueprint.services.plugin_service import PluginService
+from langgraph_agent_blueprint.graph.nodes import plugin_policy as plugin_policy_module
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "plugins" / "superpowers"
@@ -44,6 +46,12 @@ def test_superpowers_manifest_detection_reads_codex_manifest_and_bootstrap(tmp_p
     assert contribution.skills_path == str((FIXTURE / "skills").resolve())
     assert contribution.bootstrap_skill == "using-superpowers"
     assert contribution.system_context_fragments
+    assert contribution.policies
+    assert contribution.policies[0].id == "superpowers.default_methodology_policy"
+
+
+def test_plugin_policy_node_does_not_import_superpowers_directly():
+    assert "superpowers" not in plugin_policy_module.__dict__
 
 
 def test_superpowers_manifest_detection_falls_back_to_claude_manifest_and_skills_dir(tmp_path):
@@ -131,7 +139,15 @@ def test_acceptance_react_todo_prompt_auto_activates_brainstorming_before_code(t
 
     assert result["active_skill"]["name"] == "superpowers/brainstorming"
     assert any(_event_has_skill(event, "skill_started", "superpowers/brainstorming") for event in result["ui_events"])
+    assert any(event["type"] == "plugin_policy_applied" for event in result["ui_events"])
     assert "```" not in result["final_response"]
+
+
+def test_debug_prompt_auto_activates_systematic_debugging(tmp_path):
+    result = _runtime(tmp_path, [FIXTURE]).invoke("Fix this failing test", input_kind="headless", project_root=tmp_path, session_id="debug")
+
+    assert result["active_skill"]["name"] == "superpowers/systematic-debugging"
+    assert any(_event_has_skill(event, "skill_started", "superpowers/systematic-debugging") for event in result["ui_events"])
 
 
 def test_superpowers_policy_does_not_repeat_brainstorming_after_session_invocation(tmp_path):
@@ -178,6 +194,25 @@ def test_git_install_reports_disabled_when_network_is_disabled(tmp_path):
 
     assert result.status == "error"
     assert "Network access is disabled" in result.message
+
+
+def test_git_install_timeout_returns_structured_error(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(args, *, check, text, capture_output, timeout):
+        calls.append({"args": args, "timeout": timeout})
+        raise subprocess.TimeoutExpired(args, timeout)
+
+    monkeypatch.setattr("langgraph_agent_blueprint.services.plugin_service.subprocess.run", fake_run)
+
+    result = PluginService([], tmp_path / "storage", network_enabled=True, git_timeout_seconds=0.01).install(
+        "superpowers@git+https://github.com/obra/superpowers.git#v5.1.0"
+    )
+
+    assert result.status == "error"
+    assert "timed out" in result.message.lower()
+    assert "clone" in result.message.lower()
+    assert calls[0]["timeout"] == 0.01
 
 
 def test_local_plugin_install_caches_repo_and_preserves_lock_metadata(tmp_path):
