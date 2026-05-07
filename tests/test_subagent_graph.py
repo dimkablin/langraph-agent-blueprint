@@ -14,6 +14,6 @@ def test_child_graph_runs_and_result_merges(tmp_path):
 
     result = app.invoke(state)
 
-    assert result["child_runs"][0]["status"] == "completed"
-    assert "inspect" in result["child_runs"][0]["result"]
+    assert result["child_runs"][0]["metadata"]["status"] == "completed"
+    assert "inspect" in result["child_runs"][0]["result"]["summary"]
 

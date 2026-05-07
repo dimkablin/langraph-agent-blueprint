@@ -19,8 +19,8 @@ This matrix describes the current Python/LangGraph runtime, not historical pre-f
 | Shell tools | working | `bash`, `powershell`, `ShellService` | `test_shell_permissions.py` | `PERMISSIONS.md`, `TOOLS.md` | More source shell parsing optional. | P2 |
 | Web tools | partial | `web_fetch` guarded; `web_search` needs provider | `test_web_tools.py` | `TOOLS.md` | Implement real search provider if required. | P2 |
 | Todo tool | working | `todo_write` | runtime audit tests | `TOOLS.md` | Source task integration broader. | P2 |
-| Agent tool/subgraph | partial | `agent`, `agent_graph`, synthetic `AgentService` | `test_subagent_graph.py` | `GRAPH_ARCHITECTURE.md` | Phase 5 real subagents. | P1 |
-| Task tool | partial | `task_tools.py` placeholder not in core registry | limited coverage | Technical debt docs | Decide under Phase 5. | P1 |
+| Agent tool/subgraph | working_mvp | `agent`, `agent_graph`, `models/subagents.py`, child-run storage | `test_subagent_graph.py`, `test_subagent_graph_runtime.py`, `test_subagent_permissions.py`, `test_subagent_observability.py` | `SUBAGENTS.md`, `GRAPH_ARCHITECTURE.md` | Nested approval resume, parallel/background task lifecycle. | P1 |
+| Task tool | partial | `task_tools.py` placeholder not in core registry | limited coverage | Technical debt docs | Stop/list/show and background task lifecycle after local subagent baseline. | P1 |
 | Permission metadata | working | `ToolPermissionMetadata`, `PermissionService` | metadata-driven permission tests | `PERMISSIONS.md` | Continue enforcing for new extension tools. | P1 |
 | Typed tool effects | working | `ToolStateEffect`, controlled applier | `test_tool_state_effects_metadata.py` | `PYDANTIC_BOUNDARIES.md` | Add effect types only through tests. | P1 |
 | Skills registry/loader | working | `skills/registry.py`, `loader.py` | skill loader/registry tests | `SKILLS.md` | Advanced frontmatter fields partial. | P2 |
@@ -53,4 +53,3 @@ This matrix describes the current Python/LangGraph runtime, not historical pre-f
 | Context providers/attachments | missing | No first-class attachment model | none specific | roadmap only | Phase 6. | P1 |
 | Eval/replay harness | missing | No replay runner | none specific | roadmap only | Phase 7. | P1 |
 | Frontend readiness | partial | Static React shell and API contract | frontend static tests | `FRONTEND.md` | Build real UI after Phase 8. | frontend_phase |
-

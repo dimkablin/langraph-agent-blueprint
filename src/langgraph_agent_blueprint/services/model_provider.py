@@ -85,7 +85,14 @@ class ModelProviderService:
             content = parts[2] if len(parts) > 2 else ""
             return {"id": new_id("tool"), "name": "write_file", "args": {"path": parts[1], "content": content}}
         if command.startswith("agent "):
-            return {"id": new_id("tool"), "name": "agent", "args": {"prompt": command[6:]}}
+            rest = command[6:].strip()
+            if rest.startswith("{"):
+                try:
+                    args = json.loads(rest)
+                except json.JSONDecodeError:
+                    args = {"prompt": rest}
+                return {"id": new_id("tool"), "name": "agent", "args": args if isinstance(args, dict) else {"prompt": rest}}
+            return {"id": new_id("tool"), "name": "agent", "args": {"prompt": rest}}
         match = re.match(r"([A-Za-z_][\w.\-/]*)(?:\s+(.+))?", command)
         if match:
             args: dict[str, Any] = {}

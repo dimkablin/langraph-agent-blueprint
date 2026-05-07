@@ -16,6 +16,7 @@ It demonstrates:
 - streaming events
 - memory
 - compaction
+- real child graph subagents
 
 This project ports the behavior described in:
 
@@ -125,6 +126,16 @@ lg-agent query "hello"
 The graph attaches Langfuse callbacks at invoke/stream boundaries and maps critical RuntimeEvents for tools, skills, hooks, MCP, permissions, compaction, persistence, final responses, and errors. If disabled, missing, or misconfigured, normal runtime behavior continues with no-op observability. `/doctor`, `/config`, and `/observability` redact keys. See `docs/OBSERVABILITY.md`.
 
 Trace scoping is turn-based: one user turn creates one top-level Langfuse trace, while an interactive `lg-agent chat` process groups all turn traces under one shared Langfuse session id. Runtime events are scoped as child observations or compact metadata, not separate top-level `runtime.*` traces. Full local project paths are hidden by default unless `LANGFUSE_INCLUDE_PROJECT_PATHS=true`.
+
+## Subagents
+
+The `agent` tool launches a real child graph run. Child runs get isolated session/thread ids, a narrowed allowed-tools scope, normal permission routing, parent-linked events, and persisted child-run metadata/result records. Child read-only work can complete inside the child graph; child side-effect approval/resume is guarded and returns a structured error until nested approval UX is implemented.
+
+```bash
+lg-agent query "tool:agent {\"prompt\":\"tool:read_file {\\\"path\\\":\\\"README.md\\\"}\",\"allowed_tools\":[\"read_file\"],\"name\":\"reader\"}"
+```
+
+See `docs/SUBAGENTS.md`.
 
 ## Optional: Superpowers Plugin
 
@@ -317,5 +328,5 @@ Sessions are stored under `.storage/projects/{project_hash}/sessions/{session_id
 - `web_search` is unavailable unless a real search provider is configured. It no longer returns empty success when no provider exists.
 - `web_fetch` is disabled unless `NETWORK_ENABLED=true` and still requires permission. When enabled, fetched content is marked as untrusted, private/internal hosts are blocked unless `WEB_FETCH_ALLOW_PRIVATE_HOSTS=true`, and response bodies are capped by `WEB_FETCH_MAX_BYTES`.
 - The fake provider keeps a few shorthand aliases (`tool:bash echo hi`, `tool:write_file path content`, `tool:agent ...`) for deterministic tests; the generic supported contract is `tool:<name> <json args>`, and these aliases do not define production permission/routing semantics.
-- Subagent execution remains limited/synthetic compared with the rest of the graph runtime.
+- Subagent execution is real/sequential for local child graph runs. Parallel/background teams and nested approval resume remain future work.
 - Data analyst capabilities are optional extensions, not direct-port behavior.

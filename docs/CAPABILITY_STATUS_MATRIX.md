@@ -65,7 +65,7 @@ Status vocabulary:
 | `web_search` | tool | yes | yes | yes | fake/provider schema | no provider configured | yes | tool_calls/permissions | `disabled_by_config` | Returns `Web search provider is not configured`, not empty success. |
 | `todo_write` | tool | yes | yes | yes | fake/provider schema | yes | yes | todos/session | `working` | Later `/todo` shows persisted todo. |
 | `skill` | tool | yes | yes | yes | fake + provider schema | routes to skill graph | yes | skill/session | `working` | Structured args route to skill graph; `remember` persists memory. |
-| `agent` | tool | yes | yes | yes | fake/provider schema | limited child result | yes | child_runs/session | `unsupported_optional` | Subagent remains limited/synthetic and is not counted as required core. |
+| `agent` | tool | yes | yes | yes | fake/provider schema | real child graph run | yes | child_runs/session | `working_with_provider_requirement` | Child graph runs with isolated state, narrowed tool scope, parent ToolMessage merge, and child-run sidecar persistence. Nested approval resume remains future work. |
 | `diagnostics` | tool | yes | yes | `/doctor` | provider schema | yes | yes | diagnostics metadata | `working` | `/doctor` calls diagnostics service. |
 | `mcp.<server>.<tool>` | tool | discovered from config | yes when server configured | yes | provider schema | approval + MCP call | yes | tool_calls/permissions | `working_with_provider_requirement` | Fake stdio MCP server tests cover discovery, permission, approval, rejection, and result ToolMessage. |
 

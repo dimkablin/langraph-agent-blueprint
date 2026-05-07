@@ -123,10 +123,13 @@ High-signal RuntimeEvents become child observations:
 - `mcp_tool_call_started`
 - `mcp_tool_call_finished`
 - `mcp_tool_call_error`
+- `subagent_started`
+- `subagent_finished`
+- `subagent_error`
 - `final_response`
 - `error`
 
-Low-signal lifecycle events such as `session_started`, `session_persisted`, normal hook start/finish events, MCP discovery events, and compaction events are stored as compact `runtime_timeline` metadata by default.
+Low-signal lifecycle events such as `session_started`, `session_persisted`, normal hook start/finish events, MCP discovery events, forwarded `subagent_event` records, and compaction events are stored as compact `runtime_timeline` metadata by default.
 
 Other modes:
 
@@ -153,6 +156,17 @@ Skill and tool events are traced from the same event stream used by CLI/API/fron
 - permission-required and resolved events for side effects
 
 This includes plugin skills such as `superpowers/brainstorming` and MCP tools such as `mcp.fake.echo`.
+
+## Subagents
+
+Subagent lifecycle events are traced from the same runtime event stream:
+
+- `subagent_started`
+- `subagent_finished`
+- `subagent_error`
+- forwarded child events as compact `subagent_event` timeline records
+
+Child graph metadata includes `parent_session_id`, `child_session_id`, `child_thread_id`, and `child_run_id`. Observability does not run subagents or grant extra permissions; it only records the parent/child lifecycle while the parent turn trace is active.
 
 ## Privacy And Redaction
 

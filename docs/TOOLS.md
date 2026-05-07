@@ -79,6 +79,7 @@ Runtime status after fixes:
 - `web_fetch` is disabled unless network is enabled and approved; when enabled it returns untrusted-content warning metadata, allows only absolute `http`/`https` URLs, blocks private/internal hosts by default, caps response bytes, validates redirect final URLs, and summarizes binary content.
 - `web_search` reports unavailable when no provider is configured.
 - Tool routing for skill, agent, and MCP tools is metadata-driven through `tool.runtime.route`.
+- The `agent` tool routes to `agent_graph` and executes a real child graph with isolated child state. Direct `AgentTool.run()` execution is not the normal workflow path and returns a graph-route error instead of synthetic work.
 - MCP tools are discovered through `MCPService`, registered with `ToolRuntimeMetadata(kind="mcp", route="mcp_graph")`, and require approval by default through `ToolPermissionMetadata(action="mcp", risk="high", external=True)`.
 - MCP adapter input schemas come from server `tools/list` `inputSchema` payloads; tool calls return through the normal `ToolResult` -> `ToolMessage` loop.
 - Observability redacts secret-like tool args before export and respects `LANGFUSE_CAPTURE_INPUTS` / `LANGFUSE_CAPTURE_OUTPUTS`.

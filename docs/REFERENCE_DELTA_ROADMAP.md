@@ -66,21 +66,15 @@ C:\Users\dimka\Documents\PROJECTS\llm-data-analyst\claude-code-like-project
 - Current status: complete.
 - Evidence: commits `285092c` and `f42a1aa`.
 
-## Remaining MVP Before Frontend
-
 ### Phase 5: Real Subagents
 
-- Why it matters: source has much more than a synthetic child run: worker prompts, task notifications, stop/update/list tools, team coordination, and remote-task concepts.
+- Why it matters: replaces the synthetic child run with isolated child graph execution.
 - Source basis: `src/tools/AgentTool`, `src/tasks`, `src/coordinator`, `Task*`, `Team*`, `SendMessageTool`, `TaskStopTool`.
-- Current status: partial. `agent` routes through `agent_graph`, but `AgentService.run_child()` returns a synthetic completed result.
-- Target architecture: LangGraph subagent graph with isolated child state, tool-scope restrictions, child event persistence, parent merge rules, stop/resume support, and typed child-run models.
-- LangGraph nodes/subgraphs: expand `agent_graph`; add child-run lifecycle nodes; preserve permission interrupts.
-- Pydantic models: `SubagentConfig`, `SubagentRun`, `SubagentResult`, `SubagentEvent`, `SubagentToolScope`, possibly `TaskRecord`.
-- Services: split child-run orchestration from task persistence; keep graph as workflow owner.
-- Tests: real child graph invocation, tool-scope narrowing, child permission interrupt, child event persistence, parent merge, rejection/stop, stream-json, Langfuse trace nesting.
-- Risks: hidden workflow loops outside graph, broad tool scopes, event duplication.
-- Dependencies: existing permission/session/event/observability foundations.
-- Priority: P1.
+- Current status: working MVP with different architecture.
+- Evidence: `models/subagents.py`, `agent_graph`, child-run persistence, subagent runtime/permission/observability tests.
+- Remaining work: nested approval resume, parallel/background task lifecycle, stop/list/show task commands, richer exports.
+
+## Remaining MVP Before Frontend
 
 ### Phase 6: Context Providers and Attachments
 
@@ -126,8 +120,8 @@ C:\Users\dimka\Documents\PROJECTS\llm-data-analyst\claude-code-like-project
 
 ## Roadmap Adjustments From Re-Sync
 
-1. Keep Phase 5 as real subagents, but include task lifecycle in scope.
-   A minimal real subagent should not stop at spawning a model call. It should define child run identity, events, tool scopes, persistence, and parent merge rules.
+1. Phase 5 now covers the local real subagent baseline.
+   Remaining source task lifecycle deltas are nested approval resume, stop/list/show commands, parallel/background teams, and richer child export/replay.
 
 2. Keep Phase 6 as context providers/attachments, but treat it as runtime, not frontend polish.
    Frontend attachment UI should follow typed runtime support, not precede it.
@@ -158,8 +152,8 @@ C:\Users\dimka\Documents\PROJECTS\llm-data-analyst\claude-code-like-project
 ### Background Tasks, Teams, Remote Sessions
 
 - Source basis: task/team/remote tools and remote polling.
-- Current status: not implemented, except limited synthetic `agent`.
-- Reason: real local subagents should land first.
+- Current status: local sequential child graph baseline exists; background/team/remote task lifecycle is not implemented.
+- Reason: remote/background coordination belongs after the local child-run lifecycle is stable.
 
 ### Full React/Ink TUI Equivalence
 
@@ -192,4 +186,3 @@ Do not block runtime phases on docs cleanup, but before frontend:
 - Move current README migration/source-audit paragraphs into a historical section.
 - Mark old `MCP_RUNTIME_AUDIT.md` and `HOOKS_RUNTIME_AUDIT.md` pre-phase observations as historical at the top.
 - Keep `CAPABILITY_STATUS_MATRIX.md` as current acceptance source, or replace with `REFERENCE_RUNTIME_CAPABILITY_MATRIX.md`.
-

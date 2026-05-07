@@ -14,6 +14,11 @@ Session storage lives under:
           messages.json
           todos.json
           memory_refs.json
+          child_runs/
+            {child_run_id}/
+              metadata.json
+              events.jsonl
+              result.json
           exports/
           large_outputs/
 ```
@@ -38,3 +43,4 @@ Runtime status after fixes:
 - Todos, memory refs, usage, and durable read history metadata are restored for later turns.
 - `/resume <session_id>` restores state inside the graph command route.
 - `/export` creates transcript files and records `exported_outputs`.
+- Real subagent runs use child session ids for their own transcript and store parent-linked sidecar records under `child_runs/{child_run_id}`. Parent session metadata records `child_run_refs`.

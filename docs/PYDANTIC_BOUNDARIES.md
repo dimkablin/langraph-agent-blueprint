@@ -20,6 +20,7 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - hook discovery/invocation/results -> `HookContribution`, `HookContext`, `HookInvocation`, `HookResult`, and `HookRunSummary`
 - MCP config/discovery/invocation -> `MCPServerConfig`, `MCPConnectionState`, `MCPToolContribution`, `MCPResourceContribution`, `MCPPromptContribution`, `MCPToolCallRequest`, `MCPToolCallResult`, `MCPResourceReadResult`, and `MCPPromptGetResult`
 - observability config/trace/events -> `LangfuseConfig`, `TraceContext`, `TraceMetadata`, and `ObservabilityEvent`
+- subagent requests/lifecycle/results -> `SubagentRequest`, `ChildRunMetadata`, `SubagentResult`, and `ResultMergePolicy`
 
 The LangGraph state remains checkpointer-safe: nodes store dictionaries and lists in state, and validate them at node/service boundaries with `model_validate(...)`. Outgoing DTOs are serialized with `model_dump(mode="json")`.
 
@@ -135,6 +136,17 @@ Observability boundary models live in `langgraph_agent_blueprint.models.observab
 - `ObservabilityEvent` normalizes RuntimeEvent-derived payloads before they are sent to an observability backend.
 
 Langfuse SDK clients, callback handlers, and active observation scopes are never stored in graph state. RuntimeEvent payloads are redacted/truncated before export, and `LangfuseConfig.runtime_events_mode` controls whether mapped events become child observations, compact metadata, or are skipped.
+
+## Subagents
+
+Subagent boundary models live in `langgraph_agent_blueprint.models.subagents`.
+
+- `SubagentRequest` validates the `agent` tool payload, non-empty prompt, allowed tool list, max turns, timeout, inheritance flags, and metadata.
+- `ChildRunMetadata` validates parent/child session/thread ids and child-run id before persistence.
+- `SubagentResult` is the controlled result merged into the parent as an `agent` `ToolResult` and `ToolMessage`.
+- `ResultMergePolicy` documents which child data is allowed to enter parent state.
+
+Child state is forked through `AgentService` as a new JSON-safe graph state. Parent and child lists are not shared, and child tool scope is narrowed before the child graph runs.
 
 ## Sessions
 

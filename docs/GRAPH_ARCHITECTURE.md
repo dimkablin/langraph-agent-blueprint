@@ -59,6 +59,7 @@ Boundary data is validated with Pydantic before nodes act on it. State stores JS
 - `tool_router`: runs `pre_tool`, classifies tool calls, runs `permission_request` hooks when approval is needed, and chooses execution, permission, skill, agent, MCP, or error route.
 - `permission_gate`: uses LangGraph `interrupt`, resumes from approval/rejection, routes approved calls back to the intended execute or MCP route, and runs `permission_resolved` hooks.
 - `tool_executor`: executes tools through `ToolExecutionService`, emits MCP-specific tool events for MCP adapters, and runs `post_tool` hooks.
+- `agent_graph`: validates `SubagentRequest`, forks isolated child state, runs a child compiled main graph, persists child-run metadata/result, forwards subagent events, and returns a parent `ToolMessage`.
 - `hook_runner`: compatibility node retained for graph shape; lifecycle hooks are dispatched by the graph nodes that own each lifecycle point.
 - `compact_decision`: decides manual/automatic compaction.
 - `compact_context`: runs `pre_compact` / `post_compact`, summarizes older context, and preserves recent work.
@@ -79,6 +80,8 @@ Implemented subgraph builders:
 - `plan_todo_graph`
 - `memory_graph`
 - `compaction_graph`
+
+`agent_graph` is no longer a synthetic child-result placeholder. It executes a child graph with separate session/thread ids, narrowed allowed tools, parent/child metadata, and controlled result merge back into the parent tool-message loop. Nested side-effect approvals are guarded: child write/shell/network/MCP calls do not bypass `PermissionService`; unsupported nested approval returns a structured subagent error.
 
 ## Interrupt/Resume Flow
 

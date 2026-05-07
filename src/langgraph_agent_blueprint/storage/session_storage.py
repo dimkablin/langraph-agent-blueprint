@@ -13,8 +13,9 @@ from pydantic import BaseModel, ValidationError
 from langgraph_agent_blueprint.models.base import dump_model
 from langgraph_agent_blueprint.models.events import RuntimeEvent
 from langgraph_agent_blueprint.models.sessions import SessionMetadata
+from langgraph_agent_blueprint.models.subagents import ChildRunMetadata, SubagentResult
 from langgraph_agent_blueprint.models.tools import ToolResult
-from langgraph_agent_blueprint.utils.ids import validate_session_id
+from langgraph_agent_blueprint.utils.ids import validate_runtime_id, validate_session_id
 from langgraph_agent_blueprint.utils.paths import ensure_dir
 from langgraph_agent_blueprint.utils.serialization import message_from_dict, message_to_dict
 
@@ -65,6 +66,40 @@ class SessionStorage:
         (session_dir / "events.jsonl").touch(exist_ok=True)
         (session_dir / "tool_calls.jsonl").touch(exist_ok=True)
         return session_dir
+
+    def child_run_dir(self, project_root: str | Path, parent_session_id: str, child_run_id: str) -> Path:
+        """Return a confined child-run directory under a validated parent session."""
+
+        safe_child_id = validate_runtime_id(child_run_id, kind="child_run_id")
+        parent_dir = self.session_dir(project_root, parent_session_id)
+        child_root = (parent_dir / "child_runs").resolve()
+        candidate = (child_root / safe_child_id).resolve()
+        try:
+            candidate.relative_to(child_root)
+        except ValueError as exc:
+            raise ValueError("Resolved child run path escaped the child_runs root") from exc
+        return candidate
+
+    def save_child_run(
+        self,
+        project_root: str | Path,
+        parent_session_id: str,
+        metadata: dict[str, Any],
+        result: dict[str, Any],
+        events: list[dict[str, Any]] | None = None,
+    ) -> Path:
+        """Persist child-run metadata, result, and optional child event transcript."""
+
+        metadata_payload = dump_model(ChildRunMetadata.model_validate(metadata))
+        result_payload = dump_model(SubagentResult.model_validate(result))
+        child_dir = ensure_dir(self.child_run_dir(project_root, parent_session_id, metadata_payload["child_run_id"]))
+        (child_dir / "metadata.json").write_text(json.dumps(metadata_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        (child_dir / "result.json").write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        if events is not None:
+            with (child_dir / "events.jsonl").open("w", encoding="utf-8") as handle:
+                for item in events:
+                    handle.write(json.dumps(item, ensure_ascii=False) + "\n")
+        return child_dir
 
     def append_event(self, project_root: str | Path, session_id: str, event: dict[str, Any]) -> None:
         """Append a session event once, deduplicating by event id when available."""
