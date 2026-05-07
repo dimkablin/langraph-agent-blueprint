@@ -17,6 +17,7 @@ It demonstrates:
 - memory
 - compaction
 - real child graph subagents
+- context providers and attachments
 
 This project ports the behavior described in:
 
@@ -137,6 +138,18 @@ lg-agent query "tool:agent {\"prompt\":\"tool:read_file {\\\"path\\\":\\\"README
 
 See `docs/SUBAGENTS.md`.
 
+## Context Providers And Attachments
+
+Prompts can attach bounded context with conservative `@` references:
+
+```bash
+lg-agent query "Summarize @README.md"
+lg-agent query "Use @glob:src/**/*.py to list runtime modules"
+lg-agent query "Compare @notebook:analysis.ipynb with @url:https://example.com"
+```
+
+Supported references include files, directories, glob summaries, notebooks, MCP resources with `@mcp:<server>:<uri>`, URLs through `web_fetch` guardrails, pasted text/API attachments, and metadata-only image/PDF records. Context fragments are budgeted, marked with trust levels, and rendered as data rather than instructions. Inspect current context with `/context`. See `docs/CONTEXT_ATTACHMENTS.md`.
+
 ## Optional: Superpowers Plugin
 
 Superpowers can be installed as an external plugin contribution. Git install/update is explicit network work, so enable network first:
@@ -218,13 +231,13 @@ Current final acceptance verification on 2026-05-06:
 
 The main runtime is a LangGraph `StateGraph`:
 
-`bootstrap_config -> load_registries -> normalize_input -> command_router -> plugin_policy/context_builder/skill_graph -> model_call -> tool_router -> permission_gate/tool_executor/subgraphs -> compact_decision -> persist_session -> finalize_response`.
+`bootstrap_config -> load_registries -> normalize_input -> command_router -> plugin_policy/skill_graph -> resolve_context -> context_builder -> model_call -> tool_router -> permission_gate/tool_executor/subgraphs -> compact_decision -> persist_session -> finalize_response`.
 
 Tool-use loops, permission flow, skill invocation, hooks, subagents, compaction, memory, and session lifecycle are represented as graph nodes/subgraphs. Hook dispatch is owned by the graph nodes that reach each lifecycle point.
 
 ## Runtime Boundary Contracts
 
-Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, skill args use skill-specific schemas, tools declare `ToolPermissionMetadata` / `ToolRuntimeMetadata`, plugins validate `PluginContribution`, hooks validate `HookContribution` / `HookResult`, MCP validates server/tool/resource/prompt DTOs, and observability validates `LangfuseConfig` / `TraceContext` / `TraceMetadata`.
+Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, skill args use skill-specific schemas, tools declare `ToolPermissionMetadata` / `ToolRuntimeMetadata`, plugins validate `PluginContribution`, hooks validate `HookContribution` / `HookResult`, MCP validates server/tool/resource/prompt DTOs, context providers validate `ContextReference` / `AttachmentRef` / `ContextFragment` / `ContextBudgetReport`, and observability validates `LangfuseConfig` / `TraceContext` / `TraceMetadata`.
 
 See `docs/PYDANTIC_BOUNDARIES.md` for the contract map and extension rules.
 
@@ -289,8 +302,9 @@ Slash commands are routed through `CommandRegistry` and `command_router`:
 - `/hooks`
 - `/mcp`
 - `/observability`
+- `/context`
 
-Optional commands such as `/context`, `/rewind`, `/branch`, `/rename`, and `/tag` are recognized with documented limitations.
+Optional commands such as `/rewind`, `/branch`, `/rename`, and `/tag` are recognized with documented limitations.
 
 Required commands now perform real runtime work: `/compact` compacts context, `/export` writes a transcript, `/resume` restores session state, `/doctor` runs diagnostics, `/todo` reads persisted todos, and `/memory` reads durable memory.
 
@@ -329,4 +343,5 @@ Sessions are stored under `.storage/projects/{project_hash}/sessions/{session_id
 - `web_fetch` is disabled unless `NETWORK_ENABLED=true` and still requires permission. When enabled, fetched content is marked as untrusted, private/internal hosts are blocked unless `WEB_FETCH_ALLOW_PRIVATE_HOSTS=true`, and response bodies are capped by `WEB_FETCH_MAX_BYTES`.
 - The fake provider keeps a few shorthand aliases (`tool:bash echo hi`, `tool:write_file path content`, `tool:agent ...`) for deterministic tests; the generic supported contract is `tool:<name> <json args>`, and these aliases do not define production permission/routing semantics.
 - Subagent execution is real/sequential for local child graph runs. Parallel/background teams and nested approval resume remain future work.
+- Context provider support covers files, directories, globs, notebooks, MCP resources, URLs, and text attachments. Image/PDF attachments are metadata placeholders only; full OCR/vision/PDF extraction is future work.
 - Data analyst capabilities are optional extensions, not direct-port behavior.

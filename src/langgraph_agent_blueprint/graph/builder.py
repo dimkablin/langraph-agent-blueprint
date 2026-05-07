@@ -10,6 +10,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
+from langgraph_agent_blueprint.models.base import dump_model
+from langgraph_agent_blueprint.models.context import AttachmentRef
 from langgraph_agent_blueprint.models.observability import TraceContext, TraceMetadata
 from langgraph_agent_blueprint.utils.ids import validate_session_id, validate_thread_id
 
@@ -28,6 +30,7 @@ from .nodes.normalize_input import normalize_input_node
 from .nodes.permission_gate import permission_gate_node
 from .nodes.plugin_policy import plugin_policy_node
 from .nodes.persist_session import persist_session_node
+from .nodes.resolve_context import resolve_context_node
 from .nodes.skill_router import skill_router_node
 from .nodes.tool_executor import tool_executor_node
 from .nodes.tool_router import tool_router_node
@@ -54,6 +57,7 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
     graph.add_node("command_router", lambda state: command_router_node(state, deps))
     graph.add_node("skill_graph", build_skill_node(deps))
     graph.add_node("plugin_policy", lambda state: plugin_policy_node(state, deps))
+    graph.add_node("resolve_context", lambda state: resolve_context_node(state, deps))
     graph.add_node("context_builder", lambda state: context_builder_node(state, deps))
     graph.add_node("model_call", lambda state: model_call_node(state, deps))
     graph.add_node("tool_router", lambda state: tool_router_node(state, deps))
@@ -78,14 +82,15 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
         {
             "persist_session": "persist_session",
             "plugin_policy": "plugin_policy",
-            "context_builder": "context_builder",
+            "context_builder": "resolve_context",
             "skill_graph": "skill_graph",
             "compact_decision": "compact_decision",
             "error_recovery": "error_recovery",
         },
     )
-    graph.add_conditional_edges("plugin_policy", route_after_plugin_policy, {"skill_graph": "skill_graph", "context_builder": "context_builder"})
-    graph.add_edge("skill_graph", "context_builder")
+    graph.add_conditional_edges("plugin_policy", route_after_plugin_policy, {"skill_graph": "skill_graph", "context_builder": "resolve_context"})
+    graph.add_edge("skill_graph", "resolve_context")
+    graph.add_edge("resolve_context", "context_builder")
     graph.add_edge("context_builder", "model_call")
     graph.add_edge("model_call", "tool_router")
     graph.add_conditional_edges(
@@ -144,6 +149,7 @@ class AssistantGraphRuntime:
         thread_id: str | None = None,
         project_root: str | Path | None = None,
         turn_index: int | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Run one graph turn, hydrating persisted session state when a session id is supplied."""
 
@@ -157,6 +163,8 @@ class AssistantGraphRuntime:
         )
         if session_id:
             self._hydrate_session_state(state)
+        if attachments:
+            state["attachments"] = [dump_model(AttachmentRef.model_validate(item)) for item in attachments]
         if turn_index is not None:
             state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
         trace_context = self._trace_context(state)
@@ -207,6 +215,7 @@ class AssistantGraphRuntime:
         thread_id: str | None = None,
         project_root: str | Path | None = None,
         turn_index: int | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> Iterable[dict[str, Any]]:
         """Yield newly appended UI events from LangGraph value-stream state updates."""
 
@@ -222,6 +231,8 @@ class AssistantGraphRuntime:
             )
             if session_id:
                 self._hydrate_session_state(state)
+            if attachments:
+                state["attachments"] = [dump_model(AttachmentRef.model_validate(item)) for item in attachments]
             if turn_index is not None:
                 state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
             final_chunk: dict[str, Any] | None = None
@@ -279,6 +290,7 @@ class AssistantGraphRuntime:
             "allowed_tools_override",
             "active_skill_name",
             "skill_invocation",
+            "context_resolved",
         ]:
             metadata.pop(key, None)
         state["metadata"] = metadata

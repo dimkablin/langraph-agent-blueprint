@@ -24,6 +24,7 @@ class AgentInput(BaseModel):
     timeout_seconds: float | None = 300.0
     inherit_memory: bool = True
     inherit_todos: bool = False
+    inherit_context: bool = True
     metadata: dict[str, Any] = Field(default_factory=dict)
     agent_type: str = "default"
 
@@ -39,6 +40,7 @@ class AgentInput(BaseModel):
             timeout_seconds=self.timeout_seconds,
             inherit_memory=self.inherit_memory,
             inherit_todos=self.inherit_todos,
+            inherit_context=self.inherit_context,
             metadata=dict(self.metadata),
         )
 

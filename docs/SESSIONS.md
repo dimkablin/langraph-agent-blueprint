@@ -41,6 +41,7 @@ Runtime status after fixes:
 - Session metadata is merged instead of overwritten by event/tool append operations.
 - Stored messages preserve `AIMessage.tool_calls` and `ToolMessage.tool_call_id`.
 - Todos, memory refs, usage, and durable read history metadata are restored for later turns.
+- Context references, attachment metadata, and `ContextBudgetReport` summaries are stored in session metadata. Resolved context content is bounded by the context budget and is not stored as unbounded top-level metadata.
 - `/resume <session_id>` restores state inside the graph command route.
 - `/export` creates transcript files and records `exported_outputs`.
 - Real subagent runs use child session ids for their own transcript and store parent-linked sidecar records under `child_runs/{child_run_id}`. Parent session metadata records `child_run_refs`.

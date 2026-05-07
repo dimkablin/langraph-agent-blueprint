@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
+from langgraph_agent_blueprint.models.context import AttachmentRef
 from langgraph_agent_blueprint.utils.ids import validate_session_id, validate_thread_id
 
 
@@ -14,6 +15,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
     thread_id: str | None = None
+    attachments: list[AttachmentRef] = Field(default_factory=list)
 
     @field_validator("session_id")
     @classmethod

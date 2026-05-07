@@ -115,6 +115,14 @@ Approval routes to `mcp_graph`; rejection appends a rejected `ToolMessage` and d
 
 MCP resources are external context, not local files. The runtime does not mix MCP resource reads with `read_file`.
 
+MCP resources can also be attached as graph context with:
+
+```text
+@mcp:<server>:<uri>
+```
+
+The context provider calls `MCPService.read_resource`, marks the fragment `mcp_external`, applies the context budget, and renders a prompt-injection warning before the content reaches `context_builder`.
+
 ## Prompts
 
 `prompts/list` discovers prompt templates. `prompts/get` returns `MCPPromptGetResult` as untrusted external prompt content.

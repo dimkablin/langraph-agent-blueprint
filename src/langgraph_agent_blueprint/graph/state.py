@@ -32,6 +32,10 @@ class AssistantState(TypedDict, total=False):
     input_kind: Literal["interactive", "headless", "command", "resume", "approval"]
     messages: Annotated[list[BaseMessage], add_messages]
     attachments: list[dict[str, Any]]
+    attachment_contents: list[dict[str, Any]]
+    context_references: list[dict[str, Any]]
+    resolved_context: list[dict[str, Any]]
+    context_budget: dict[str, Any]
     active_command: dict[str, Any] | None
     active_skill: dict[str, Any] | None
     available_tools: dict[str, dict[str, Any]]
@@ -86,6 +90,10 @@ def create_initial_state(
         input_kind=input_kind,  # type: ignore[typeddict-item]
         messages=[],
         attachments=[],
+        attachment_contents=[],
+        context_references=[],
+        resolved_context=[],
+        context_budget={},
         active_command=None,
         active_skill=None,
         available_tools={},

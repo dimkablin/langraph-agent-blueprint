@@ -39,10 +39,13 @@ A child run receives:
 - parent project root and cwd
 - optional copied memory
 - optional copied todos
+- optional copied resolved context
 - a narrowed `allowed_tools_override`
 - parent/child linkage metadata
 
 A child run does not share parent `messages`, `pending_tool_calls`, `pending_confirmation`, `tool_results`, `errors`, or mutable `todos` lists unless todos are explicitly copied.
+
+`SubagentRequest.inherit_context` defaults to `true`. Parent context references, resolved fragments, attachment metadata, and budget reports are deep-copied into child state so parent and child do not share mutable containers. Child graphs consume the already-budgeted context fragments through their own `context_builder`; they do not blindly expand large attachments again.
 
 ## Tool Scope
 

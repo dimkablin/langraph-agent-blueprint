@@ -129,7 +129,9 @@ High-signal RuntimeEvents become child observations:
 - `final_response`
 - `error`
 
-Low-signal lifecycle events such as `session_started`, `session_persisted`, normal hook start/finish events, MCP discovery events, forwarded `subagent_event` records, and compaction events are stored as compact `runtime_timeline` metadata by default.
+Low-signal lifecycle events such as `session_started`, `session_persisted`, normal hook start/finish events, MCP discovery events, forwarded `subagent_event` records, context fragment/budget events, and compaction events are stored as compact `runtime_timeline` metadata by default.
+
+Context resolution errors are high-signal. Context observability payloads include titles, trust markers, token counts, and budget status, not full attachment bodies.
 
 Other modes:
 
@@ -186,7 +188,9 @@ Large event payloads are truncated. `LANGFUSE_CAPTURE_INPUTS=false` redacts inpu
 
 `LANGFUSE_INCLUDE_PROJECT_PATHS=false` is the default. Full `project_root`, `cwd`, and private absolute Windows/POSIX paths are replaced with a basename and hash before they enter trace input, output, metadata, child observations, or timeline metadata. Set `LANGFUSE_INCLUDE_PROJECT_PATHS=true` only for local debugging where full paths are acceptable.
 
-External plugin content, MCP resources, and MCP prompts are untrusted prompt content. Observability does not change instruction priority: user instructions remain higher priority than plugin methodology or hook-provided context.
+External plugin content, MCP resources, MCP prompts, URL context, and pasted attachments are untrusted prompt content. Observability does not change instruction priority: user instructions remain higher priority than plugin methodology, hook-provided context, or attached data.
+
+Context provider content follows the same privacy rules. Full project roots/cwd values are not sent unless `LANGFUSE_INCLUDE_PROJECT_PATHS=true`; large fragment content is not exported in context events.
 
 ## Commands
 

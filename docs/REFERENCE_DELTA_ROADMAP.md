@@ -74,21 +74,21 @@ C:\Users\dimka\Documents\PROJECTS\llm-data-analyst\claude-code-like-project
 - Evidence: `models/subagents.py`, `agent_graph`, child-run persistence, subagent runtime/permission/observability tests.
 - Remaining work: nested approval resume, parallel/background task lifecycle, stop/list/show task commands, richer exports.
 
-## Remaining MVP Before Frontend
-
 ### Phase 6: Context Providers and Attachments
 
 - Why it matters: source has attachments, image refs, context suggestions, context budget, tool result storage, and context visualization. This is the biggest gap before a good frontend.
 - Source basis: `src/utils/attachments.ts`, `src/components/ContextVisualization.tsx`, `src/utils/tokens.ts`, `src/utils/toolResultStorage.ts`, prompt input attachment handling.
-- Current status: missing/partial. File tools exist, but there is no first-class attachment/context-provider runtime.
-- Target architecture: typed context-provider registry feeding `context_builder`; untrusted external context markers; attachment models for files/images/PDFs/notebooks/MCP resources; budget accounting.
-- LangGraph nodes/subgraphs: `context_provider_load`, `attachment_ingest`, `context_budget`, optional `context_resource_read`.
-- Pydantic models: `ContextProviderContribution`, `AttachmentRef`, `AttachmentContent`, `ContextFragment`, `ContextBudgetReport`.
-- Services: `ContextProviderService`, `AttachmentService`, `TokenBudgetService`.
-- Tests: file refs, Windows paths, large attachments, binary/image summaries, MCP resource as context, prompt injection markers, budget truncation, stream events.
-- Risks: prompt injection, secret/path leaks, huge payloads, frontend/API mismatch.
+- Current status: working MVP with documented image/PDF limitations.
+- Target architecture: typed context-provider services feeding `context_builder`; untrusted external context markers; attachment models for files/images/PDFs/notebooks/MCP resources; budget accounting.
+- LangGraph nodes/subgraphs: `normalize_input` extracts refs, `resolve_context` resolves/budgets, `context_builder` consumes rendered fragments.
+- Pydantic models: `ContextReference`, `AttachmentRef`, `AttachmentContent`, `ContextFragment`, `ContextBudgetReport`, `ResolvedContextItem`.
+- Services: `ContextProviderService`, `ContextBudgetService`.
+- Tests: file refs, Windows paths, large attachments, binary/image placeholders, MCP resource as context, prompt injection markers, budget truncation, stream events, subagent inheritance.
+- Risks: prompt injection, secret/path leaks, huge payloads, frontend/API mismatch; core guardrails are in place.
 - Dependencies: current web/MCP/plugin trust boundaries.
 - Priority: P1.
+
+## Remaining MVP Before Frontend
 
 ### Phase 7: Eval and Replay Harness
 

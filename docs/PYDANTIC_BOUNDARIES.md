@@ -19,6 +19,7 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - plugin config/manifests/discovery/policy -> `PluginSource`, `PluginManifest`, `PluginContribution`, `PluginPolicyContribution`, `PluginPolicyContext`, `PluginPolicyResult`, and `PluginInstallResult`
 - hook discovery/invocation/results -> `HookContribution`, `HookContext`, `HookInvocation`, `HookResult`, and `HookRunSummary`
 - MCP config/discovery/invocation -> `MCPServerConfig`, `MCPConnectionState`, `MCPToolContribution`, `MCPResourceContribution`, `MCPPromptContribution`, `MCPToolCallRequest`, `MCPToolCallResult`, `MCPResourceReadResult`, and `MCPPromptGetResult`
+- context references/attachments -> `ContextReference`, `AttachmentRef`, `AttachmentContent`, `ContextFragment`, `ContextBudgetReport`, and `ResolvedContextItem`
 - observability config/trace/events -> `LangfuseConfig`, `TraceContext`, `TraceMetadata`, and `ObservabilityEvent`
 - subagent requests/lifecycle/results -> `SubagentRequest`, `ChildRunMetadata`, `SubagentResult`, and `ResultMergePolicy`
 
@@ -126,6 +127,19 @@ MCP boundary models live in `langgraph_agent_blueprint.models.mcp`.
 
 Graph state stores MCP snapshots as JSON-safe dictionaries. The stdio transport and service keep process objects outside LangGraph state.
 
+## Context And Attachments
+
+Context boundary models live in `langgraph_agent_blueprint.models.context`.
+
+- `ContextReference` validates parsed `@` mentions and API/plugin/MCP context references.
+- `AttachmentRef` describes API/CLI attachments without storing file handles.
+- `AttachmentContent` is the typed resolved content envelope.
+- `ContextFragment` is the budgeted prompt fragment with trust marker and source reference metadata.
+- `ContextBudgetReport` records included/truncated/dropped fragments.
+- `ResolvedContextItem` groups fragments, attachments, and structured provider errors.
+
+Graph state stores context records as JSON-safe dictionaries. Provider services keep file/web/MCP clients outside state, and `context_builder` consumes rendered fragments instead of raw paths.
+
 ## Observability
 
 Observability boundary models live in `langgraph_agent_blueprint.models.observability`.
@@ -141,7 +155,7 @@ Langfuse SDK clients, callback handlers, and active observation scopes are never
 
 Subagent boundary models live in `langgraph_agent_blueprint.models.subagents`.
 
-- `SubagentRequest` validates the `agent` tool payload, non-empty prompt, allowed tool list, max turns, timeout, inheritance flags, and metadata.
+- `SubagentRequest` validates the `agent` tool payload, non-empty prompt, allowed tool list, max turns, timeout, memory/todo/context inheritance flags, and metadata.
 - `ChildRunMetadata` validates parent/child session/thread ids and child-run id before persistence.
 - `SubagentResult` is the controlled result merged into the parent as an `agent` `ToolResult` and `ToolMessage`.
 - `ResultMergePolicy` documents which child data is allowed to enter parent state.

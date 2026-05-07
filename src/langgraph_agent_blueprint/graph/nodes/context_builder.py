@@ -21,7 +21,8 @@ def context_builder_node(state: dict, deps: AppDependencies) -> dict:
     todos_summary = f"Todos: {current.get('todos', [])}" if current.get("todos") else ""
     plugin_fragments = current.get("plugin_state", {}).get("system_context_fragments", [])
     hook_fragments = current.get("metadata", {}).get("hook_system_context_fragments", [])
-    plugin_context = "\n\n".join(str(fragment) for fragment in [*plugin_fragments, *hook_fragments] if fragment)
+    context_provider_context = current.get("context_status", {}).get("context_provider_context", "")
+    plugin_context = "\n\n".join(str(fragment) for fragment in [*plugin_fragments, *hook_fragments, context_provider_context] if fragment)
     system_context = build_system_context(
         current.get("project_root", ""),
         deps.memory_service.build_context(memory),

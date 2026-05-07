@@ -14,7 +14,9 @@ flowchart TD
     command_router -->|prompt/model| plugin_policy
     command_router -->|skill| skill_graph
     plugin_policy -->|auto skill| skill_graph
-    plugin_policy -->|none| context_builder
+    plugin_policy -->|none| resolve_context
+    skill_graph --> resolve_context
+    resolve_context --> context_builder
     context_builder --> model_call
     model_call --> tool_router
     tool_router -->|no tools| compact_decision
@@ -28,7 +30,6 @@ flowchart TD
     HUMAN -->|resume approve MCP| mcp_graph
     HUMAN -->|resume reject| model_call
     tool_executor --> model_call
-    skill_graph --> model_call
     agent_graph --> model_call
     mcp_graph --> model_call
     compact_decision -->|compact| compact_context
@@ -40,7 +41,7 @@ flowchart TD
 
 ## State Schema
 
-`AssistantState` is a TypedDict with LangGraph `add_messages` annotation for `messages`. It stores session ids, input, messages, registries, pending tool calls, permission state, plan mode, todos, memory, usage, MCP/plugin/hooks state, child runs, artifacts, exports, errors, UI events, final response, and metadata.
+`AssistantState` is a TypedDict with LangGraph `add_messages` annotation for `messages`. It stores session ids, input, messages, registries, pending tool calls, permission state, plan mode, todos, memory, usage, MCP/plugin/hooks state, context references/attachments, child runs, artifacts, exports, errors, UI events, final response, and metadata.
 
 Large tool outputs are intended to be stored by reference in storage, not kept unbounded in state.
 
@@ -50,11 +51,12 @@ Boundary data is validated with Pydantic before nodes act on it. State stores JS
 
 - `bootstrap_config`: resolves config, permissions, project root, session metadata.
 - `load_registries`: loads tools, commands, skills, hooks, MCP, plugin state, and runs `session_start` hooks once for a session.
-- `normalize_input`: converts user input into messages and runs `user_prompt` hooks.
+- `normalize_input`: converts user input into messages, extracts conservative `@` context references, preserves API attachments, and runs `user_prompt` hooks.
 - `command_router`: routes slash commands to local response, prompt, skill, or session behavior.
 - `plugin_policy`: applies enabled plugin runtime policies before the first model response. Superpowers uses this to activate `superpowers/brainstorming` for obvious development prompts.
 - `skill_router`: resolves active skill, renders prompt, narrows allowed tools, and runs `pre_skill` / `post_skill` hooks.
-- `context_builder`: runs `pre_context_build` / `post_context_build` hooks and builds system context from project, memory, plugin bootstrap fragments, hook context fragments, tools, skills, todos.
+- `resolve_context`: resolves typed context references and attachments through provider services, applies the context budget, emits context events, and stores JSON-safe context metadata.
+- `context_builder`: runs `pre_context_build` / `post_context_build` hooks and builds system context from project, memory, resolved context fragments, plugin bootstrap fragments, hook context fragments, tools, skills, todos.
 - `model_call`: runs `pre_model` / `post_model` hooks, calls provider, and emits model/tool events.
 - `tool_router`: runs `pre_tool`, classifies tool calls, runs `permission_request` hooks when approval is needed, and chooses execution, permission, skill, agent, MCP, or error route.
 - `permission_gate`: uses LangGraph `interrupt`, resumes from approval/rejection, routes approved calls back to the intended execute or MCP route, and runs `permission_resolved` hooks.
@@ -82,6 +84,12 @@ Implemented subgraph builders:
 - `compaction_graph`
 
 `agent_graph` is no longer a synthetic child-result placeholder. It executes a child graph with separate session/thread ids, narrowed allowed tools, parent/child metadata, and controlled result merge back into the parent tool-message loop. Nested side-effect approvals are guarded: child write/shell/network/MCP calls do not bypass `PermissionService`; unsupported nested approval returns a structured subagent error.
+
+## Context Providers
+
+Context resolution is graph-owned. `normalize_input` parses `@README.md`, `@src/`, `@glob:...`, `@notebook:...`, `@mcp:server:uri`, `@url:...`, and quoted path references into `ContextReference` records. `resolve_context` delegates to `ContextProviderService` and `ContextBudgetService`; `context_builder` only consumes rendered, marked, budgeted fragments.
+
+Providers cover local files, directories, glob summaries, notebooks, MCP resources, URL context through `WebService`, text attachments, and metadata-only image/PDF placeholders. External, MCP, plugin, and pasted context is explicitly marked as data and untrusted prompt content.
 
 ## Interrupt/Resume Flow
 

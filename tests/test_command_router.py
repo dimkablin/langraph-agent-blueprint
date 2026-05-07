@@ -42,3 +42,19 @@ def test_unknown_command_returns_helpful_error(tmp_path):
     assert update["command_handled"] is True
     assert "Unknown command" in update["final_response"]
 
+
+def test_context_command_reports_and_clears_context(tmp_path):
+    deps = build_dependencies(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
+    state = create_initial_state("/context clear", project_root=tmp_path)
+    state["available_commands"] = deps.command_registry.snapshot()
+    state["context_references"] = [{"kind": "file", "value": "README.md", "source": "user_input", "metadata": {}}]
+    state["resolved_context"] = [{"id": "ctx_1", "kind": "file", "title": "README.md", "content": "hello", "trust": "trusted_local"}]
+    state["metadata"] = {"context_references": state["context_references"], "context_resolved": True}
+
+    update = command_router_node(state, deps)
+
+    assert update["command_handled"] is True
+    assert update["context_references"] == []
+    assert update["resolved_context"] == []
+    assert "context_references" not in update["metadata"]
+

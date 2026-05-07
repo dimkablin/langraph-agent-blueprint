@@ -78,6 +78,15 @@ def command_router_node(state: dict, deps: AppDependencies) -> dict:
             update["final_response"] = "No sessions found to resume."
     if name == "memory":
         update["memory"] = command_state.get("memory", {})
+    if metadata.get("clear_context"):
+        update["context_references"] = []
+        update["attachments"] = []
+        update["resolved_context"] = []
+        update["attachment_contents"] = []
+        update["context_budget"] = {}
+        update["context_status"] = {**state.get("context_status", {}), "context_fragments": [], "context_provider_context": "", "context_errors": []}
+        for key in ["context_references", "attachments", "context_budget", "context_resolved"]:
+            metadata.pop(key, None)
     if result.prompt is not None:
         update["messages"] = [HumanMessage(content=result.prompt)]
     if result.skill is not None:

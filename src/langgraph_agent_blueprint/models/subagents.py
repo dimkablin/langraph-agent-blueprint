@@ -25,6 +25,7 @@ class SubagentRequest(FrozenRuntimeModel):
     timeout_seconds: float | None = Field(default=300.0)
     inherit_memory: bool = True
     inherit_todos: bool = False
+    inherit_context: bool = True
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("prompt")

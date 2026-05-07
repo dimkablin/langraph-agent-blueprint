@@ -7,7 +7,10 @@ from pathlib import Path
 
 from langgraph_agent_blueprint.commands.registry import CommandRegistry, build_builtin_command_registry
 from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.context.budget import ContextBudgetService
+from langgraph_agent_blueprint.context.providers import ContextProviderService
 from langgraph_agent_blueprint.hooks.registry import HookRegistry
+from langgraph_agent_blueprint.services.web_service import WebService
 from langgraph_agent_blueprint.services.agent_service import AgentService
 from langgraph_agent_blueprint.services.command_service import CommandService
 from langgraph_agent_blueprint.services.compaction_service import CompactionService
@@ -57,6 +60,8 @@ class AppDependencies:
     command_service: CommandService
     usage_service: UsageService
     observability_service: ObservabilityService
+    context_provider_service: ContextProviderService
+    context_budget_service: ContextBudgetService
 
 
 def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
@@ -92,6 +97,19 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         skill_service=skill_service,
     )
     mcp_service = MCPService(config.mcp_config, output_limit=config.tool_output_limit)
+    context_web_service = WebService(
+        enabled=config.network_enabled,
+        allow_private_hosts=config.web_fetch_allow_private_hosts,
+        max_bytes=config.web_fetch_max_bytes,
+    )
+    context_provider_service = ContextProviderService(
+        project_root=project_root,
+        mcp_service=mcp_service,
+        web_service=context_web_service,
+        max_file_bytes=config.context_max_file_bytes,
+        max_directory_files=config.context_max_directory_files,
+        max_glob_files=config.context_max_glob_files,
+    )
     command_registry = build_builtin_command_registry()
     session_storage = SessionStorage(config.storage_dir)
     return AppDependencies(
@@ -121,4 +139,6 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         command_service=CommandService(command_registry),
         usage_service=UsageService(),
         observability_service=ObservabilityService(config.langfuse),
+        context_provider_service=context_provider_service,
+        context_budget_service=ContextBudgetService(config.context_max_tokens),
     )

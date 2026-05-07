@@ -73,6 +73,8 @@ class AgentService:
             child_state["memory"] = copy.deepcopy(parent_state.get("memory", {}))
         if request.inherit_todos:
             child_state["todos"] = copy.deepcopy(parent_state.get("todos", []))
+        if request.inherit_context:
+            self._inherit_context(parent_state, child_state)
         return child_state
 
     def resolve_allowed_tools(
@@ -114,3 +116,23 @@ class AgentService:
         if skill_name:
             parts.append(f"Active skill: {skill_name}")
         return "\n".join(parts)
+
+    @staticmethod
+    def _inherit_context(parent_state: dict[str, Any], child_state: dict[str, Any]) -> None:
+        """Copy already-resolved context metadata without sharing parent containers."""
+
+        for key in ["context_references", "attachments", "resolved_context", "attachment_contents"]:
+            child_state[key] = copy.deepcopy(parent_state.get(key, []))
+        child_state["context_budget"] = copy.deepcopy(parent_state.get("context_budget", {}))
+        parent_context = parent_state.get("context_status", {})
+        if isinstance(parent_context, dict):
+            child_context = dict(child_state.get("context_status", {}))
+            for key in ["context_fragments", "context_provider_context", "context_budget", "context_errors"]:
+                if key in parent_context:
+                    child_context[key] = copy.deepcopy(parent_context.get(key))
+            child_state["context_status"] = child_context
+        metadata = dict(child_state.get("metadata", {}))
+        metadata["context_inherited"] = True
+        if child_state.get("resolved_context") or child_state.get("context_references"):
+            metadata["context_resolved"] = True
+        child_state["metadata"] = metadata

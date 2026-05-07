@@ -236,6 +236,47 @@ def _mcp(args: str, state: dict[str, Any]) -> CommandResult:
     return CommandResult(True, "Usage: /mcp [servers|tools|resources|prompts]")
 
 
+def _context(args: str, state: dict[str, Any]) -> CommandResult:
+    """Render resolved context references, fragments, and current budget status."""
+
+    view = (args or "list").strip().split()[0] if args or args == "" else "list"
+    if view == "clear":
+        return CommandResult(True, "Context cleared.", metadata={"clear_context": True})
+    references = state.get("context_references", [])
+    fragments = state.get("resolved_context", [])
+    budget = state.get("context_budget") or state.get("metadata", {}).get("context_budget", {})
+    errors = state.get("context_status", {}).get("context_errors", [])
+    lines = ["Context:"]
+    if not references and not fragments and not errors:
+        lines.append("- none")
+    if references:
+        lines.append("References:")
+        for ref in references:
+            label = ref.get("label") or ref.get("value")
+            lines.append(f"- {ref.get('kind')}: {label}")
+    if fragments:
+        lines.append("Fragments:")
+        for fragment in fragments:
+            marker = " truncated" if fragment.get("truncated") else ""
+            lines.append(
+                f"- {fragment.get('title')} "
+                f"({fragment.get('kind')}, trust: {fragment.get('trust')}, "
+                f"tokens: {fragment.get('token_estimate', 0)}{marker})"
+            )
+    if isinstance(budget, dict) and budget:
+        lines.append(
+            f"Budget: {budget.get('used_tokens', 0)}/{budget.get('max_tokens', 0)} tokens, "
+            f"included: {len(budget.get('included', []))}, "
+            f"truncated: {len(budget.get('truncated', []))}, "
+            f"dropped: {len(budget.get('dropped', []))}"
+        )
+    if errors:
+        lines.append("Errors:")
+        for item in errors:
+            lines.append(f"- {item.get('type', 'context_error')}: {item.get('message', '')}")
+    return CommandResult(True, "\n".join(lines))
+
+
 def _memory(args: str, state: dict[str, Any]) -> CommandResult:
     """Render loaded memory scopes, omitting empty scopes for readability."""
 
@@ -295,7 +336,7 @@ def builtins() -> list[Command]:
         Command("branch", "Project branch helper", "session", _not_implemented("branch")),
         Command("rename", "Rename session", "session", _not_implemented("rename")),
         Command("tag", "Tag session", "session", _not_implemented("tag")),
-        Command("context", "Show context usage", "local", _not_implemented("context")),
+        Command("context", "Show context usage", "local", _context),
         Command("plugins", "List plugins", "local", _plugins),
         Command("hooks", "List hooks", "local", _hooks),
         Command("mcp", "List MCP state", "local", _mcp),

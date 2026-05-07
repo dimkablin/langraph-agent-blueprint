@@ -40,7 +40,7 @@ This matrix describes the current Python/LangGraph runtime, not historical pre-f
 | MCP resources/prompts | partial | list/read/get supported | MCP resources/prompts tests | `MCP.md` | Prompt-to-skill registration disabled by default. | P2 |
 | MCP diagnostics | working | `/mcp`, `/doctor` invalid config visibility | MCP command tests | `MCP.md`, `COMMANDS.md` | More CLI subcommands optional. | P2 |
 | Slash command registry | working | `commands/builtin.py` | command registry/router tests | `COMMANDS.md` | Rich source command surface not complete. | P2 |
-| Unsupported optional commands | honest_partial | `/rewind`, `/branch`, `/rename`, `/tag`, `/context` placeholders | command tests | `COMMANDS.md` | Implement only if product needs them. | P2 |
+| Unsupported optional commands | honest_partial | `/rewind`, `/branch`, `/rename`, `/tag` placeholders | command tests | `COMMANDS.md` | Implement only if product needs them. | P2 |
 | Sessions storage | working | strict id validation and path confinement | session storage tests | `SESSIONS.md` | Session browser/rename/tag later. | P1 |
 | Resume/export | working | `SessionService`, `ExportService` | resume/export tests | `SESSIONS.md`, `COMMANDS.md` | Source picker UI later. | P2 |
 | Memory | working | `MemoryService`, `/memory`, remember skill | memory tests | `SKILLS.md`, `SESSIONS.md` | Automatic extraction/relevance partial. | P2 |
@@ -50,6 +50,6 @@ This matrix describes the current Python/LangGraph runtime, not historical pre-f
 | Config/env precedence | working | `AppConfig.from_env`, `layered_get` | env/langfuse config tests | README, `.env.example` | Full user/project config layering later. | P1 |
 | Provider abstraction | partial | fake/openai/anthropic/ollama/openai-compatible config | provider binding tests | README | Provider-specific auth/cost/retry polishing. | P2 |
 | Security hardening | working | Batch 1 and Batch 2 fixes | security-focused regression tests | audit docs, `PERMISSIONS.md` | Keep external content untrusted. | P0/P1 |
-| Context providers/attachments | missing | No first-class attachment model | none specific | roadmap only | Phase 6. | P1 |
+| Context providers/attachments | working_mvp | `models/context.py`, `context/providers.py`, `resolve_context` graph node, `/context` | context model/provider/graph/security/subagent/observability tests | `CONTEXT_ATTACHMENTS.md` | Image/PDF extraction is metadata-only; frontend attachment UX remains future. | P1 |
 | Eval/replay harness | missing | No replay runner | none specific | roadmap only | Phase 7. | P1 |
 | Frontend readiness | partial | Static React shell and API contract | frontend static tests | `FRONTEND.md` | Build real UI after Phase 8. | frontend_phase |

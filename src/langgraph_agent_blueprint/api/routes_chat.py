@@ -10,7 +10,16 @@ router = APIRouter()
 @router.post("/chat/stream")
 def chat_stream(request_body: ChatRequest, request: Request) -> list[dict]:
     runtime = request.app.state.runtime
-    return list(runtime.stream(request_body.message, input_kind="headless", session_id=request_body.session_id, thread_id=request_body.thread_id))
+    attachments = [item.model_dump(mode="json", exclude_none=True) for item in request_body.attachments]
+    return list(
+        runtime.stream(
+            request_body.message,
+            input_kind="headless",
+            session_id=request_body.session_id,
+            thread_id=request_body.thread_id,
+            attachments=attachments,
+        )
+    )
 
 
 @router.post("/approval/events")

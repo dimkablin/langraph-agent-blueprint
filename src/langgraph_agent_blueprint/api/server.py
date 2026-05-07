@@ -39,7 +39,14 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     @api.post("/chat", response_model=ChatResponse)
     def chat(request: ChatRequest) -> ChatResponse:
-        result = runtime.invoke(request.message, input_kind="headless", session_id=request.session_id, thread_id=request.thread_id)
+        attachments = [item.model_dump(mode="json", exclude_none=True) for item in request.attachments]
+        result = runtime.invoke(
+            request.message,
+            input_kind="headless",
+            session_id=request.session_id,
+            thread_id=request.thread_id,
+            attachments=attachments,
+        )
         permission_required = None
         if "__interrupt__" in result:
             permission_required = result["__interrupt__"][0].value

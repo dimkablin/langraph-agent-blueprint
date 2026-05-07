@@ -29,6 +29,10 @@ class AppConfig(BaseModel):
     network_enabled: bool = False
     web_fetch_allow_private_hosts: bool = False
     web_fetch_max_bytes: int = 1_000_000
+    context_max_tokens: int = 8000
+    context_max_file_bytes: int = 200_000
+    context_max_directory_files: int = 200
+    context_max_glob_files: int = 100
     shell_timeout_seconds: float = 30.0
     tool_output_limit: int = 12000
     auto_compact_threshold: int = 12000
@@ -88,6 +92,10 @@ class AppConfig(BaseModel):
             "network_enabled": str(env_value("NETWORK_ENABLED", "false")).lower() in {"1", "true", "yes"},
             "web_fetch_allow_private_hosts": cls._bool(env_value("WEB_FETCH_ALLOW_PRIVATE_HOSTS"), default=False),
             "web_fetch_max_bytes": cls._int(env_value("WEB_FETCH_MAX_BYTES"), default=1_000_000),
+            "context_max_tokens": cls._int(env_value("CONTEXT_MAX_TOKENS"), default=8000),
+            "context_max_file_bytes": cls._int(env_value("CONTEXT_MAX_FILE_BYTES"), default=200_000),
+            "context_max_directory_files": cls._int(env_value("CONTEXT_MAX_DIRECTORY_FILES"), default=200),
+            "context_max_glob_files": cls._int(env_value("CONTEXT_MAX_GLOB_FILES"), default=100),
             "anthropic_api_key": env_value("ANTHROPIC_API_KEY"),
             "anthropic_model": env_value("ANTHROPIC_MODEL"),
             "openai_api_key": env_value("OPENAI_API_KEY"),

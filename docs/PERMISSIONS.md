@@ -17,6 +17,7 @@ Policy:
 - `accept_edits` allows `write`/`edit` actions only; it does not allow shell or network actions
 - network tools declare `permission.requires_network=True`, still require approval, and also depend on network config
 - `web_fetch` approval does not override URL guardrails: only `http`/`https` URLs are allowed, private/internal hosts are blocked unless `WEB_FETCH_ALLOW_PRIVATE_HOSTS=true`, and response bodies are capped by `WEB_FETCH_MAX_BYTES`
+- URL context references use the same `web_fetch` guardrails; approving a model-requested network tool is not required just to reject unsafe context URLs
 - MCP/plugin/custom tools default conservative when adapters do not provide safer metadata
 - plan mode blocks non-read-only side effects unless `permission.allowed_in_plan_mode=True`
 
@@ -54,3 +55,7 @@ ToolPermissionMetadata(
 ```
 
 `tool_router` checks `PermissionService` before routing an MCP call to `mcp_graph`. Approval resumes to `mcp_graph`; rejection appends a rejected `ToolMessage` and does not call the MCP server. MCP resource and prompt content is marked external/untrusted and cannot directly create side effects.
+
+## Context Providers
+
+Context providers are read/context surfaces, not side-effect permissions. Local file/directory/glob/notebook context is path-confined under the project root. URL context reuses network-disabled and private-host guardrails. MCP resource context is marked `mcp_external`; it does not grant MCP tools permission to run. Context text can influence future model output, but any resulting tool call still goes through `tool_router` and `PermissionService`.
