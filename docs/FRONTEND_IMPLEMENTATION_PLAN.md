@@ -4,7 +4,7 @@ Audit date: 2026-05-08
 
 Goal: build a thin frontend over the existing FastAPI/LangGraph runtime. The frontend must display runtime state and send user/API actions; it must not execute tools, own workflow routing, duplicate permission policy, or bypass the graph.
 
-## Recommended MVP Scope
+## Implemented MVP Scope
 
 ### 1. Chat Page
 
@@ -134,7 +134,7 @@ Defer:
 
 ## Proposed Frontend Architecture
 
-Current frontend is JavaScript. For a normal maintainable frontend, migrate the app code to TypeScript before the UI grows.
+Current frontend is TypeScript React. The old JavaScript CLI-like shell was replaced by typed API/runtime layers and component panels.
 
 Suggested structure:
 
@@ -183,13 +183,11 @@ Rules:
 - No hardcoded backend enum values inside presentation components.
 - No raw `dict` assumptions in UI components after TypeScript schema layer exists.
 
-## Backend Work Before Full Frontend
+## Remaining Frontend/Backend Work
 
 | Work item | Why it matters | Priority |
 | --- | --- | --- |
-| Build TypeScript API client and SSE parser | Backend contract now exists; frontend needs typed client code. | P1 |
-| Add runtime event reducer | Required to render stream frames consistently. | P1 |
-| Add session/context/subagent panels | Backend DTO endpoints now exist; UI is missing. | P1 |
+| Improve subagent transcript UI | Current timeline shows subagent events; a dedicated transcript viewer is still deferred. | P2 |
 | Add export download endpoint | Export trigger exists; direct download/read is still missing. | P2 |
 | Add upload endpoint | Needed for file drag/drop beyond `@mention` refs. | P2 |
 | Keep plugin install UI deferred | Trust UX and path/git policy need deliberate design. | P3 |
@@ -233,12 +231,11 @@ Recommended runner:
 
 ## Implementation Order
 
-1. TypeScript frontend API/runtime layers on top of the stabilized backend contract.
-2. Chat + SSE event timeline.
-3. Chat/timeline UI backed by real responses.
-4. Permission modal.
-5. Session panel.
-6. Context panel.
-7. Read-only MCP/plugin/config/observability panels.
-8. Optional export/download.
-9. Later: eval dashboard and plugin management.
+1. Completed: TypeScript frontend API/runtime layers on top of the stabilized backend contract.
+2. Completed: Chat + SSE event timeline.
+3. Completed: Chat/timeline UI backed by real responses.
+4. Completed: Permission approval bar.
+5. Completed: Session panel.
+6. Completed: Context panel.
+7. Completed: Basic read-only MCP/plugin/config/observability status summary.
+8. Next: richer panels, upload/download, subagent detail, eval dashboard, and plugin management.

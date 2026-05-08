@@ -1,0 +1,30 @@
+# LangGraph Agent Frontend
+
+This frontend is a TypeScript React thin client for `langgraph-agent-blueprint`.
+It calls the FastAPI/LangGraph runtime and does not execute tools, own permission
+policy, or duplicate graph workflow logic in the browser.
+
+## Run
+
+```bash
+npm install
+npm run dev
+```
+
+Set a backend URL with:
+
+```bash
+set VITE_API_BASE_URL=http://127.0.0.1:8000
+```
+
+## Architecture
+
+- `src/api/`: typed HTTP and SSE clients for runtime endpoints.
+- `src/runtime/`: event reducer, selectors, and view-model helpers.
+- `src/components/`: presentation-only chat, timeline, approval, session,
+  context, registry, and status panels.
+
+The live chat path uses `POST /chat/stream` and parses Server-Sent Event
+`StreamFrame` payloads. Approval uses `POST /approval` with typed
+`PermissionDecisionDTO`.
+

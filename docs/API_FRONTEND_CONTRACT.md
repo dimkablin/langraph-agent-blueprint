@@ -50,7 +50,7 @@ Note: `/commands`, `/skills`, and `/tools` are now router-owned only. OpenAPI ex
 | Frontend need | Endpoint exists | Method/path | Request schema | Response schema | Streaming | Status | Missing work | Priority |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Send message | yes | `POST /chat` | `ChatRequest(message, session_id?, thread_id?, attachments[])` | `ChatResponse(session_id, thread_id, final_response?, events, permission_required?)` | no | working | None for basic MVP. | P1 |
-| Stream chat events live | yes | `POST /chat/stream` | `ChatRequest` | SSE frames containing `StreamFrame` with `RuntimeEventDTO` | live SSE | working | TypeScript SSE parser/client still needed in frontend. | P1 |
+| Stream chat events live | yes | `POST /chat/stream` | `ChatRequest` | SSE frames containing `StreamFrame` with `RuntimeEventDTO` | live SSE | working | Implemented in `frontend/src/api/stream.ts`. | P1 |
 | Resume after approval | yes | `POST /approval` | `ApprovalRequest(thread_id, session_id?, decision: PermissionDecisionDTO)` | `ChatResponse` | no | working | Legacy `{approved}` shape remains supported for the old shell. | P1 |
 | Reject permission | yes | `POST /approval` | same | same | no | working | `permission_resolved` event is returned in response events. | P1 |
 | Get final response | yes | `POST /chat`, `POST /approval` | same | `final_response` | no | working | None. | P1 |
@@ -179,7 +179,8 @@ Do not block chat/session frontend on eval endpoints.
 
 | Gap | Classification | Rationale |
 | --- | --- | --- |
-| TypeScript frontend API client and stream parser | must_fix_before_frontend_ui | Backend now exposes SSE; frontend still needs parser/reducer code. |
+| TypeScript frontend API client and stream parser | completed | Implemented in `frontend/src/api/` and covered by frontend unit tests. |
+| Runtime event reducer | completed | Implemented in `frontend/src/runtime/reducer.ts` with unknown-event fallback. |
 | Upload/download endpoints | nice_to_have | Required for richer attachments/export UX, not basic `@mention` chat. |
 | Plugin install/update/remove endpoints | future | Needs explicit trust UX; not required for MVP. |
 | Eval endpoints | future | CLI-only is acceptable for MVP. |

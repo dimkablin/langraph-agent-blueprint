@@ -196,9 +196,9 @@ lg-agent skills list
 
 When enabled, Superpowers skills are registered as `superpowers/<skill-name>`, `superpowers/using-superpowers` bootstrap context is injected at session start, and obvious new development prompts activate `superpowers/brainstorming` through LangGraph before code is written. See `docs/SUPERPOWERS_PLUGIN.md`.
 
-## Run React CLI Frontend
+## Run React Runtime Frontend
 
-The browser frontend is a React terminal UI. It does not execute tools directly; it calls graph-facing FastAPI endpoints such as `/chat`, `/chat/stream` (SSE), `/approval`, `/sessions`, `/commands`, `/skills`, `/tools`, and read-only runtime status endpoints.
+The browser frontend is a TypeScript React thin client over the LangGraph runtime. It does not execute tools directly; it calls graph-facing FastAPI endpoints such as `/chat`, `/chat/stream` (SSE), `/approval`, `/sessions`, `/commands`, `/skills`, `/tools`, and read-only runtime status endpoints. The UI includes streamed chat, a runtime event timeline, approval controls, registry/session/context panels, and read-only runtime status.
 
 Start the API:
 

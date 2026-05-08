@@ -138,14 +138,14 @@ Eval/replay is CLI/report-file oriented. A future eval dashboard should add expl
 
 ## Frontend Event Reducer Recommendations
 
-Create a frontend event layer before building more UI:
+The frontend event layer is implemented as:
 
 ```text
 frontend/src/runtime/
-  types.ts
   events.ts
   reducer.ts
-  renderers.ts
+  selectors.ts
+  viewModels.ts
 ```
 
 Rules:
@@ -161,7 +161,7 @@ Rules:
 
 | Gap | Impact | Priority |
 | --- | --- | --- |
-| TypeScript `StreamFrame`/`RuntimeEventDTO` client types not generated yet | Components would rely on hand-written types | P1 |
+| TypeScript `StreamFrame`/`RuntimeEventDTO` client types are hand-maintained | OpenAPI codegen can replace manual types later | P2 |
 | Tool events lack output refs in the event itself | Tool result panel needs to query session/tool calls | P2 |
 | Session id/thread id are envelope fields, not always event data | Reducer must combine response metadata with events | P2 |
 | Eval events absent | Eval dashboard later needs separate contract | P3 |

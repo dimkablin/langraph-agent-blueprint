@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
+const srcRoot = join(root, "frontend", "src");
 
 function test(name, fn) {
   try {
@@ -15,29 +16,59 @@ function test(name, fn) {
   }
 }
 
-test("React CLI frontend exposes terminal shell and all hint surfaces", () => {
-  const app = readFileSync(join(root, "frontend", "src", "App.jsx"), "utf8");
-  const hints = readFileSync(join(root, "frontend", "src", "commandHints.js"), "utf8");
+function sourceFiles(dir = srcRoot) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFiles(path);
+    if (/\.(ts|tsx|css)$/.test(entry.name)) return [path];
+    return [];
+  });
+}
 
-  assert.match(app, /function App/);
-  assert.match(app, /TerminalShell/);
-  assert.match(app, /HintPanel/);
-  assert.match(app, /PermissionPrompt/);
-  assert.match(hints, /\/help/);
-  assert.match(hints, /\/skills/);
-  assert.match(hints, /read_file/);
-  assert.match(hints, /debug/);
+function sourceText() {
+  return sourceFiles()
+    .map((path) => `\n// ${relative(srcRoot, path)}\n${readFileSync(path, "utf8")}`)
+    .join("\n");
+}
+
+test("TypeScript runtime frontend entrypoint is active", () => {
+  const index = readFileSync(join(root, "frontend", "index.html"), "utf8");
+  const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
+
+  assert.match(index, /\/src\/main\.tsx/);
+  assert.match(app, /streamChat/);
+  assert.match(app, /PermissionPanel/);
+  assert.match(app, /SessionsPanel/);
+  assert.match(app, /ContextPanel/);
 });
 
-test("API client calls graph-facing backend endpoints only", () => {
-  const api = readFileSync(join(root, "frontend", "src", "api.js"), "utf8");
+test("frontend uses graph-facing backend endpoints only", () => {
+  const text = sourceText();
 
-  assert.match(api, /\/chat/);
-  assert.match(api, /\/approval/);
-  assert.doesNotMatch(api, /\/tools\/execute/);
+  assert.match(text, /\/chat\/stream/);
+  assert.match(text, /\/approval/);
+  assert.match(text, /\/sessions/);
+  assert.match(text, /\/commands/);
+  assert.match(text, /\/skills/);
+  assert.match(text, /\/tools/);
+  assert.doesNotMatch(text, /\/tools\/execute/);
+  assert.doesNotMatch(text, /query\/stream/);
+  assert.doesNotMatch(text, /luxms|otp-login|login_as/i);
 });
 
-test("backend frontend contract exposes typed streaming, sessions, and status routes", () => {
+test("runtime API and reducer layers are separated from components", () => {
+  const api = readFileSync(join(srcRoot, "api", "stream.ts"), "utf8");
+  const reducer = readFileSync(join(srcRoot, "runtime", "reducer.ts"), "utf8");
+  const componentFiles = sourceFiles(join(srcRoot, "components"));
+  const components = componentFiles.map((path) => readFileSync(path, "utf8")).join("\n");
+
+  assert.match(api, /fetch\(apiUrl\("\/chat\/stream"\)/);
+  assert.match(reducer, /applyRuntimeEvent/);
+  assert.doesNotMatch(components, /fetch\(/);
+  assert.doesNotMatch(components, /\/chat|\/approval|\/tools/);
+});
+
+test("backend frontend contract still exposes typed streaming, sessions, and status routes", () => {
   const schemas = readFileSync(join(root, "src", "langgraph_agent_blueprint", "api", "schemas.py"), "utf8");
   const server = readFileSync(join(root, "src", "langgraph_agent_blueprint", "api", "server.py"), "utf8");
   const chatRoutes = readFileSync(join(root, "src", "langgraph_agent_blueprint", "api", "routes_chat.py"), "utf8");
@@ -55,12 +86,4 @@ test("backend frontend contract exposes typed streaming, sessions, and status ro
   assert.match(statusRoutes, /\/config\/explain/);
   assert.match(statusRoutes, /\/observability/);
   assert.doesNotMatch(server, /@api\.get\("\/(commands|skills|tools)"\)/);
-});
-
-test("JSX modules import React for Vite classic JSX runtime", () => {
-  const app = readFileSync(join(root, "frontend", "src", "App.jsx"), "utf8");
-  const components = readFileSync(join(root, "frontend", "src", "components.jsx"), "utf8");
-
-  assert.match(app, /import React,\s*\{/);
-  assert.match(components, /import React from "react"/);
 });
