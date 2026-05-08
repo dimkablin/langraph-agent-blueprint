@@ -97,6 +97,40 @@ class SessionStorage:
                     handle.write(json.dumps(item, ensure_ascii=False) + "\n")
         return child_dir
 
+    def list_child_runs(self, project_root: str | Path, parent_session_id: str) -> list[dict[str, Any]]:
+        """List persisted child-run metadata/result summaries for one parent session."""
+
+        child_root = self.session_dir(project_root, parent_session_id) / "child_runs"
+        if not child_root.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        for child_dir in child_root.iterdir():
+            if not child_dir.is_dir():
+                continue
+            try:
+                metadata = json.loads((child_dir / "metadata.json").read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            result = {}
+            result_path = child_dir / "result.json"
+            if result_path.exists():
+                try:
+                    result = json.loads(result_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    result = {}
+            rows.append({"metadata": metadata, "result": result})
+        return sorted(rows, key=lambda item: item.get("metadata", {}).get("started_at", ""))
+
+    def load_child_run(self, project_root: str | Path, parent_session_id: str, child_run_id: str) -> dict[str, Any]:
+        """Load one persisted child-run metadata/result/events record."""
+
+        child_dir = self.child_run_dir(project_root, parent_session_id, child_run_id)
+        metadata = json.loads((child_dir / "metadata.json").read_text(encoding="utf-8"))
+        result_path = child_dir / "result.json"
+        result = json.loads(result_path.read_text(encoding="utf-8")) if result_path.exists() else {}
+        events = self._read_jsonl(child_dir / "events.jsonl", RuntimeEvent)
+        return {"metadata": metadata, "result": result, "events": events}
+
     def append_event(self, project_root: str | Path, session_id: str, event: dict[str, Any]) -> None:
         """Append a session event once, deduplicating by event id when available."""
 

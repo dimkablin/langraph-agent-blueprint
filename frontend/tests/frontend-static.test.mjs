@@ -37,6 +37,26 @@ test("API client calls graph-facing backend endpoints only", () => {
   assert.doesNotMatch(api, /\/tools\/execute/);
 });
 
+test("backend frontend contract exposes typed streaming, sessions, and status routes", () => {
+  const schemas = readFileSync(join(root, "src", "langgraph_agent_blueprint", "api", "schemas.py"), "utf8");
+  const server = readFileSync(join(root, "src", "langgraph_agent_blueprint", "api", "server.py"), "utf8");
+  const chatRoutes = readFileSync(join(root, "src", "langgraph_agent_blueprint", "api", "routes_chat.py"), "utf8");
+  const sessionRoutes = readFileSync(join(root, "src", "langgraph_agent_blueprint", "api", "routes_sessions.py"), "utf8");
+  const statusRoutes = readFileSync(join(root, "src", "langgraph_agent_blueprint", "api", "routes_status.py"), "utf8");
+
+  assert.match(schemas, /class RuntimeEventDTO/);
+  assert.match(schemas, /class StreamFrame/);
+  assert.match(schemas, /class PermissionDecisionDTO/);
+  assert.match(schemas, /class SessionDetailDTO/);
+  assert.match(schemas, /class ContextStateDTO/);
+  assert.match(chatRoutes, /text\/event-stream/);
+  assert.match(sessionRoutes, /\/sessions\/\{session_id\}\/context/);
+  assert.match(sessionRoutes, /\/sessions\/\{session_id\}\/child-runs/);
+  assert.match(statusRoutes, /\/config\/explain/);
+  assert.match(statusRoutes, /\/observability/);
+  assert.doesNotMatch(server, /@api\.get\("\/(commands|skills|tools)"\)/);
+});
+
 test("JSX modules import React for Vite classic JSX runtime", () => {
   const app = readFileSync(join(root, "frontend", "src", "App.jsx"), "utf8");
   const components = readFileSync(join(root, "frontend", "src", "components.jsx"), "utf8");

@@ -15,7 +15,9 @@ from .routes_commands import router as commands_router
 from .routes_mcp import router as mcp_router
 from .routes_sessions import router as sessions_router
 from .routes_skills import router as skills_router
+from .routes_status import router as status_router
 from .routes_tools import router as tools_router
+from .serializers import runtime_event_dtos
 
 
 def create_app(config: AppConfig | None = None) -> FastAPI:
@@ -54,32 +56,26 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             session_id=result["session_id"],
             thread_id=result["thread_id"],
             final_response=result.get("final_response"),
-            events=result.get("ui_events", []),
+            events=runtime_event_dtos(
+                result.get("ui_events", []),
+                redactor=runtime.dependencies.observability_service.redact_payload,
+            ),
             permission_required=permission_required,
         )
 
     @api.post("/approval", response_model=ChatResponse)
     def approval(request: ApprovalRequest) -> ChatResponse:
-        result = runtime.resume(request.thread_id, request.decision, session_id=request.session_id)
+        result = runtime.resume(request.thread_id, request.decision_payload(), session_id=request.session_id)
         return ChatResponse(
             session_id=result["session_id"],
             thread_id=result["thread_id"],
             final_response=result.get("final_response"),
-            events=result.get("ui_events", []),
+            events=runtime_event_dtos(
+                result.get("ui_events", []),
+                redactor=runtime.dependencies.observability_service.redact_payload,
+            ),
             permission_required=None,
         )
-
-    @api.get("/skills")
-    def skills() -> dict:
-        return runtime.dependencies.skill_registry.snapshot()
-
-    @api.get("/tools")
-    def tools() -> dict:
-        return runtime.dependencies.tool_registry.snapshot()
-
-    @api.get("/commands")
-    def commands() -> dict:
-        return runtime.dependencies.command_registry.snapshot()
 
     api.include_router(sessions_router)
     api.include_router(chat_router)
@@ -87,4 +83,5 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     api.include_router(tools_router)
     api.include_router(commands_router)
     api.include_router(mcp_router)
+    api.include_router(status_router)
     return api

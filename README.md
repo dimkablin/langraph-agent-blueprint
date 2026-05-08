@@ -198,7 +198,7 @@ When enabled, Superpowers skills are registered as `superpowers/<skill-name>`, `
 
 ## Run React CLI Frontend
 
-The browser frontend is a React terminal UI. It does not execute tools directly; it calls the graph-facing FastAPI endpoints `/chat`, `/approval`, `/commands`, `/skills`, and `/tools`.
+The browser frontend is a React terminal UI. It does not execute tools directly; it calls graph-facing FastAPI endpoints such as `/chat`, `/chat/stream` (SSE), `/approval`, `/sessions`, `/commands`, `/skills`, `/tools`, and read-only runtime status endpoints.
 
 Start the API:
 

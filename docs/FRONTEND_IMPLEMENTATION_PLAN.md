@@ -20,12 +20,12 @@ Features:
 Backend dependency:
 
 - `POST /chat`.
-- Real streaming endpoint once added.
+- `POST /chat/stream` SSE.
 
 Initial fallback:
 
-- Use current `POST /chat` response for non-live MVP.
-- Treat `/chat/stream` as batch events until SSE/NDJSON/WebSocket is implemented.
+- Use `POST /chat` response for non-streaming fallback.
+- Use `/chat/stream` SSE `StreamFrame` objects for the live event timeline.
 
 ### 2. Permission Modal
 
@@ -43,7 +43,7 @@ Backend dependency:
 Implementation note:
 
 - Store `session_id`, `thread_id`, and `tool_call_id` with modal state.
-- Prefer sending typed `PermissionDecision` once API schema is tightened.
+- Send typed `PermissionDecisionDTO(tool_call_id, decision, reason?)`; legacy `{approved}` support exists only for the current shell.
 
 ### 3. Runtime Side Panel
 
@@ -59,7 +59,7 @@ Backend dependency:
 - `GET /commands`.
 - `GET /tools`.
 - `GET /skills`.
-- Optional `GET /status` or diagnostics endpoint later.
+- Read-only status endpoints: `GET /plugins`, `/hooks`, `/config`, `/config/explain`, `/config/validate`, `/observability`, `/mcp`.
 
 ### 4. Sessions Panel
 
@@ -75,7 +75,10 @@ Backend dependency:
 
 - `GET /sessions`.
 - `GET /sessions/{session_id}`.
-- Future export endpoint.
+- `GET /sessions/{session_id}/events`.
+- `GET /sessions/{session_id}/messages`.
+- `GET /sessions/{session_id}/child-runs`.
+- `POST /sessions/{session_id}/export`.
 
 ### 5. Context Panel
 
@@ -90,7 +93,7 @@ Features:
 Backend dependency:
 
 - Context events in chat responses.
-- Future `GET /sessions/{session_id}/context`.
+- `GET /sessions/{session_id}/context`.
 
 ### 6. Plugins/MCP Panel
 
@@ -184,13 +187,10 @@ Rules:
 
 | Work item | Why it matters | Priority |
 | --- | --- | --- |
-| Implement live stream endpoint | Required for token/event timeline UX. | P1 |
-| Remove duplicate registry routes | Required for clean OpenAPI and typed client generation. | P1 |
-| Add typed frontend DTOs | Prevents UI from depending on raw storage/runtime dicts. | P1 |
-| Add session context/child-run endpoints | Needed for context and subagent panels. | P1 |
-| Add config/observability read-only endpoints | Needed for status/config panel. | P2 |
-| Add plugin/hook read-only endpoints | Needed for extension panels. | P2 |
-| Add export trigger/download endpoint | Needed for sessions panel export UX. | P2 |
+| Build TypeScript API client and SSE parser | Backend contract now exists; frontend needs typed client code. | P1 |
+| Add runtime event reducer | Required to render stream frames consistently. | P1 |
+| Add session/context/subagent panels | Backend DTO endpoints now exist; UI is missing. | P1 |
+| Add export download endpoint | Export trigger exists; direct download/read is still missing. | P2 |
 | Add upload endpoint | Needed for file drag/drop beyond `@mention` refs. | P2 |
 | Keep plugin install UI deferred | Trust UX and path/git policy need deliberate design. | P3 |
 
@@ -208,7 +208,7 @@ Frontend unit/static tests:
 
 Backend/frontend contract tests:
 
-- OpenAPI route snapshot after duplicate routes are removed.
+- OpenAPI route snapshot guarding one canonical operation per path/method.
 - `ChatRequest`/`ChatResponse` schema contract.
 - `ApprovalRequest`/approval response contract.
 - Runtime event fixture contract.
@@ -233,8 +233,8 @@ Recommended runner:
 
 ## Implementation Order
 
-1. Backend contract cleanup: live stream, duplicate routes, DTOs.
-2. TypeScript frontend API/runtime layers.
+1. TypeScript frontend API/runtime layers on top of the stabilized backend contract.
+2. Chat + SSE event timeline.
 3. Chat/timeline UI backed by real responses.
 4. Permission modal.
 5. Session panel.
@@ -242,4 +242,3 @@ Recommended runner:
 7. Read-only MCP/plugin/config/observability panels.
 8. Optional export/download.
 9. Later: eval dashboard and plugin management.
-

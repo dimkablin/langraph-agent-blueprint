@@ -20,7 +20,13 @@ Runtime events use `RuntimeEvent`:
 
 The Python event type is `EventType` in `models/events.py`. Severity is `info | warning | error`.
 
-Important frontend note: `POST /chat/stream` currently returns a completed `list[RuntimeEvent]`; it is not HTTP live streaming. CLI `--output stream-json` uses the runtime generator directly.
+Important frontend note: `POST /chat/stream` now returns Server-Sent Events. Each SSE `data:` payload is a `StreamFrame`:
+
+```json
+{"type":"event","event":{"id":"event_...","type":"final_response","timestamp":"...","session_id":"session_...","severity":"info","data":{"content":"..."}}}
+```
+
+The terminal frame is `{"type":"done","session_id":"...","final_response":"..."}`. Runtime exceptions are emitted as `{"type":"error","error":"..."}` frames.
 
 ## Event Taxonomy
 
@@ -33,7 +39,7 @@ Important frontend note: `POST /chat/stream` currently returns a completed `list
 | `command_started` | `name` | Slash command timeline | stable | command id | Timeline row |
 | `command_finished` | `name`, `handled`, optional status | Slash command result | stable | command output ref | Timeline row |
 | `model_message` | `content` | Assistant message preview | partial | message id, token usage | Render as assistant draft/final if no separate final response |
-| `model_token` | `token` | Token streaming | partial | sequence index, message id | Needs real stream before rendering live |
+| `model_token` | `token` | Token streaming | partial | sequence index, message id | Render only if provider emits token events; keep unknown-safe |
 | `final_response` | `content` | Final assistant message | stable | message id | Primary assistant message |
 | `error` | error fields from latest error | Error panel | stable enough | normalized error code | Error row/banner |
 
@@ -55,7 +61,7 @@ Important frontend note: `POST /chat/stream` currently returns a completed `list
 | `permission_required` | `type`, `tool_call_id`, `tool_name`, `action`, `risk`, `args_summary`, `reason`, `args` | Permission modal | stable | explicit `session_id` and `thread_id` inside event data; redaction marker | Blocking modal with action/risk/args summary |
 | `permission_resolved` | `tool_call_id`, `tool_name`, `decision`, `reason` | Approval/rejection timeline | stable | user id/source | Timeline row and close modal |
 
-Approval readiness: the modal has enough data for MVP. The API response also returns `session_id` and `thread_id`, which should be kept with modal state.
+Approval readiness: the modal has enough data for MVP. The API response also returns `session_id` and `thread_id`, which should be kept with modal state. Frontend approval should send `PermissionDecisionDTO(tool_call_id, decision, reason?)`; legacy `{approved}` remains supported only for compatibility.
 
 ## Skill, Plugin, Hook Events
 
@@ -115,7 +121,7 @@ Known limitation: nested approval/resume for side-effect child runs is not fully
 | `memory_updated` | `scope`, `path` or `scopes` | Memory panel refresh | partial | memory item id, path redaction | Low-signal refresh row |
 | `compact_started` | `node` | Compaction progress | stable | none | Timeline row |
 | `compact_finished` | `summary` | Compaction result | stable | token delta | Timeline row with summary |
-| `export_finished` | export metadata | Export result | stable | download URL | Toast/link when API exists |
+| `export_finished` | export metadata | Export result | stable | download URL | Toast/link; `POST /sessions/{id}/export` returns an export record |
 
 There is no dedicated `todo_updated` event in `EventType`; todo changes are represented through tool results/state today.
 
@@ -149,15 +155,13 @@ Rules:
 - Do not hardcode business decisions in React components.
 - Treat event `data` as already redacted but still untrusted display input.
 - Store modal state from `permission_required` plus response-level `session_id`/`thread_id`.
-- Do not use `model_token` for live rendering until HTTP streaming is truly live.
+- Parse `POST /chat/stream` as SSE `StreamFrame` objects; keep `POST /chat` for non-streaming fallback.
 
 ## Contract Gaps
 
 | Gap | Impact | Priority |
 | --- | --- | --- |
-| No live HTTP event framing | Blocks real streaming UI | P1 |
-| Event `data` is typed in Python but not exported to TypeScript | Components would rely on ad hoc fields | P1 |
+| TypeScript `StreamFrame`/`RuntimeEventDTO` client types not generated yet | Components would rely on hand-written types | P1 |
 | Tool events lack output refs in the event itself | Tool result panel needs to query session/tool calls | P2 |
 | Session id/thread id are envelope fields, not always event data | Reducer must combine response metadata with events | P2 |
 | Eval events absent | Eval dashboard later needs separate contract | P3 |
-
