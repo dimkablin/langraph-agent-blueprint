@@ -88,21 +88,21 @@ C:\Users\dimka\Documents\PROJECTS\llm-data-analyst\claude-code-like-project
 - Dependencies: current web/MCP/plugin trust boundaries.
 - Priority: P1.
 
-## Remaining MVP Before Frontend
-
 ### Phase 7: Eval and Replay Harness
 
 - Why it matters: runtime now has graph edges, permissions, hooks, MCP, plugins, skills, memory, and observability. Unit tests are strong, but real transcript regressions need replay.
 - Source basis: source has rich SDK/stream events and transcript/session storage; replay harness is an extension needed for this reference runtime.
-- Current status: missing.
-- Target architecture: deterministic replay runner over saved RuntimeEvents, tool fixtures, provider fixtures, and permission decisions.
-- LangGraph nodes/subgraphs: no new workflow owner; harness invokes existing runtime.
-- Pydantic models: `ReplayScenario`, `ReplayStep`, `ReplayExpectation`, `EvalResult`, `ToolFixture`.
-- Services: `ReplayService`, `EvalService`, fixture provider.
-- Tests: replay of permission approval, Superpowers activation, MCP tool call, hook block, compaction, Langfuse disabled mode.
-- Risks: weak mocks that hide bugs, brittle text assertions, accidental live network.
+- Current status: working MVP.
+- Target architecture: deterministic scenario runner over checked-in fixtures, fake provider, RuntimeEvents, permission decisions, and final graph state.
+- LangGraph nodes/subgraphs: no new workflow owner; harness invokes existing `AssistantGraphRuntime`.
+- Pydantic models: `EvalScenario`, `EvalStep`, `EvalExpectations`, `ExpectedEvent`, `ExpectedToolCall`, `ExpectedSkillInvocation`, `ExpectedPermissionRequest`, `ExpectedMCPCall`, `ExpectedSubagentRun`, `ExpectedContextFragment`, `ExpectedFinalResponse`, `EvalRunResult`, `EvalReport`.
+- Services: `EvalService`, `EvalRunner`, loader, assertion engine, reporter.
+- Tests: basic chat, file context, write rejection, edit exact-once/ambiguous, Superpowers activation, MCP echo, hook block, readonly subagent, URL disabled, Langfuse disabled.
+- Risks: future real-provider evals need stricter fixture controls; prose assertions should remain tolerant.
 - Dependencies: stable event contracts and session storage.
 - Priority: P1.
+
+## Remaining MVP Before Frontend
 
 ### Phase 8: Config Layering and Plugin SDK Hardening
 
@@ -126,8 +126,8 @@ C:\Users\dimka\Documents\PROJECTS\llm-data-analyst\claude-code-like-project
 2. Keep Phase 6 as context providers/attachments, but treat it as runtime, not frontend polish.
    Frontend attachment UI should follow typed runtime support, not precede it.
 
-3. Keep Phase 7 before frontend.
-   Replay/eval will make later UI and plugin SDK work safer.
+3. Phase 7 is now the regression harness before frontend.
+   Use checked-in scenarios to protect later plugin SDK, config, and UI work.
 
 4. Keep Phase 8 before frontend.
    Config layering and plugin SDK hardening are needed before exposing plugin/MCP/context providers in UI.

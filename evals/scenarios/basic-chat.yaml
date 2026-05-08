@@ -1,0 +1,13 @@
+id: basic-chat
+description: Fake provider should complete a simple chat turn.
+provider: fake
+workspace_fixture: basic_repo
+steps:
+  - input:
+      text: hello
+    expect:
+      events:
+        - type: final_response
+      final_response:
+        contains:
+          - "Fake response: hello"

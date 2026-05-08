@@ -1,0 +1,19 @@
+id: subagent-readonly
+description: Agent tool should launch a read-only child graph and return a parent ToolMessage.
+provider: fake
+workspace_fixture: basic_repo
+steps:
+  - input:
+      text: 'tool:agent {"prompt":"tool:read_file {\"path\":\"README.md\"}","allowed_tools":["read_file"],"name":"reader"}'
+    expect:
+      events:
+        - type: subagent_started
+        - type: subagent_finished
+      subagents:
+        - status: ok
+      tool_calls:
+        - name: agent
+          status: ok
+      final_response:
+        contains:
+          - "Tool agent ok"

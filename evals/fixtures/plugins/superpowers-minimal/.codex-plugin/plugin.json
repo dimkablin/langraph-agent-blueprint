@@ -1,0 +1,6 @@
+{
+  "name": "superpowers",
+  "version": "5.1.0",
+  "skills": "./skills/",
+  "bootstrap_skill": "using-superpowers"
+}

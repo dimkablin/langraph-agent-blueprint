@@ -1,0 +1,29 @@
+id: edit-file-ambiguous-rejected
+description: edit_file should reject ambiguous snippets without changing the file.
+provider: fake
+workspace_fixture: basic_repo
+steps:
+  - input:
+      text: 'tool:read_file {"path":"ambiguous.txt"}'
+    expect:
+      tool_calls:
+        - name: read_file
+          status: ok
+  - input:
+      text: 'tool:edit_file {"path":"ambiguous.txt","old_text":"same","new_text":"changed"}'
+      approve: true
+    expect:
+      tool_calls:
+        - name: edit_file
+          status: error
+      events:
+        - type: tool_call_error
+          contains:
+            name: edit_file
+      files:
+        - path: ambiguous.txt
+          exists: true
+          contains:
+            - same
+          not_contains:
+            - changed

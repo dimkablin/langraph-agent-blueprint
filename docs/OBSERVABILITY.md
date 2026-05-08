@@ -272,6 +272,10 @@ Coverage includes:
 - `/doctor`, `/config`, and `/observability`
 - graph runs with tools, skills, hooks, permissions, and MCP events
 
+## Eval Runs
+
+The eval/replay harness disables Langfuse by default to keep scenario execution deterministic and offline. Reports still include RuntimeEvent counts and compact final-state details. Future optional Langfuse scoring can add `eval_scenario_id`, `eval_run_id`, and `eval_step_index` metadata, but tests must continue to pass without real keys.
+
 ## Troubleshooting
 
 If Langfuse shows many top-level `runtime.*` traces for one chat turn, verify that the runtime is using `ObservabilityService.trace_turn(...)` around graph execution. RuntimeEvent export outside an active trace context is intentionally skipped to avoid unscoped traces.

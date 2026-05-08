@@ -1,0 +1,19 @@
+id: superpowers-brainstorming
+description: Superpowers policy should activate brainstorming for new development prompts.
+provider: fake
+workspace_fixture: basic_repo
+plugin_fixtures:
+  - superpowers-minimal
+steps:
+  - input:
+      text: "Let's make a react todo list"
+    expect:
+      events:
+        - type: plugin_policy_applied
+          contains:
+            skill: superpowers/brainstorming
+      skills:
+        - name: superpowers/brainstorming
+      final_response:
+        not_contains:
+          - "```"

@@ -1,0 +1,15 @@
+id: context-url-disabled
+description: URL context should produce a structured error when network is disabled.
+provider: fake
+workspace_fixture: basic_repo
+steps:
+  - input:
+      text: "Use @url:https://example.com as context"
+    expect:
+      events:
+        - type: context_resolution_error
+          contains:
+            type: PermissionError
+      final_response:
+        contains:
+          - "Fake response"

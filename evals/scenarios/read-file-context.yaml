@@ -1,0 +1,21 @@
+id: read-file-context
+description: "@file context should resolve and enter system context."
+provider: fake
+workspace_fixture: basic_repo
+steps:
+  - input:
+      text: "Summarize @README.md"
+    expect:
+      events:
+        - type: context_fragment_added
+          contains:
+            kind: file
+            title: README.md
+      context_fragments:
+        - kind: file
+          title_contains: README
+          content_contains: EVAL_README_MARKER
+          trust: trusted_local
+      final_response:
+        contains:
+          - README

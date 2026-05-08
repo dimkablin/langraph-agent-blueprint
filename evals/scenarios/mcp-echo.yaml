@@ -1,0 +1,32 @@
+id: mcp-echo
+description: Fake MCP echo tool should go through permission and return a result.
+provider: fake
+workspace_fixture: basic_repo
+mcp_fixture: fake_stdio
+steps:
+  - input:
+      text: 'tool:mcp.fake.echo {"text":"hello"}'
+      approve: true
+    expect:
+      events:
+        - type: mcp_tool_call_started
+          contains:
+            server_name: fake
+            tool_name: echo
+        - type: mcp_tool_call_finished
+          contains:
+            server_name: fake
+            tool_name: echo
+      permissions:
+        - tool_name: mcp.fake.echo
+          decision: approved
+      mcp_calls:
+        - server_name: fake
+          tool_name: echo
+          status: ok
+      tool_calls:
+        - name: mcp.fake.echo
+          status: ok
+      final_response:
+        contains:
+          - "echo: hello"

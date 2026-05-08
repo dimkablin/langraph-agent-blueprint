@@ -11,6 +11,8 @@ from rich.console import Console
 
 from langgraph_agent_blueprint.config import AppConfig
 from langgraph_agent_blueprint.dependencies import build_dependencies
+from langgraph_agent_blueprint.evals.loader import load_scenario_by_id, load_scenarios
+from langgraph_agent_blueprint.evals.runner import EvalRunner
 from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
 from langgraph_agent_blueprint.utils.ids import new_id, validate_session_id
 
@@ -19,10 +21,12 @@ sessions_app = typer.Typer(help="Session commands")
 skills_app = typer.Typer(help="Skill commands")
 tools_app = typer.Typer(help="Tool commands")
 plugins_app = typer.Typer(help="Plugin commands")
+eval_app = typer.Typer(help="Eval/replay commands")
 app.add_typer(sessions_app, name="sessions")
 app.add_typer(skills_app, name="skills")
 app.add_typer(tools_app, name="tools")
 app.add_typer(plugins_app, name="plugins")
+app.add_typer(eval_app, name="eval")
 console = Console()
 
 
@@ -144,6 +148,42 @@ def remove_plugin(name: str) -> None:
     runtime = _runtime()
     result = runtime.dependencies.plugin_service.remove(name)
     console.print(result.model_dump_json(indent=2))
+
+
+@eval_app.command("list")
+def list_evals(
+    scenarios_dir: Optional[Path] = typer.Option(None, "--scenarios-dir", help="Directory containing eval scenario YAML/JSON files."),
+) -> None:
+    """List available eval/replay scenarios."""
+
+    for scenario in load_scenarios(scenarios_dir):
+        console.print(f"{scenario.id}: {scenario.description}")
+
+
+@eval_app.command("run")
+def run_eval(
+    scenario_id: Optional[str] = typer.Argument(None, help="Scenario id to run."),
+    run_all: bool = typer.Option(False, "--all", help="Run all scenarios."),
+    report_dir: Path = typer.Option(Path(".eval_runs"), "--report-dir", help="Directory where eval reports are written."),
+    scenarios_dir: Optional[Path] = typer.Option(None, "--scenarios-dir", help="Directory containing eval scenario YAML/JSON files."),
+) -> None:
+    """Run one or all eval/replay scenarios through the graph runtime."""
+
+    if not run_all and not scenario_id:
+        raise typer.BadParameter("Provide a scenario id or --all")
+    runner = EvalRunner(report_root=report_dir)
+    scenarios = load_scenarios(scenarios_dir) if run_all else [load_scenario_by_id(str(scenario_id), scenarios_dir)]
+    failed = False
+    for scenario in scenarios:
+        result = runner.run_scenario(scenario)
+        status = "passed" if result.passed else "failed"
+        console.print(f"{result.scenario_id}: {status}")
+        for failure in result.failures:
+            console.print(f"  - {failure}")
+        console.print(f"  report: {result.metadata.get('report_json')}")
+        failed = failed or not result.passed
+    if failed:
+        raise typer.Exit(code=1)
 
 
 @app.command()

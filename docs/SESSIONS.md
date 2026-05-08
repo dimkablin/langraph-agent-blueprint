@@ -45,3 +45,9 @@ Runtime status after fixes:
 - `/resume <session_id>` restores state inside the graph command route.
 - `/export` creates transcript files and records `exported_outputs`.
 - Real subagent runs use child session ids for their own transcript and store parent-linked sidecar records under `child_runs/{child_run_id}`. Parent session metadata records `child_run_refs`.
+
+## Eval Replay Sessions
+
+Eval scenarios create isolated temporary storage roots under the eval report directory. Each scenario run uses a generated session id shared across its steps, so multi-step scenarios can test persisted read history, permission resume, memory/session behavior, and child-run references without depending on the developer's local `.storage` or `.env`.
+
+Eval reports are written separately from session storage and contain only compact, redacted summaries.

@@ -18,6 +18,7 @@ It demonstrates:
 - compaction
 - real child graph subagents
 - context providers and attachments
+- eval/replay harness
 
 This project ports the behavior described in:
 
@@ -92,8 +93,22 @@ Other CLI entrypoints:
 lg-agent skills list
 lg-agent tools list
 lg-agent plugins list
+lg-agent eval list
+lg-agent eval run basic-chat
 lg-agent doctor
 ```
+
+## Eval And Replay Harness
+
+Deterministic eval scenarios run through the real `AssistantGraphRuntime` with the fake provider, temporary workspace/storage, local MCP/plugin fixtures, and no live network or Langfuse dependency:
+
+```bash
+lg-agent eval list
+lg-agent eval run basic-chat
+lg-agent eval run --all
+```
+
+Scenarios live in `evals/scenarios/`, fixtures in `evals/fixtures/`, and reports are written under `.eval_runs/` unless `--report-dir` is provided. See `docs/EVAL_REPLAY.md`.
 
 ## MCP Client Runtime
 
@@ -219,6 +234,12 @@ npm --prefix frontend run build
 
 The test suite uses the fake provider and a local fake stdio MCP server fixture. It requires no real API keys, network, external MCP server, or Ollama daemon.
 
+Eval/replay acceptance scenarios can be run with:
+
+```bash
+lg-agent eval run --all
+```
+
 Current final acceptance verification on 2026-05-06:
 
 - `python -m pytest -q`: passed.
@@ -235,9 +256,11 @@ The main runtime is a LangGraph `StateGraph`:
 
 Tool-use loops, permission flow, skill invocation, hooks, subagents, compaction, memory, and session lifecycle are represented as graph nodes/subgraphs. Hook dispatch is owned by the graph nodes that reach each lifecycle point.
 
+The eval/replay harness sits outside the graph and invokes this same runtime; it does not call tools or services directly for scenario behavior.
+
 ## Runtime Boundary Contracts
 
-Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, skill args use skill-specific schemas, tools declare `ToolPermissionMetadata` / `ToolRuntimeMetadata`, plugins validate `PluginContribution`, hooks validate `HookContribution` / `HookResult`, MCP validates server/tool/resource/prompt DTOs, context providers validate `ContextReference` / `AttachmentRef` / `ContextFragment` / `ContextBudgetReport`, and observability validates `LangfuseConfig` / `TraceContext` / `TraceMetadata`.
+Runtime inputs and outputs are validated at layer boundaries with Pydantic DTOs, while LangGraph state remains plain JSON/checkpointer-safe dictionaries. Provider tool calls normalize into `ToolCall`, tool execution returns `ToolResult`, UI/storage events validate as `RuntimeEvent`, slash commands parse into `ParsedCommand`, permission interrupts use `PermissionRequest`, skill args use skill-specific schemas, tools declare `ToolPermissionMetadata` / `ToolRuntimeMetadata`, plugins validate `PluginContribution`, hooks validate `HookContribution` / `HookResult`, MCP validates server/tool/resource/prompt DTOs, context providers validate `ContextReference` / `AttachmentRef` / `ContextFragment` / `ContextBudgetReport`, observability validates `LangfuseConfig` / `TraceContext` / `TraceMetadata`, and eval/replay validates `EvalScenario` / `EvalStep` / `EvalExpectations` / `EvalRunResult`.
 
 See `docs/PYDANTIC_BOUNDARIES.md` for the contract map and extension rules.
 

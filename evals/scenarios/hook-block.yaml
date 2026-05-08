@@ -1,0 +1,17 @@
+id: hook-block
+description: Declarative plugin hook should block the model route.
+provider: fake
+workspace_fixture: basic_repo
+plugin_fixtures:
+  - hook-block
+steps:
+  - input:
+      text: hello
+    expect:
+      events:
+        - type: hook_blocked
+          contains:
+            hook_id: hook-block.stop
+      final_response:
+        contains:
+          - blocked by eval hook

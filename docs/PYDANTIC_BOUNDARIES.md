@@ -22,6 +22,7 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - context references/attachments -> `ContextReference`, `AttachmentRef`, `AttachmentContent`, `ContextFragment`, `ContextBudgetReport`, and `ResolvedContextItem`
 - observability config/trace/events -> `LangfuseConfig`, `TraceContext`, `TraceMetadata`, and `ObservabilityEvent`
 - subagent requests/lifecycle/results -> `SubagentRequest`, `ChildRunMetadata`, `SubagentResult`, and `ResultMergePolicy`
+- eval/replay scenarios/reports -> `EvalScenario`, `EvalStep`, `EvalExpectations`, expected assertion DTOs, `EvalRunResult`, and `EvalReport`
 
 The LangGraph state remains checkpointer-safe: nodes store dictionaries and lists in state, and validate them at node/service boundaries with `model_validate(...)`. Outgoing DTOs are serialized with `model_dump(mode="json")`.
 
@@ -139,6 +140,17 @@ Context boundary models live in `langgraph_agent_blueprint.models.context`.
 - `ResolvedContextItem` groups fragments, attachments, and structured provider errors.
 
 Graph state stores context records as JSON-safe dictionaries. Provider services keep file/web/MCP clients outside state, and `context_builder` consumes rendered fragments instead of raw paths.
+
+## Eval And Replay
+
+Eval boundary models live in `langgraph_agent_blueprint.models.evals`.
+
+- `EvalScenario` validates scenario id, provider, fixtures, and ordered steps.
+- `EvalStep` validates graph input and expected outcomes for one turn.
+- `EvalExpectations` groups event, tool, skill, permission, MCP, subagent, context, file, and final-response expectations.
+- `EvalRunResult` and `EvalReport` are JSON-safe report records.
+
+The eval harness stores no SDK objects in state and invokes the existing graph runtime rather than calling tools or services directly.
 
 ## Observability
 

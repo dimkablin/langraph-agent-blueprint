@@ -1,0 +1,13 @@
+id: langfuse-disabled-noop
+description: Disabled observability should not affect normal runtime behavior.
+provider: fake
+workspace_fixture: basic_repo
+steps:
+  - input:
+      text: "hello with observability disabled"
+    expect:
+      events:
+        - type: final_response
+      final_response:
+        contains:
+          - "Fake response"

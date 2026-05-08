@@ -1,0 +1,30 @@
+id: write-permission-reject
+description: Rejected write_file permission should not write the file.
+provider: fake
+workspace_fixture: basic_repo
+steps:
+  - input:
+      text: "tool:write_file blocked.txt should-not-exist"
+      approve: false
+      resume_payload:
+        reason: eval rejection
+    expect:
+      events:
+        - type: permission_required
+          contains:
+            tool_name: write_file
+        - type: permission_resolved
+          contains:
+            approved: false
+      permissions:
+        - tool_name: write_file
+          decision: rejected
+      tool_calls:
+        - name: write_file
+          status: rejected
+      files:
+        - path: blocked.txt
+          exists: false
+      final_response:
+        contains:
+          - "Tool write_file rejected"

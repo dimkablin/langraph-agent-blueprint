@@ -2,6 +2,14 @@
 
 Commands are registered in `CommandRegistry` and parsed by `parse_slash_command`.
 
+Eval/replay commands are Typer CLI subcommands, not slash commands inside chat:
+
+```bash
+lg-agent eval list
+lg-agent eval run basic-chat
+lg-agent eval run --all
+```
+
 Implemented commands:
 
 | Command | Type | Behavior |

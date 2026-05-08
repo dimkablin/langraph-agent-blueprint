@@ -1,0 +1,13 @@
+{
+  "name": "hook-block",
+  "version": "1.0.0",
+  "hooks": [
+    {
+      "id": "hook-block.stop",
+      "point": "pre_model",
+      "action": "block",
+      "reason": "blocked by eval hook",
+      "priority": 10
+    }
+  ]
+}

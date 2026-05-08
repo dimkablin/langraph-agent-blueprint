@@ -155,3 +155,15 @@ MCP events such as `mcp_server_connected`, `mcp_tools_discovered`, `mcp_tool_cal
 ## Langfuse Event Mapping
 
 RuntimeEvent mapping records compact, redacted semantic events for permissions, skills, hooks, MCP, compaction, persistence, final responses, and errors. High-signal events become child observations by default; low-signal lifecycle events are compact `runtime_timeline` metadata. LangChain/LangGraph callbacks remain the primary automatic model/tool tracing integration.
+
+## Eval And Replay Harness
+
+The eval/replay harness is an outer test/runtime adapter, not a graph node. `EvalRunner` loads `EvalScenario` files, creates temporary workspace and storage fixtures, builds a fake-provider `AppConfig`, and invokes `AssistantGraphRuntime.invoke(...)` plus `resume(...)` for permission decisions.
+
+Scenario behavior still goes through the normal graph:
+
+```text
+EvalRunner -> AssistantGraphRuntime -> StateGraph nodes/subgraphs -> RuntimeEvents/final state -> EvalAssertionEngine
+```
+
+The harness never executes tools, skills, MCP calls, hooks, or subagents directly. It asserts the graph-visible contracts after the run: runtime events, tool results, permission decisions, skill activations, MCP calls, subagent events, context fragments, final responses, and workspace file state.
