@@ -1,0 +1,20 @@
+id: plugin-tool-static
+description: Example plugin static tool should execute through the normal graph tool route.
+provider: fake
+workspace_fixture: basic_repo
+plugin_fixtures:
+  - example-plugin
+steps:
+  - input:
+      text: 'tool:plugin.example_plugin.static_hello {"value":"ignored"}'
+    expect:
+      events:
+        - type: tool_call_finished
+          contains:
+            name: plugin.example_plugin.static_hello
+      tool_calls:
+        - name: plugin.example_plugin.static_hello
+          status: ok
+      final_response:
+        contains:
+          - EXAMPLE_PLUGIN_TOOL_RESPONSE

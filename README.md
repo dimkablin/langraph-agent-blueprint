@@ -19,6 +19,7 @@ It demonstrates:
 - real child graph subagents
 - context providers and attachments
 - eval/replay harness
+- config layering and plugin SDK diagnostics
 
 This project ports the behavior described in:
 
@@ -47,7 +48,18 @@ python -m pip install -e ".[anthropic]"
 
 ## Configure
 
-Copy `.env.example` to `.env` in the project root or set the variables in your shell. The CLI/API load project-root `.env` automatically, and process environment variables take precedence. Tests and local smoke runs work with:
+Copy `.env.example` to `.env` in the project root or set the variables in your shell. Phase 8 config precedence is:
+
+```text
+CLI explicit args / programmatic overrides
+> process environment variables
+> project config
+> user config
+> project-root .env
+> defaults
+```
+
+Project config is `.lg-agent/config.toml` or `langgraph-agent.toml`; user config is `%APPDATA%/langgraph-agent-blueprint/config.toml` on Windows or `~/.config/langgraph-agent-blueprint/config.toml` elsewhere. Tests and local smoke runs work with:
 
 ```bash
 set LLM_PROVIDER=fake
@@ -95,6 +107,8 @@ lg-agent tools list
 lg-agent plugins list
 lg-agent eval list
 lg-agent eval run basic-chat
+lg-agent config explain
+lg-agent config validate
 lg-agent doctor
 ```
 
@@ -108,7 +122,7 @@ lg-agent eval run basic-chat
 lg-agent eval run --all
 ```
 
-Scenarios live in `evals/scenarios/`, fixtures in `evals/fixtures/`, and reports are written under `.eval_runs/` unless `--report-dir` is provided. See `docs/EVAL_REPLAY.md`.
+Scenarios live in `evals/scenarios/`, fixtures in `evals/fixtures/`, and reports are written under `.eval_runs/` unless `--report-dir` is provided. Phase 8 adds plugin SDK scenarios for commands, skills, hooks, policies, tools, context providers, and MCP config contributions. See `docs/EVAL_REPLAY.md`.
 
 ## MCP Client Runtime
 
@@ -163,7 +177,11 @@ lg-agent query "Use @glob:src/**/*.py to list runtime modules"
 lg-agent query "Compare @notebook:analysis.ipynb with @url:https://example.com"
 ```
 
-Supported references include files, directories, glob summaries, notebooks, MCP resources with `@mcp:<server>:<uri>`, URLs through `web_fetch` guardrails, pasted text/API attachments, and metadata-only image/PDF records. Context fragments are budgeted, marked with trust levels, and rendered as data rather than instructions. Inspect current context with `/context`. See `docs/CONTEXT_ATTACHMENTS.md`.
+Supported references include files, directories, glob summaries, notebooks, MCP resources with `@mcp:<server>:<uri>`, plugin context providers with `@plugin:<plugin>:<provider>`, URLs through `web_fetch` guardrails, pasted text/API attachments, and metadata-only image/PDF records. Context fragments are budgeted, marked with trust levels, and rendered as data rather than instructions. Inspect current context with `/context`. See `docs/CONTEXT_ATTACHMENTS.md`.
+
+## Plugin SDK
+
+Plugins are data-only manifest contributions. Current SDK types are skills, hooks, policies, commands, tools, MCP server config, context providers, bootstrap context, and trust metadata. Discovery never executes plugin code or install scripts. See `docs/PLUGIN_SDK.md` and `examples/plugins/example-plugin/`.
 
 ## Optional: Superpowers Plugin
 

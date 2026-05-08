@@ -45,6 +45,8 @@ The service accepts:
 
 Discovery reads harness manifests such as `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json`, falls back to `package.json`, validates paths, and exposes `PluginContribution` records in graph state.
 
+Phase 8 manifest contributions are data-only and typed: `skills`, `hooks`, `policies`, `commands`, `tools`, `mcp_servers`, `context_providers`, `bootstrap.context`, and `trust`. See `docs/PLUGIN_SDK.md` and `examples/plugins/example-plugin/` for the current SDK contract.
+
 ## Hook Contributions
 
 Plugin manifests can declare data-only hooks:
@@ -99,7 +101,9 @@ Superpowers uses this mechanism through `superpowers.default_methodology_policy`
 
 Plugin install and discovery never execute plugin scripts. Skills and hook-added context are prompt content only. Plugin skill tool calls still go through the normal tool registry, permission service, LangGraph interrupt/resume flow, and skill `allowed_tools` scope.
 
-Git install/update is a network operation and fails with a structured error unless `NETWORK_ENABLED=true`. Git clone/fetch/checkout/rev-parse operations use `PLUGIN_GIT_TIMEOUT_SECONDS` (default `60`) so plugin install/update cannot hang indefinitely. Path traversal in manifest-declared skill paths is rejected.
+Git install/update is a network operation and fails with a structured error unless `NETWORK_ENABLED=true`. Git clone/fetch/checkout/rev-parse operations use `PLUGIN_GIT_TIMEOUT_SECONDS` (default `60`) so plugin install/update cannot hang indefinitely. Path traversal in manifest-declared skill, tool, MCP, and context-provider paths is rejected.
+
+Declarative plugin tools cannot run shell commands or arbitrary Python/JS. Plugin MCP servers are explicit config contributions and remain untrusted external processes.
 
 ## Commands
 
@@ -118,3 +122,5 @@ lg-agent plugins install <source>
 lg-agent plugins update <name>
 lg-agent plugins remove <name>
 ```
+
+Plugin-contributed slash commands appear in `/help` and `available_commands`. Built-in command names win conflicts; conflicting plugin commands are registered as `<plugin_name>.<command>`.

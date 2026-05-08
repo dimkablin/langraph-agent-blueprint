@@ -1,0 +1,16 @@
+id: plugin-skill
+description: Example plugin skill command should route through the skill graph.
+provider: fake
+workspace_fixture: basic_repo
+plugin_fixtures:
+  - example-plugin
+steps:
+  - input:
+      text: /example_skill summarize this
+    expect:
+      skills:
+        - name: example_plugin/example-skill
+      events:
+        - type: skill_started
+          contains:
+            name: example_plugin/example-skill

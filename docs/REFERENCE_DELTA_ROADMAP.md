@@ -102,21 +102,23 @@ C:\Users\dimka\Documents\PROJECTS\llm-data-analyst\claude-code-like-project
 - Dependencies: stable event contracts and session storage.
 - Priority: P1.
 
-## Remaining MVP Before Frontend
-
 ### Phase 8: Config Layering and Plugin SDK Hardening
 
-- Why it matters: source has broader settings/auth/model/plugin/MCP behavior. Current config is env plus `.env`, with hardened precedence, but full layering is not done.
+- Why it matters: source has broader settings/auth/model/plugin/MCP behavior, and frontend needs a stable runtime contract instead of ad hoc UI logic.
 - Source basis: source settings, auth, model, plugin, MCP, feature gate, and update commands.
-- Current status: partial.
-- Target architecture: explicit config layers: CLI args > process env > project config > user config > `.env` > defaults, with typed diagnostics and redaction. Plugin SDK should declare skills, hooks, policies, commands, tools, MCP, context providers, and trust requirements.
+- Current status: working MVP.
+- Target architecture: explicit config layers: CLI args > process env > project config > user config > `.env` > defaults, with typed diagnostics and redaction. Plugin SDK declares skills, hooks, policies, commands, tools, MCP, context providers, bootstrap context, and trust requirements.
 - LangGraph nodes/subgraphs: keep config loading at bootstrap/load-registry boundaries.
-- Pydantic models: `ConfigSource`, `ConfigDiagnostic`, `PluginCommandContribution`, `PluginToolContribution`, `PluginMCPContribution`, `PluginTrustPolicy`.
-- Services: config loader, plugin SDK validator, diagnostics renderer.
-- Tests: precedence, redaction, invalid config diagnostics, plugin contribution validation, network disabled, git timeout, Windows path behavior.
-- Risks: leaking secrets, executing plugin code too early, dependency construction side effects.
+- Pydantic models: `ConfigSource`, `ConfigValueOrigin`, `ConfigDiagnostic`, `EffectiveConfigReport`, `PluginCommandContribution`, `PluginToolContribution`, `PluginMCPContribution`, `PluginContextProviderContribution`, `PluginTrustPolicy`.
+- Services: config loader/explain renderer, plugin SDK validator, declarative plugin tool/context adapters.
+- Tests: precedence, redaction, invalid config diagnostics, plugin contribution validation, plugin command/tool/MCP/context security, example-plugin eval scenarios.
+- Risks: future trusted executable plugin adapters need a separate trust and sandbox design.
 - Dependencies: completed plugin/hook/MCP foundations.
 - Priority: P1.
+
+## Remaining MVP Before Frontend
+
+No backend/runtime phase is currently blocking frontend start. Remaining items are focused cleanup or future source deltas.
 
 ## Roadmap Adjustments From Re-Sync
 
@@ -129,10 +131,9 @@ C:\Users\dimka\Documents\PROJECTS\llm-data-analyst\claude-code-like-project
 3. Phase 7 is now the regression harness before frontend.
    Use checked-in scenarios to protect later plugin SDK, config, and UI work.
 
-4. Keep Phase 8 before frontend.
-   Config layering and plugin SDK hardening are needed before exposing plugin/MCP/context providers in UI.
+4. Phase 8 is now complete enough for frontend to consume config diagnostics and plugin contribution metadata.
 
-5. Move provider-specific cost accounting into Phase 8 or a small pre-frontend cleanup.
+5. Move provider-specific cost accounting into a small frontend-readiness cleanup or future usage phase.
    `/cost` exists, but source has richer usage behavior and the frontend will need reliable numbers.
 
 ## Future / Non-MVP

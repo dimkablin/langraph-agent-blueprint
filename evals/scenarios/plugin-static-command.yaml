@@ -1,0 +1,18 @@
+id: plugin-static-command
+description: Example plugin static slash command should work without graph edits.
+provider: fake
+workspace_fixture: basic_repo
+plugin_fixtures:
+  - example-plugin
+steps:
+  - input:
+      text: /example
+    expect:
+      events:
+        - type: command_finished
+          contains:
+            name: example
+            handled: true
+      final_response:
+        contains:
+          - Hello from example plugin

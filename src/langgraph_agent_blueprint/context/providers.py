@@ -8,6 +8,7 @@ from typing import Any
 
 from langgraph_agent_blueprint.models.base import dump_model
 from langgraph_agent_blueprint.models.context import AttachmentContent, AttachmentRef, ContextFragment, ContextReference, ResolvedContextItem
+from langgraph_agent_blueprint.models.plugins import PluginContextProviderContribution
 from langgraph_agent_blueprint.services.file_service import FileService
 from langgraph_agent_blueprint.services.mcp_service import MCPService
 from langgraph_agent_blueprint.services.notebook_service import NotebookService
@@ -28,6 +29,7 @@ class ContextProviderService:
         max_file_bytes: int = 200_000,
         max_directory_files: int = 200,
         max_glob_files: int = 100,
+        plugin_context_providers: list[PluginContextProviderContribution] | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.file_service = FileService(self.project_root)
@@ -38,6 +40,11 @@ class ContextProviderService:
         self.max_file_bytes = max(1, int(max_file_bytes))
         self.max_directory_files = max(1, int(max_directory_files))
         self.max_glob_files = max(1, int(max_glob_files))
+        self.plugin_context_providers = {
+            f"{provider.plugin_name}:{provider.name}": provider
+            for provider in plugin_context_providers or []
+            if provider.enabled
+        }
 
     def resolve_many(self, references: list[ContextReference], attachments: list[AttachmentRef] | None = None) -> list[ResolvedContextItem]:
         items = [self.resolve(reference) for reference in references]
@@ -59,6 +66,8 @@ class ContextProviderService:
                 return self._mcp(reference)
             if reference.kind == "url":
                 return self._url(reference)
+            if reference.kind == "plugin":
+                return self._plugin(reference)
             if reference.kind == "text":
                 return self.text_attachment(reference.value, label=reference.label or "pasted text", reference=reference)
             if reference.kind in {"image", "pdf"}:
@@ -212,6 +221,55 @@ class ContextProviderService:
             metadata={"status_code": result.get("status_code"), "content_type": result.get("content_type"), "binary": result.get("binary")},
         )
         return ResolvedContextItem(reference=reference, fragments=[fragment])
+
+    def _plugin(self, reference: ContextReference) -> ResolvedContextItem:
+        if ":" not in reference.value:
+            return self._error(reference, "Plugin context reference must be '<plugin>:<provider>'")
+        plugin_name, provider_name = reference.value.split(":", 1)
+        provider = self.plugin_context_providers.get(f"{plugin_name}:{provider_name}")
+        if provider is None:
+            return self._error(reference, f"Plugin context provider not found: {plugin_name}:{provider_name}")
+        if provider.kind == "static":
+            fragment = self._fragment(
+                reference,
+                kind="plugin",
+                title=f"{plugin_name}:{provider.name}",
+                content=provider.content or "",
+                trust="plugin_provided",
+                metadata={"plugin_name": plugin_name, "provider_name": provider.name},
+            )
+            return ResolvedContextItem(reference=reference, fragments=[fragment])
+        if provider.kind == "plugin_file":
+            root = Path(provider.root_path or "").resolve()
+            if not root.exists():
+                return self._error(reference, "Plugin context root is unavailable")
+            if not provider.path:
+                return self._error(reference, "Plugin context provider requires a path")
+            target = (root / provider.path).resolve()
+            try:
+                target.relative_to(root)
+            except ValueError:
+                return self._error(reference, "Plugin context path traversal rejected")
+            if not target.is_file():
+                return self._error(reference, f"Plugin context file not found: {provider.path}")
+            data = target.read_bytes()
+            if b"\x00" in data[:4096]:
+                return self._error(reference, "Refusing to attach binary plugin context")
+            truncated = len(data) > self.max_file_bytes
+            content = data[: self.max_file_bytes].decode("utf-8", errors="replace")
+            if truncated:
+                content = content.rstrip() + "\n[truncated]"
+            fragment = self._fragment(
+                reference,
+                kind="plugin",
+                title=f"{plugin_name}:{provider.name}",
+                content=content,
+                trust="plugin_provided",
+                truncated=truncated,
+                metadata={"plugin_name": plugin_name, "provider_name": provider.name, "path": provider.path},
+            )
+            return ResolvedContextItem(reference=reference, fragments=[fragment])
+        return self._error(reference, "Plugin context provider aliases are not implemented")
 
     def _placeholder(self, reference: ContextReference, attachment: AttachmentRef | None = None) -> ResolvedContextItem:
         label = reference.label or (attachment.name if attachment else None) or reference.value

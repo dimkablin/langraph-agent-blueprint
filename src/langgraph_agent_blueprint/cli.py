@@ -9,7 +9,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from langgraph_agent_blueprint.config import AppConfig
+from langgraph_agent_blueprint.config import AppConfig, format_config_explain, format_config_show, format_config_validate
 from langgraph_agent_blueprint.dependencies import build_dependencies
 from langgraph_agent_blueprint.evals.loader import load_scenario_by_id, load_scenarios
 from langgraph_agent_blueprint.evals.runner import EvalRunner
@@ -22,17 +22,24 @@ skills_app = typer.Typer(help="Skill commands")
 tools_app = typer.Typer(help="Tool commands")
 plugins_app = typer.Typer(help="Plugin commands")
 eval_app = typer.Typer(help="Eval/replay commands")
+config_app = typer.Typer(help="Config diagnostics commands")
 app.add_typer(sessions_app, name="sessions")
 app.add_typer(skills_app, name="skills")
 app.add_typer(tools_app, name="tools")
 app.add_typer(plugins_app, name="plugins")
 app.add_typer(eval_app, name="eval")
+app.add_typer(config_app, name="config")
 console = Console()
 
 
 def _runtime(project_root: Optional[Path] = None) -> AssistantGraphRuntime:
     config = AppConfig.from_env(project_root=project_root or Path.cwd())
     return AssistantGraphRuntime(build_dependencies(config))
+
+
+def _config_report(project_root: Optional[Path] = None) -> AppConfig:
+    config, _report = AppConfig.load_with_report(project_root=project_root or Path.cwd())
+    return config
 
 
 @app.command()
@@ -184,6 +191,29 @@ def run_eval(
         failed = failed or not result.passed
     if failed:
         raise typer.Exit(code=1)
+
+
+@config_app.command("show")
+def config_show() -> None:
+    """Show the redacted effective runtime config."""
+
+    console.print(format_config_show(_config_report()))
+
+
+@config_app.command("explain")
+def config_explain() -> None:
+    """Show config sources and value origins."""
+
+    config = _config_report()
+    console.print(format_config_explain(config.config_report))
+
+
+@config_app.command("validate")
+def config_validate() -> None:
+    """Validate config and print structured diagnostics."""
+
+    config = _config_report()
+    console.print(format_config_validate(config.config_report))
 
 
 @app.command()

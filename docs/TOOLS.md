@@ -28,6 +28,7 @@ Core tools:
 - `skill`
 - `diagnostics`
 - `mcp.<server>.<tool>` adapters discovered from configured MCP servers
+- `plugin.<plugin>.<tool>` adapters from declarative plugin tool contributions
 
 Tool workflow is graph-owned: UI/API call the graph, the graph routes to permission and execution nodes, and services perform low-level operations.
 
@@ -82,8 +83,9 @@ Runtime status after fixes:
 - The `agent` tool routes to `agent_graph` and executes a real child graph with isolated child state. Direct `AgentTool.run()` execution is not the normal workflow path and returns a graph-route error instead of synthetic work.
 - MCP tools are discovered through `MCPService`, registered with `ToolRuntimeMetadata(kind="mcp", route="mcp_graph")`, and require approval by default through `ToolPermissionMetadata(action="mcp", risk="high", external=True)`.
 - MCP adapter input schemas come from server `tools/list` `inputSchema` payloads; tool calls return through the normal `ToolResult` -> `ToolMessage` loop.
+- Plugin tools are data-only adapters registered with `ToolRuntimeMetadata(kind="plugin", route="execute")`. MVP plugin tool kinds are `static_text`, `context_lookup`, and `disabled_placeholder`; they cannot execute arbitrary plugin code.
 - Observability redacts secret-like tool args before export and respects `LANGFUSE_CAPTURE_INPUTS` / `LANGFUSE_CAPTURE_OUTPUTS`.
 
 ## Context References Are Not Tool Bypasses
 
-`@file`, `@directory`, `@glob`, `@notebook`, `@mcp`, `@url`, and text attachments are resolved by the graph context provider layer before `context_builder`. They do not execute arbitrary tools directly from CLI/API. URL context uses the same `WebService` guardrails as `web_fetch`, and MCP resource context uses `MCPService` resource reads with external trust markers. Side-effecting tools still require normal permission approval.
+`@file`, `@directory`, `@glob`, `@notebook`, `@mcp`, `@plugin`, `@url`, and text attachments are resolved by the graph context provider layer before `context_builder`. They do not execute arbitrary tools directly from CLI/API. URL context uses the same `WebService` guardrails as `web_fetch`, MCP resource context uses `MCPService` resource reads with external trust markers, and plugin context is confined to plugin roots. Side-effecting tools still require normal permission approval.

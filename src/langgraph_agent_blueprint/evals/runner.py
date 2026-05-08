@@ -149,6 +149,9 @@ class EvalRunner:
     def _plugin_fixture_path(self, fixture_name: str) -> Path:
         path = (self.fixtures_root / "plugins" / fixture_name).resolve()
         if not path.is_dir():
+            example_path = (repo_root() / "examples" / "plugins" / fixture_name).resolve()
+            if example_path.is_dir():
+                return example_path
             raise FileNotFoundError(f"Plugin fixture not found: {fixture_name}")
         return path
 

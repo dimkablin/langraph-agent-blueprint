@@ -12,6 +12,8 @@ def bootstrap_config_node(state: dict, deps: AppDependencies) -> dict:
     config = deps.config
     metadata = dict(state.get("metadata", {}))
     metadata.setdefault("config", config.redacted())
+    if config.config_report is not None:
+        metadata.setdefault("config_report", config.config_report.model_dump(mode="json"))
     metadata.setdefault("model_name", config.effective_model())
     metadata.setdefault("input_normalized", False)
     permissions = {"mode": config.permission_mode, **state.get("permissions", {})}

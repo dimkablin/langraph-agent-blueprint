@@ -1,0 +1,13 @@
+id: plugin-mcp-config
+description: Example plugin MCP server config should be discovered explicitly by the graph registry load.
+provider: fake
+workspace_fixture: basic_repo
+plugin_fixtures:
+  - example-plugin
+steps:
+  - input:
+      text: /mcp tools
+    expect:
+      final_response:
+        contains:
+          - mcp.example_plugin.fake.echo

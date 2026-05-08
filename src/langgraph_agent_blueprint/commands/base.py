@@ -22,6 +22,7 @@ class Command:
     description: str
     type: CommandType
     handler: CommandHandler
+    plugin_name: str | None = None
 
     def execute(self, args: str, state: dict[str, Any]) -> CommandResult:
         return self.handler(args, state)

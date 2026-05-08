@@ -147,6 +147,18 @@ Current core scenarios:
 
 These scenarios cover graph execution, context resolution, permissions, edit guardrails, plugin skills, hooks, MCP, subagents, and disabled observability.
 
+Phase 8 adds plugin SDK scenarios:
+
+- `plugin-static-command`
+- `plugin-skill`
+- `plugin-hook-context`
+- `plugin-policy`
+- `plugin-tool-static`
+- `plugin-context-provider`
+- `plugin-mcp-config`
+
+They load `examples/plugins/example-plugin` and prove commands, skills, hooks, policies, tools, context providers, and MCP config contributions work without graph-code edits.
+
 ## Langfuse
 
 Eval runs do not require Langfuse. The default eval config sets observability to disabled so reports are deterministic and offline.

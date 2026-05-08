@@ -27,14 +27,15 @@ This matrix describes the current Python/LangGraph runtime, not historical pre-f
 | SkillTool and skill graph | working | `skill_tool.py`, `skill_router.py` | skill invocation and runtime audit tests | `SKILLS.md` | Inline/forked source behavior not ported. | P2 |
 | Skill effects | working | `SkillEffect`, controlled memory write | skill args runtime tests | `PYDANTIC_BOUNDARIES.md`, `SKILLS.md` | Add new effect kinds only if needed. | P1 |
 | Built-in skills | working | SKILL.md definitions for core skills | runtime skill tests | `SKILLS.md` | Optional source-specific skills intentionally disabled. | P2 |
-| Plugin skills | working | `PluginService`, `load_plugin_contributions` | Superpowers/plugin tests | `PLUGINS.md` | Plugin tools/commands/MCP SDK partial. | P1 |
+| Plugin skills | working | `PluginService`, `load_plugin_contributions` | Superpowers/plugin tests | `PLUGINS.md`, `PLUGIN_SDK.md` | Advanced skill frontmatter remains partial. | P1 |
+| Plugin commands/tools/context/MCP | working_mvp | `PluginCommandContribution`, `PluginToolContribution`, `PluginContextProviderContribution`, plugin MCP merge | Phase 8 plugin SDK tests and eval scenarios | `PLUGIN_SDK.md`, `PLUGINS.md` | Trusted executable plugin adapters and marketplace are not MVP. | P1 |
 | Superpowers plugin | working | external fixture/git-source plugin path | `test_superpowers_plugin.py` | `SUPERPOWERS_PLUGIN.md` | Live GitHub smoke remains optional/manual. | P1 |
 | Plugin policy contributions | working | generic `PluginPolicyContribution` and evaluator | `test_plugin_policy_contributions.py` | `PLUGINS.md` | More policy result types later. | P1 |
 | Plugin install/update/remove | partial | local and git source install, timeout | plugin tests | `PLUGINS.md` | Marketplace and richer trust model. | P2 |
 | Hook models/registry/service | working | `models/hooks.py`, hooks package, `HookService` | hook model/registry/service tests | `HOOKS.md` | `session_end` has no natural boundary. | P2 |
 | Graph-owned hooks | working | hooks called at lifecycle points | hook graph tests | `GRAPH_ARCHITECTURE.md`, `HOOKS.md` | Executable hooks intentionally not MVP. | P1 |
 | Hook applier | working | controlled HookResult application | `test_hooks_applier.py` | `HOOKS.md` | Keep immutable updates for new actions. | P1 |
-| MCP config/models | working | `models/mcp.py`, `MCPService` diagnostics | MCP config/model tests | `MCP.md` | Full config layering in Phase 8. | P1 |
+| MCP config/models | working | `models/mcp.py`, `MCPService` diagnostics, TOML/env/plugin config sources | MCP config/model tests, plugin MCP tests | `MCP.md`, `CONFIG.md` | HTTP/OAuth not implemented. | P1 |
 | MCP stdio transport | working | JSON-RPC stdio transport and fake server | MCP stdio/discovery tests | `MCP.md` | HTTP/OAuth not implemented. | P1 |
 | MCP tools | working | `MCPToolAdapter`, `mcp_graph` route | MCP tool registry/runtime tests | `MCP.md`, `TOOLS.md` | More output storage/truncation refinements optional. | P2 |
 | MCP resources/prompts | partial | list/read/get supported | MCP resources/prompts tests | `MCP.md` | Prompt-to-skill registration disabled by default. | P2 |
@@ -47,9 +48,9 @@ This matrix describes the current Python/LangGraph runtime, not historical pre-f
 | Compaction | working | compaction graph/service | compaction tests | `GRAPH_ARCHITECTURE.md` | Source microcompact variants partial. | P2 |
 | Observability/Langfuse | working_optional | `ObservabilityService`, trace-turn scoping | observability tests | `OBSERVABILITY.md` | Real-key smoke manual only. | P1 |
 | Runtime events | working | `ui_events` reducers and persistence | runtime audit/event tests | `GRAPH_ARCHITECTURE.md` | Eval/replay harness should lock contracts. | P1 |
-| Config/env precedence | working | `AppConfig.from_env`, `layered_get` | env/langfuse config tests | README, `.env.example` | Full user/project config layering later. | P1 |
+| Config layering/explain | working_mvp | `AppConfig.load_with_report`, `ConfigSource`, `EffectiveConfigReport`, `lg-agent config ...` | config layering/commands tests | README, `.env.example`, `CONFIG.md` | More provider-specific auth validation optional. | P1 |
 | Provider abstraction | partial | fake/openai/anthropic/ollama/openai-compatible config | provider binding tests | README | Provider-specific auth/cost/retry polishing. | P2 |
 | Security hardening | working | Batch 1 and Batch 2 fixes | security-focused regression tests | audit docs, `PERMISSIONS.md` | Keep external content untrusted. | P0/P1 |
 | Context providers/attachments | working_mvp | `models/context.py`, `context/providers.py`, `resolve_context` graph node, `/context` | context model/provider/graph/security/subagent/observability tests | `CONTEXT_ATTACHMENTS.md` | Image/PDF extraction is metadata-only; frontend attachment UX remains future. | P1 |
 | Eval/replay harness | working_mvp | `models/evals.py`, `evals/loader.py`, `evals/runner.py`, `evals/assertions.py`, `evals/reporter.py`, `lg-agent eval ...` | `test_eval_models.py`, `test_eval_loader.py`, `test_eval_assertions.py`, `test_eval_runner.py`, `test_eval_cli.py`, `test_eval_scenarios.py` | `EVAL_REPLAY.md`, README | Add optional Langfuse scoring and richer replay diffs later. | P1 |
-| Frontend readiness | partial | Static React shell and API contract | frontend static tests | `FRONTEND.md` | Build real UI after Phase 8. | frontend_phase |
+| Frontend readiness | partial | Static React shell, API contract, stable config/plugin diagnostics | frontend static tests | `FRONTEND.md` | Build real UI on top of runtime APIs. | frontend_phase |

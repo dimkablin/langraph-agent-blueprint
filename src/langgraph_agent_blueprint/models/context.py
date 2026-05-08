@@ -15,6 +15,7 @@ ContextRefKind = Literal[
     "glob",
     "notebook",
     "mcp_resource",
+    "plugin",
     "url",
     "text",
     "image",

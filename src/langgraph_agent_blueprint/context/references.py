@@ -42,6 +42,7 @@ def _parse_one(text: str, at: int) -> tuple[ContextReference, int] | None:
         ("notebook:", "notebook"),
         ("url:", "url"),
         ("mcp:", "mcp_resource"),
+        ("plugin:", "plugin"),
     ]:
         if rest.startswith(prefix):
             payload = rest[len(prefix) :]

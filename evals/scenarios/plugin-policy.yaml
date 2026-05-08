@@ -1,0 +1,16 @@
+id: plugin-policy
+description: Example plugin policy should activate a plugin skill without graph code changes.
+provider: fake
+workspace_fixture: basic_repo
+plugin_fixtures:
+  - example-plugin
+steps:
+  - input:
+      text: example plugin policy should activate
+    expect:
+      events:
+        - type: plugin_policy_applied
+          contains:
+            skill: example_plugin/example-skill
+      skills:
+        - name: example_plugin/example-skill

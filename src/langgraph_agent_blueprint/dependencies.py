@@ -31,6 +31,7 @@ from langgraph_agent_blueprint.services.usage_service import UsageService
 from langgraph_agent_blueprint.skills.registry import SkillRegistry, build_builtin_skill_registry
 from langgraph_agent_blueprint.storage.session_storage import SessionStorage
 from langgraph_agent_blueprint.tools.registry import ToolRegistry, build_core_tool_registry
+from langgraph_agent_blueprint.tools.plugin_tools import PluginToolAdapter
 
 
 @dataclass
@@ -78,6 +79,8 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         git_timeout_seconds=config.plugin_git_timeout_seconds,
     )
     plugin_contributions = plugin_service.discover_contributions()
+    mcp_config = _merge_plugin_mcp_config(config.mcp_config, plugin_contributions)
+    config = config.model_copy(update={"mcp_config": mcp_config})
     skill_registry = build_builtin_skill_registry()
     skill_registry.load_plugin_contributions(plugin_contributions)
     hook_registry = HookRegistry()
@@ -96,6 +99,12 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         output_limit=config.tool_output_limit,
         skill_service=skill_service,
     )
+    for contribution in plugin_contributions:
+        if not contribution.enabled:
+            continue
+        for tool in contribution.tools:
+            if tool.enabled:
+                tool_registry.register(PluginToolAdapter(tool))
     mcp_service = MCPService(config.mcp_config, output_limit=config.tool_output_limit)
     context_web_service = WebService(
         enabled=config.network_enabled,
@@ -109,8 +118,16 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         max_file_bytes=config.context_max_file_bytes,
         max_directory_files=config.context_max_directory_files,
         max_glob_files=config.context_max_glob_files,
+        plugin_context_providers=[
+            provider
+            for contribution in plugin_contributions
+            if contribution.enabled
+            for provider in contribution.context_providers
+            if provider.enabled
+        ],
     )
     command_registry = build_builtin_command_registry()
+    command_registry.register_plugin_contributions(plugin_contributions)
     session_storage = SessionStorage(config.storage_dir)
     return AppDependencies(
         config=config,
@@ -142,3 +159,18 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         context_provider_service=context_provider_service,
         context_budget_service=ContextBudgetService(config.context_max_tokens),
     )
+
+
+def _merge_plugin_mcp_config(base: dict, plugin_contributions: list) -> dict:
+    merged = dict(base or {})
+    servers = dict(merged.get("servers") or {})
+    for contribution in plugin_contributions:
+        if not contribution.enabled:
+            continue
+        for server in contribution.mcp_servers:
+            if not server.enabled:
+                continue
+            servers[server.registry_name] = dict(server.config)
+    if servers:
+        merged["servers"] = servers
+    return merged

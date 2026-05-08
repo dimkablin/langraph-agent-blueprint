@@ -12,6 +12,7 @@ CLI chat, headless query, and API chat requests can attach context through:
 @glob:src/**/*.py
 @notebook:notebook.ipynb
 @mcp:server:mcp://server/resource
+@plugin:example_plugin:reference
 @url:https://example.com
 @"path with spaces/file.txt"
 ```
@@ -25,6 +26,7 @@ Plain email addresses and ordinary `@username` mentions are ignored by the conse
 - `glob`: returns a bounded file-list summary and does not dump file contents.
 - `notebook`: reads notebook JSON safely and summarizes cells without execution.
 - `mcp_resource`: reads configured MCP resources through `MCPService` and marks them `mcp_external`.
+- `plugin`: resolves declarative plugin context providers and marks them `plugin_provided`.
 - `url`: uses `WebService.fetch`, so network config, scheme checks, private-host policy, redirect validation, response caps, and permission policy still apply.
 - `text`: supports pasted text/API text attachments.
 - `image` and `pdf`: store metadata and emit safe placeholder summaries in this MVP; OCR, image understanding, and full PDF extraction are future work.
