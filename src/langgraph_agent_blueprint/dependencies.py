@@ -5,33 +5,33 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from langgraph_agent_blueprint.commands.registry import CommandRegistry, build_builtin_command_registry
+from langgraph_agent_blueprint.commands import CommandRegistry, build_builtin_command_registry
 from langgraph_agent_blueprint.config import AppConfig
-from langgraph_agent_blueprint.context.budget import ContextBudgetService
-from langgraph_agent_blueprint.context.providers import ContextProviderService
-from langgraph_agent_blueprint.hooks.registry import HookRegistry
-from langgraph_agent_blueprint.services.web_service import WebService
-from langgraph_agent_blueprint.services.agent_service import AgentService
-from langgraph_agent_blueprint.services.command_service import CommandService
-from langgraph_agent_blueprint.services.compaction_service import CompactionService
-from langgraph_agent_blueprint.services.diagnostics_service import DiagnosticsService
-from langgraph_agent_blueprint.services.export_service import ExportService
-from langgraph_agent_blueprint.services.hook_service import HookService
-from langgraph_agent_blueprint.services.mcp_service import MCPService
-from langgraph_agent_blueprint.services.memory_service import MemoryService
-from langgraph_agent_blueprint.services.model_provider import ModelProviderService
-from langgraph_agent_blueprint.services.observability_service import ObservabilityService
-from langgraph_agent_blueprint.services.permission_service import PermissionService
-from langgraph_agent_blueprint.services.plugin_service import PluginService
-from langgraph_agent_blueprint.services.session_service import SessionService
-from langgraph_agent_blueprint.services.skill_service import SkillInvocationService
-from langgraph_agent_blueprint.services.task_service import TaskService
+from langgraph_agent_blueprint.context import ContextBudgetService, ContextProviderService
+from langgraph_agent_blueprint.hooks import HookRegistry
+from langgraph_agent_blueprint.services import (
+    AgentService,
+    CommandService,
+    CompactionService,
+    DiagnosticsService,
+    ExportService,
+    HookService,
+    MCPService,
+    MemoryService,
+    ModelProviderService,
+    ObservabilityService,
+    PermissionService,
+    PluginService,
+    SessionService,
+    SkillInvocationService,
+    TaskService,
+    UsageService,
+    WebService,
+)
 from langgraph_agent_blueprint.services.tool_execution_service import ToolExecutionService
-from langgraph_agent_blueprint.services.usage_service import UsageService
-from langgraph_agent_blueprint.skills.registry import SkillRegistry, build_builtin_skill_registry
-from langgraph_agent_blueprint.storage.session_storage import SessionStorage
-from langgraph_agent_blueprint.tools.registry import ToolRegistry, build_core_tool_registry
-from langgraph_agent_blueprint.tools.plugin_tools import PluginToolAdapter
+from langgraph_agent_blueprint.skills import SkillRegistry, build_builtin_skill_registry
+from langgraph_agent_blueprint.storage import SessionStorage
+from langgraph_agent_blueprint.tools import PluginToolAdapter, ToolRegistry, build_core_tool_registry
 
 
 @dataclass

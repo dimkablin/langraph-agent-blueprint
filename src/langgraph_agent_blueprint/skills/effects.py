@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
 
-from langgraph_agent_blueprint.models.base import FrozenRuntimeModel
-from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models import FrozenRuntimeModel, event
 
 if TYPE_CHECKING:
     from langgraph_agent_blueprint.dependencies import AppDependencies

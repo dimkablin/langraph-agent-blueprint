@@ -7,9 +7,9 @@ import json
 from langchain_core.messages import HumanMessage, RemoveMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
-from langgraph_agent_blueprint.commands.parser import parse_slash_command
+from langgraph_agent_blueprint.commands import parse_slash_command
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models import event
 
 
 def command_router_node(state: dict, deps: AppDependencies) -> dict:

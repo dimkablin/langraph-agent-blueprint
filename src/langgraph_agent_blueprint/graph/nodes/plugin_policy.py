@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models.messages import event
-from langgraph_agent_blueprint.models.plugins import PluginPolicyContribution, PluginPolicyContext
-from langgraph_agent_blueprint.plugins.policy import evaluate_plugin_policy_contributions
+from langgraph_agent_blueprint.models import PluginPolicyContribution, PluginPolicyContext, event
+from langgraph_agent_blueprint.plugins import evaluate_plugin_policy_contributions
 
 
 def plugin_policy_node(state: dict, deps: AppDependencies) -> dict:

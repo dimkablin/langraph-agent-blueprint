@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from langgraph_agent_blueprint.models.hooks import HookContribution, HookPoint
+from langgraph_agent_blueprint.models import HookContribution, HookPoint
 
 
 class HookRegistry:
@@ -62,4 +62,3 @@ class HookRegistry:
         """Return graph-state-safe hook metadata."""
 
         return [hook.model_dump(mode="json", exclude_none=True) for hook in self.list_hooks()]
-

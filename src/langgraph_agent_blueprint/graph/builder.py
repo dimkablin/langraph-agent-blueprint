@@ -10,9 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models.base import dump_model
-from langgraph_agent_blueprint.models.context import AttachmentRef
-from langgraph_agent_blueprint.models.observability import TraceContext, TraceMetadata
+from langgraph_agent_blueprint.models import AttachmentRef, TraceContext, TraceMetadata, dump_model
 from langgraph_agent_blueprint.utils.ids import validate_session_id, validate_thread_id
 
 from .checkpoints import default_checkpointer

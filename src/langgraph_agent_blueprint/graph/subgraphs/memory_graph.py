@@ -6,7 +6,7 @@ from langgraph.graph import END, START, StateGraph
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.state import AssistantState
-from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models import event
 
 
 def _memory_node(state: dict, deps: AppDependencies) -> dict:

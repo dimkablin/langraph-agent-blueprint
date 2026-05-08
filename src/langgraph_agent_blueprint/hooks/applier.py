@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from langgraph_agent_blueprint.models.hooks import HookResult
-from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models import HookResult, event
 
 
 def apply_hook_results(state: dict[str, Any], results: list[HookResult]) -> dict[str, Any]:

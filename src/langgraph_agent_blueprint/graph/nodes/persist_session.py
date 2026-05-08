@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models import event
 
 
 def persist_session_node(state: dict, deps: AppDependencies) -> dict:

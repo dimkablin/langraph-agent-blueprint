@@ -5,16 +5,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from langgraph_agent_blueprint.hooks.registry import HookRegistry
-from langgraph_agent_blueprint.models.hooks import (
+from langgraph_agent_blueprint.hooks import HookRegistry
+from langgraph_agent_blueprint.models import (
     HookContext,
     HookContribution,
     HookInvocation,
     HookResult,
     HookRunSummary,
     HookRuntimeMetadata,
+    event,
 )
-from langgraph_agent_blueprint.models.messages import event
 
 
 HookHandler = Callable[[HookInvocation], HookResult | list[HookResult] | None]
@@ -134,4 +134,3 @@ def _runtime_metadata(hook: HookContribution) -> HookRuntimeMetadata:
     if raw is None:
         raw = hook.metadata
     return HookRuntimeMetadata.model_validate(raw or {})
-

@@ -7,7 +7,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from langgraph_agent_blueprint.models.evals import EvalReport, EvalRunResult
+from langgraph_agent_blueprint.models import EvalReport, EvalRunResult
 
 
 class EvalReporter:

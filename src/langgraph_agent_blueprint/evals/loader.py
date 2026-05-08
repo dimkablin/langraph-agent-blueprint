@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from langgraph_agent_blueprint.models.evals import EvalScenario
+from langgraph_agent_blueprint.models import EvalScenario
 
 
 def repo_root() -> Path:

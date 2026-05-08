@@ -6,9 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from langgraph_agent_blueprint.models.subagents import SubagentRequest
-from langgraph_agent_blueprint.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
-from langgraph_agent_blueprint.services.agent_service import AgentService
+from langgraph_agent_blueprint.models import SubagentRequest, ToolPermissionMetadata, ToolRuntimeMetadata
+from langgraph_agent_blueprint.services import AgentService
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput
 

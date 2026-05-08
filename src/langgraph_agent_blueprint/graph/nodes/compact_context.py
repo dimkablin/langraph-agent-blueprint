@@ -7,7 +7,7 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
-from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models import event
 
 
 def compact_context_node(state: dict, deps: AppDependencies) -> dict:

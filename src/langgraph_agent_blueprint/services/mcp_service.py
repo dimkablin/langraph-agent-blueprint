@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from langgraph_agent_blueprint.models.mcp import (
+from langgraph_agent_blueprint.models import (
     MCPConnectionState,
     MCPHttpConfig,
     MCPPromptContribution,
@@ -21,8 +21,8 @@ from langgraph_agent_blueprint.models.mcp import (
     MCPToolCallRequest,
     MCPToolCallResult,
     MCPToolContribution,
+    event,
 )
-from langgraph_agent_blueprint.models.messages import event
 from langgraph_agent_blueprint.services.mcp_transport import MCPStdioTransport, MCPTransportError
 
 

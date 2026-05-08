@@ -1,6 +1,6 @@
-﻿"""Package marker for langgraph_agent_blueprint.storage and its public runtime components."""
+"""Public storage layer surface."""
 
+from .memory_storage import MemoryStorage
 from .session_storage import SessionStorage
 
-__all__ = ["SessionStorage"]
-
+__all__ = ["MemoryStorage", "SessionStorage"]

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from langgraph_agent_blueprint.storage.session_storage import SessionStorage
+from langgraph_agent_blueprint.storage import SessionStorage
 
 
 class SessionService:

@@ -14,8 +14,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from langgraph_agent_blueprint.models.events import RuntimeEvent
-from langgraph_agent_blueprint.models.observability import LangfuseConfig, ObservabilityEvent, TraceContext, TraceMetadata
+from langgraph_agent_blueprint.models import LangfuseConfig, ObservabilityEvent, RuntimeEvent, TraceContext, TraceMetadata
 
 
 SENSITIVE_KEY_PARTS = (

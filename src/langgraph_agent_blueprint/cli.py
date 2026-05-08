@@ -11,8 +11,7 @@ from rich.console import Console
 
 from langgraph_agent_blueprint.config import AppConfig, format_config_explain, format_config_show, format_config_validate
 from langgraph_agent_blueprint.dependencies import build_dependencies
-from langgraph_agent_blueprint.evals.loader import load_scenario_by_id, load_scenarios
-from langgraph_agent_blueprint.evals.runner import EvalRunner
+from langgraph_agent_blueprint.evals import EvalRunner, load_scenario_by_id, load_scenarios
 from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
 from langgraph_agent_blueprint.utils.ids import new_id, validate_session_id
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from langgraph_agent_blueprint.models.plugins import PluginContribution, PluginPolicyContribution
+from langgraph_agent_blueprint.models import PluginContribution, PluginPolicyContribution
 
 
 SUPERPOWERS_PLUGIN_NAME = "superpowers"

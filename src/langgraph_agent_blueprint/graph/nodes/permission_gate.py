@@ -6,10 +6,15 @@ from langgraph.types import interrupt
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
-from langgraph_agent_blueprint.models.base import dump_model
-from langgraph_agent_blueprint.models.messages import event
-from langgraph_agent_blueprint.models.permissions import PermissionDecision, PermissionRequest
-from langgraph_agent_blueprint.models.tools import ToolCall, ToolResult, tool_result_to_tool_message
+from langgraph_agent_blueprint.models import (
+    PermissionDecision,
+    PermissionRequest,
+    ToolCall,
+    ToolResult,
+    dump_model,
+    event,
+    tool_result_to_tool_message,
+)
 
 
 def permission_gate_node(state: dict, deps: AppDependencies) -> dict:

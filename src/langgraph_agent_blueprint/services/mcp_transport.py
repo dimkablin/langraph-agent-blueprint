@@ -11,7 +11,7 @@ from itertools import count
 from pathlib import Path
 from typing import Any
 
-from langgraph_agent_blueprint.models.mcp import MCPConnectionState, MCPServerConfig
+from langgraph_agent_blueprint.models import MCPConnectionState, MCPServerConfig
 
 
 class MCPTransportError(RuntimeError):

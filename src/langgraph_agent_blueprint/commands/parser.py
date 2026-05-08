@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from langgraph_agent_blueprint.models.commands import CommandType, ParsedCommand
+from langgraph_agent_blueprint.models import CommandType, ParsedCommand
 
 
 def parse_slash_command(text: str) -> ParsedCommand | None:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from langgraph_agent_blueprint.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
-from langgraph_agent_blueprint.services.shell_service import ShellService
+from langgraph_agent_blueprint.models import ToolPermissionMetadata, ToolRuntimeMetadata
+from langgraph_agent_blueprint.services import ShellService
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput
 

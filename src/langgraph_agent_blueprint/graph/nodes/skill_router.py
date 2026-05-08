@@ -8,9 +8,9 @@ from langchain_core.messages import HumanMessage, ToolMessage
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
-from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models import event
+from langgraph_agent_blueprint.skills import SkillEffect, apply_skill_effects
 from langgraph_agent_blueprint.skills.args import SkillArgumentValidationError
-from langgraph_agent_blueprint.skills.effects import SkillEffect, apply_skill_effects
 
 
 def skill_router_node(state: dict, deps: AppDependencies) -> dict:

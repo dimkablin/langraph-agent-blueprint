@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from langgraph_agent_blueprint.models.commands import CommandResult
-from langgraph_agent_blueprint.models.plugins import PluginCommandContribution, PluginContribution
+from langgraph_agent_blueprint.models import CommandResult, PluginCommandContribution, PluginContribution
 
 from .base import Command
 from .builtin import builtins

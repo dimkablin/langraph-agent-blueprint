@@ -9,9 +9,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from langgraph_agent_blueprint.models.base import dump_model
-from langgraph_agent_blueprint.models.hooks import HookContribution, HookRuntimeMetadata
-from langgraph_agent_blueprint.models.plugins import (
+from langgraph_agent_blueprint.models import (
+    HookContribution,
+    HookRuntimeMetadata,
     PluginCommandContribution,
     PluginContribution,
     PluginContextProviderContribution,
@@ -23,8 +23,9 @@ from langgraph_agent_blueprint.models.plugins import (
     PluginSource,
     PluginToolContribution,
     PluginTrustPolicy,
+    dump_model,
 )
-from langgraph_agent_blueprint.plugins.superpowers import (
+from langgraph_agent_blueprint.plugins import (
     SUPERPOWERS_BOOTSTRAP_SKILL,
     SUPERPOWERS_PLUGIN_NAME,
     is_superpowers_repo,

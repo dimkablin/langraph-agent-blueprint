@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from langgraph_agent_blueprint.models.plugins import PluginPolicyContribution, PluginPolicyContext, PluginPolicyResult
+from langgraph_agent_blueprint.models import PluginPolicyContribution, PluginPolicyContext, PluginPolicyResult
 
 
 def evaluate_plugin_policy_contributions(

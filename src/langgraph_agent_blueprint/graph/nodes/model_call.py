@@ -6,10 +6,7 @@ from langchain_core.messages import AIMessage
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
-from langgraph_agent_blueprint.models.base import dump_model, validate_list
-from langgraph_agent_blueprint.models.llm import ModelRequest
-from langgraph_agent_blueprint.models.messages import event
-from langgraph_agent_blueprint.models.tools import ToolCall
+from langgraph_agent_blueprint.models import ModelRequest, ToolCall, dump_model, event, validate_list
 
 
 def model_call_node(state: dict, deps: AppDependencies) -> dict:

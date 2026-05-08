@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from langgraph_agent_blueprint.models.context import ContextBudgetReport, ContextFragment
+from langgraph_agent_blueprint.models import ContextBudgetReport, ContextFragment
 
 
 class ContextBudgetService:

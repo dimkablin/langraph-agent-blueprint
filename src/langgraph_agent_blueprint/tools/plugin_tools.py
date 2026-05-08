@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from langgraph_agent_blueprint.models.plugins import PluginToolContribution
+from langgraph_agent_blueprint.models import PluginToolContribution
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput
 

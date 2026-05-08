@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from langgraph_agent_blueprint.models.commands import CommandResult
+from langgraph_agent_blueprint.models import CommandResult
 
 
 CommandType = Literal["local", "prompt", "skill", "session", "diagnostic"]

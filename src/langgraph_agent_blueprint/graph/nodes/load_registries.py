@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
-from langgraph_agent_blueprint.models.messages import event
-from langgraph_agent_blueprint.tools.mcp_tools import MCPToolAdapter
+from langgraph_agent_blueprint.models import event
+from langgraph_agent_blueprint.tools import MCPToolAdapter
 
 
 def load_registries_node(state: dict, deps: AppDependencies) -> dict:

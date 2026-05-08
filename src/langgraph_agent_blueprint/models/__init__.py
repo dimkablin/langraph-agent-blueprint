@@ -1,7 +1,136 @@
-﻿"""Package marker for langgraph_agent_blueprint.models and its public runtime components."""
+"""Public Pydantic/runtime model surface used across package layers."""
 
+from .base import FrozenRuntimeModel, RuntimeModel, dump_model, validate_list
+from .commands import CommandResult, CommandType, ParsedCommand
+from .config import ConfigDiagnostic, ConfigSource, ConfigValueOrigin, EffectiveConfigReport
+from .context import (
+    AttachmentContent,
+    AttachmentRef,
+    ContextBudgetReport,
+    ContextFragment,
+    ContextReference,
+    ResolvedContextItem,
+)
+from .evals import EvalExpectations, EvalReport, EvalRunResult, EvalScenario, EvalStep
+from .events import RuntimeEvent, make_event
+from .hooks import HookContext, HookContribution, HookInvocation, HookPoint, HookResult, HookRunSummary, HookRuntimeMetadata
 from .llm import ModelRequest, ModelResponse
-from .messages import StreamEvent, ToolCallRecord, ToolResultRecord, Usage
+from .mcp import (
+    MCPConnectionState,
+    MCPHttpConfig,
+    MCPPromptContribution,
+    MCPPromptGetResult,
+    MCPResourceContribution,
+    MCPResourceReadResult,
+    MCPServerConfig,
+    MCPStdioConfig,
+    MCPToolCallRequest,
+    MCPToolCallResult,
+    MCPToolContribution,
+)
+from .messages import StreamEvent, ToolCallRecord, ToolResultRecord, Usage, event
+from .observability import LangfuseConfig, ObservabilityEvent, TraceContext, TraceMetadata
+from .permissions import PermissionCheck, PermissionDecision, PermissionRequest
+from .plugins import (
+    PluginCommandContribution,
+    PluginContextProviderContribution,
+    PluginContribution,
+    PluginInstallResult,
+    PluginMCPContribution,
+    PluginManifest,
+    PluginPolicyContribution,
+    PluginPolicyContext,
+    PluginPolicyResult,
+    PluginSDKDiagnostic,
+    PluginSource,
+    PluginToolContribution,
+    PluginTrustPolicy,
+)
+from .sessions import SessionMetadata
+from .subagents import ChildRunMetadata, ResultMergePolicy, SubagentRequest, SubagentResult
+from .tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata, ToolStateEffect
+from .tools import ToolCall, ToolResult, normalize_provider_tool_calls, tool_result_to_tool_message
 
-__all__ = ["ModelRequest", "ModelResponse", "StreamEvent", "ToolCallRecord", "ToolResultRecord", "Usage"]
-
+__all__ = [
+    "AttachmentContent",
+    "AttachmentRef",
+    "ChildRunMetadata",
+    "CommandResult",
+    "CommandType",
+    "ConfigDiagnostic",
+    "ConfigSource",
+    "ConfigValueOrigin",
+    "ContextBudgetReport",
+    "ContextFragment",
+    "ContextReference",
+    "EffectiveConfigReport",
+    "EvalExpectations",
+    "EvalReport",
+    "EvalRunResult",
+    "EvalScenario",
+    "EvalStep",
+    "FrozenRuntimeModel",
+    "HookContext",
+    "HookContribution",
+    "HookInvocation",
+    "HookPoint",
+    "HookResult",
+    "HookRuntimeMetadata",
+    "HookRunSummary",
+    "LangfuseConfig",
+    "MCPConnectionState",
+    "MCPHttpConfig",
+    "MCPPromptContribution",
+    "MCPPromptGetResult",
+    "MCPResourceContribution",
+    "MCPResourceReadResult",
+    "MCPServerConfig",
+    "MCPStdioConfig",
+    "MCPToolCallRequest",
+    "MCPToolCallResult",
+    "MCPToolContribution",
+    "ModelRequest",
+    "ModelResponse",
+    "ObservabilityEvent",
+    "ParsedCommand",
+    "PermissionCheck",
+    "PermissionDecision",
+    "PermissionRequest",
+    "PluginCommandContribution",
+    "PluginContextProviderContribution",
+    "PluginContribution",
+    "PluginInstallResult",
+    "PluginMCPContribution",
+    "PluginManifest",
+    "PluginPolicyContribution",
+    "PluginPolicyContext",
+    "PluginPolicyResult",
+    "PluginSDKDiagnostic",
+    "PluginSource",
+    "PluginToolContribution",
+    "PluginTrustPolicy",
+    "ResolvedContextItem",
+    "ResultMergePolicy",
+    "RuntimeEvent",
+    "RuntimeModel",
+    "SessionMetadata",
+    "StreamEvent",
+    "SubagentRequest",
+    "SubagentResult",
+    "ToolCall",
+    "ToolCallRecord",
+    "ToolPermissionMetadata",
+    "ToolResult",
+    "ToolResultRecord",
+    "ToolRuntimeMetadata",
+    "ToolStateEffect",
+    "TraceContext",
+    "TraceMetadata",
+    "Usage",
+    "dump_model",
+    "event",
+    "make_event",
+    "normalize_provider_tool_calls",
+    "tool_result_to_tool_message",
+    "validate_list",
+]

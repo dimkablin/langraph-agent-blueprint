@@ -5,7 +5,7 @@ from __future__ import annotations
 from langgraph.graph import END, START, StateGraph
 
 from langgraph_agent_blueprint.graph.state import AssistantState
-from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models import event
 
 
 def _plan_todo_node(state: dict) -> dict:

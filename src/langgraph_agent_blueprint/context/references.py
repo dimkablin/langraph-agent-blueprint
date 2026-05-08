@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from langgraph_agent_blueprint.models.context import ContextReference
+from langgraph_agent_blueprint.models import ContextReference
 
 
 def parse_context_references(text: str) -> list[ContextReference]:

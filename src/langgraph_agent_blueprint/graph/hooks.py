@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.hooks.applier import apply_hook_results
-from langgraph_agent_blueprint.models.hooks import HookContext, HookPoint
+from langgraph_agent_blueprint.hooks import apply_hook_results
+from langgraph_agent_blueprint.models import HookContext, HookPoint
 
 
 LIST_APPEND_KEYS = {
@@ -101,4 +101,3 @@ def hook_blocked(update: dict[str, Any]) -> bool:
     """Return whether a hook update blocked normal node behavior."""
 
     return bool(update.get("metadata", {}).get("hook_blocked") or update.get("final_response"))
-

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from langgraph_agent_blueprint.config import format_config_explain, format_config_validate
-from langgraph_agent_blueprint.models.config import EffectiveConfigReport
+from langgraph_agent_blueprint.models import EffectiveConfigReport
 
 from .base import Command, CommandResult
 

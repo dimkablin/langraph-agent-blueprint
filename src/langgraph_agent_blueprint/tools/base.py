@@ -12,7 +12,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
-from langgraph_agent_blueprint.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata, ToolStateEffect
+from langgraph_agent_blueprint.models import ToolPermissionMetadata, ToolRuntimeMetadata, ToolStateEffect
 
 
 class ToolSafety(StrEnum):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from langgraph_agent_blueprint.commands.registry import CommandRegistry
+from langgraph_agent_blueprint.commands import CommandRegistry
 
 
 class CommandService:

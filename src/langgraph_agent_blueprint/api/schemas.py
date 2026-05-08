@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from langgraph_agent_blueprint.models.context import AttachmentRef
+from langgraph_agent_blueprint.models import AttachmentRef
 from langgraph_agent_blueprint.utils.ids import validate_session_id, validate_thread_id
 
 

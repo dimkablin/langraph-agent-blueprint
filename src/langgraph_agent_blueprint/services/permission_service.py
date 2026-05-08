@@ -6,9 +6,7 @@ import json
 from typing import Any
 
 from langgraph_agent_blueprint.config import PermissionMode
-from langgraph_agent_blueprint.models.permissions import PermissionCheck, PermissionRequest
-from langgraph_agent_blueprint.models.tools import ToolCall
-from langgraph_agent_blueprint.models.tool_metadata import ToolPermissionMetadata
+from langgraph_agent_blueprint.models import PermissionCheck, PermissionRequest, ToolCall, ToolPermissionMetadata
 
 
 DEFAULT_SENSITIVE_ARG_KEYS = {

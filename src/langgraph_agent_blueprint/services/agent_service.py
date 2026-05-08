@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from langgraph_agent_blueprint.graph.state import create_initial_state
-from langgraph_agent_blueprint.models.subagents import ChildRunMetadata, SubagentRequest
+from langgraph_agent_blueprint.models import ChildRunMetadata, SubagentRequest
 from langgraph_agent_blueprint.utils.ids import new_id
 
 if TYPE_CHECKING:

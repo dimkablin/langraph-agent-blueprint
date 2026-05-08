@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from langgraph_agent_blueprint.models.plugins import PluginContribution
+from langgraph_agent_blueprint.models import PluginContribution
 
 from .base import SkillDefinition
 from .bundled import load_bundled_skills

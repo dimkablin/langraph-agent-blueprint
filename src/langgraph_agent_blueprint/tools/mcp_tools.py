@@ -6,9 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from langgraph_agent_blueprint.models.mcp import MCPToolContribution
-from langgraph_agent_blueprint.models.tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata
-from langgraph_agent_blueprint.services.mcp_service import MCPService
+from langgraph_agent_blueprint.models import MCPToolContribution, ToolPermissionMetadata, ToolRuntimeMetadata
+from langgraph_agent_blueprint.services import MCPService
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput
 

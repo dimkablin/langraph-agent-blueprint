@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models.base import dump_model, validate_list
-from langgraph_agent_blueprint.models.context import AttachmentRef, ContextReference
-from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models import AttachmentRef, ContextReference, dump_model, event, validate_list
 
 
 def resolve_context_node(state: dict, deps: AppDependencies) -> dict:

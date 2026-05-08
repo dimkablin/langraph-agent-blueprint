@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from langgraph_agent_blueprint.storage.memory_storage import MemoryStorage
+from langgraph_agent_blueprint.storage import MemoryStorage
 
 
 class MemoryService:

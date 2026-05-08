@@ -5,11 +5,9 @@ from __future__ import annotations
 from langchain_core.messages import HumanMessage
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.context.references import parse_context_references
+from langgraph_agent_blueprint.context import parse_context_references
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
-from langgraph_agent_blueprint.models.base import dump_model, validate_list
-from langgraph_agent_blueprint.models.context import AttachmentRef, ContextReference
-from langgraph_agent_blueprint.models.messages import event
+from langgraph_agent_blueprint.models import AttachmentRef, ContextReference, dump_model, event, validate_list
 
 
 def normalize_input_node(state: dict, deps: AppDependencies) -> dict:

@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
-from langgraph_agent_blueprint.models.base import dump_model, validate_list
-from langgraph_agent_blueprint.models.messages import event
-from langgraph_agent_blueprint.models.tools import ToolCall, ToolResult, tool_result_to_tool_message
+from langgraph_agent_blueprint.models import ToolCall, ToolResult, dump_model, event, tool_result_to_tool_message, validate_list
 
 
 def tool_router_node(state: dict, deps: AppDependencies) -> dict:

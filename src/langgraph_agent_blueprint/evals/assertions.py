@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from langgraph_agent_blueprint.models.evals import EvalExpectations
+from langgraph_agent_blueprint.models import EvalExpectations
 
 
 class EvalAssertionEngine:
