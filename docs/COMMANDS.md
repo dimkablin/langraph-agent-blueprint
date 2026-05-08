@@ -10,6 +10,20 @@ lg-agent eval run basic-chat
 lg-agent eval run --all
 ```
 
+Config diagnostics are available as both slash commands and Typer subcommands:
+
+```text
+/config show
+/config explain
+/config validate
+```
+
+```powershell
+lg-agent config show
+lg-agent config explain
+lg-agent config validate
+```
+
 Implemented commands:
 
 | Command | Type | Behavior |
@@ -49,3 +63,4 @@ Runtime status after fixes:
 - `/mcp`, `/mcp tools`, `/mcp resources`, and `/mcp prompts` report MCP discovery state exposed by `load_registries`.
 - `/context` reports graph-resolved context references/fragments and the active context budget report.
 - `/help` separates enabled commands from unsupported optional commands.
+- Plugin commands are declarative manifest contributions. Supported plugin command types are `static_response`, `prompt`, and `skill`; command handling does not execute plugin code.

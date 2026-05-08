@@ -39,13 +39,13 @@ trust_level = "untrusted"
 timeout_seconds = 10
 ```
 
-The current config loader also accepts JSON from `MCP_CONFIG_JSON` or `LG_AGENT_MCP_CONFIG_JSON`:
+The config loader also accepts JSON from `MCP_CONFIG_JSON` or `LG_AGENT_MCP_CONFIG_JSON`:
 
 ```powershell
 $env:MCP_CONFIG_JSON = '{"servers":{"fake":{"enabled":true,"transport":"stdio","command":"python","args":["tests/fixtures/mcp/fake_mcp_server.py"]}}}'
 ```
 
-Full project/user TOML config layering is still a future config-system phase. Tests pass MCP config directly through `AppConfig`.
+Phase 8 supports project/user TOML config layering and plugin-contributed MCP server configs. Plugin MCP `cwd` values are resolved relative to the plugin root and rejected if they escape that root.
 
 Invalid server entries are preserved as diagnostics instead of being silently skipped. `/mcp` and `/doctor` include `invalid_servers` with redacted validation summaries so config typos remain visible while valid servers continue to work.
 

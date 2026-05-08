@@ -11,7 +11,19 @@ from typing import Any
 
 from langgraph_agent_blueprint.models.base import dump_model
 from langgraph_agent_blueprint.models.hooks import HookContribution, HookRuntimeMetadata
-from langgraph_agent_blueprint.models.plugins import PluginContribution, PluginInstallResult, PluginManifest, PluginPolicyContribution, PluginSource
+from langgraph_agent_blueprint.models.plugins import (
+    PluginCommandContribution,
+    PluginContribution,
+    PluginContextProviderContribution,
+    PluginInstallResult,
+    PluginMCPContribution,
+    PluginManifest,
+    PluginPolicyContribution,
+    PluginSDKDiagnostic,
+    PluginSource,
+    PluginToolContribution,
+    PluginTrustPolicy,
+)
 from langgraph_agent_blueprint.plugins.superpowers import (
     SUPERPOWERS_BOOTSTRAP_SKILL,
     SUPERPOWERS_PLUGIN_NAME,
@@ -52,46 +64,86 @@ class PluginService:
         plugins = []
         hooks = []
         policies = []
+        commands = []
+        tools = []
+        mcp_servers = []
+        context_providers = []
         hook_warnings: list[dict[str, str]] = []
         policy_warnings: list[dict[str, str]] = []
+        command_warnings: list[dict[str, str]] = []
+        tool_warnings: list[dict[str, str]] = []
+        mcp_warnings: list[dict[str, str]] = []
+        context_warnings: list[dict[str, str]] = []
+        sdk_warnings: list[dict[str, Any]] = []
         fragments: list[str] = []
         for contribution in contributions:
             skill_names = self._skill_registry_ids(contribution)
             hook_payloads = [hook.model_dump(mode="json", exclude_none=True) for hook in contribution.hooks]
             policy_payloads = [policy.model_dump(mode="json", exclude_none=True) for policy in contribution.policies]
+            command_payloads = [command.model_dump(mode="json", exclude_none=True) for command in contribution.commands]
+            tool_payloads = [tool.model_dump(mode="json", exclude_none=True) for tool in contribution.tools]
+            mcp_payloads = [mcp.model_dump(mode="json", exclude_none=True) for mcp in contribution.mcp_servers]
+            context_payloads = [provider.model_dump(mode="json", exclude_none=True) for provider in contribution.context_providers]
             plugins.append(
                 {
                     **contribution.manifest.model_dump(mode="json", exclude_none=True),
                     "name": contribution.plugin_name,
-                    "enabled": True,
+                    "enabled": contribution.enabled,
+                    "disabled_reason": contribution.disabled_reason,
+                    "trust": contribution.trust.model_dump(mode="json", exclude_none=True),
                     "root_path": contribution.root_path,
                     "skills_path": contribution.skills_path,
                     "bootstrap_skill": contribution.bootstrap_skill,
                     "skills_count": len(skill_names),
                     "hooks_count": len(contribution.hooks),
                     "policies_count": len(contribution.policies),
+                    "commands_count": len(contribution.commands),
+                    "tools_count": len(contribution.tools),
+                    "mcp_servers_count": len(contribution.mcp_servers),
+                    "context_providers_count": len(contribution.context_providers),
                     "hook_warnings": contribution.hook_warnings,
                     "policy_warnings": contribution.policy_warnings,
+                    "command_warnings": contribution.command_warnings,
+                    "tool_warnings": contribution.tool_warnings,
+                    "mcp_warnings": contribution.mcp_warnings,
+                    "context_warnings": contribution.context_warnings,
+                    "sdk_warnings": [warning.model_dump(mode="json") for warning in contribution.sdk_warnings],
                 }
             )
-            skills.extend(skill_names)
-            hooks.extend(hook_payloads)
-            policies.extend(policy_payloads)
+            if contribution.enabled:
+                skills.extend(skill_names)
+                hooks.extend(hook_payloads)
+                policies.extend(policy_payloads)
+                commands.extend(command_payloads)
+                tools.extend(tool_payloads)
+                mcp_servers.extend(mcp_payloads)
+                context_providers.extend(context_payloads)
+                fragments.extend(contribution.system_context_fragments)
             hook_warnings.extend(contribution.hook_warnings)
             policy_warnings.extend(contribution.policy_warnings)
-            fragments.extend(contribution.system_context_fragments)
+            command_warnings.extend(contribution.command_warnings)
+            tool_warnings.extend(contribution.tool_warnings)
+            mcp_warnings.extend(contribution.mcp_warnings)
+            context_warnings.extend(contribution.context_warnings)
+            sdk_warnings.extend(warning.model_dump(mode="json") for warning in contribution.sdk_warnings)
         return {
             "plugins": plugins,
             "contributions": [contribution.model_dump(mode="json", exclude_none=True) for contribution in contributions],
             "errors": errors,
-            "commands": [],
+            "commands": commands,
             "skills": skills,
-            "tools": [],
+            "tools": tools,
             "hooks": hooks,
             "policies": policies,
             "hook_warnings": hook_warnings,
             "policy_warnings": policy_warnings,
-            "mcp": [],
+            "command_warnings": command_warnings,
+            "tool_warnings": tool_warnings,
+            "mcp_warnings": mcp_warnings,
+            "context_warnings": context_warnings,
+            "sdk_warnings": sdk_warnings,
+            "mcp": mcp_servers,
+            "context_providers": context_providers,
             "system_context_fragments": fragments,
         }
 
@@ -118,8 +170,21 @@ class PluginService:
         hooks, parse_hook_warnings = self._parse_hooks(root_path, name, hooks_declared)
         policies_declared, manifest_policy_warnings = self._manifest_policy_entries(name, codex, claude)
         policies, parse_policy_warnings = self._parse_policies(name, policies_declared)
+        commands_declared, manifest_command_warnings = self._manifest_list_entries(name, "commands", codex, claude, package)
+        commands, parse_command_warnings = self._parse_commands(name, commands_declared)
+        tools_declared, manifest_tool_warnings = self._manifest_list_entries(name, "tools", codex, claude, package)
+        tools, parse_tool_warnings = self._parse_tools(root_path, name, tools_declared)
+        mcp_servers, parse_mcp_warnings = self._parse_mcp_servers(root_path, name, codex.get("mcp_servers") or claude.get("mcp_servers") or package.get("mcp_servers") or {})
+        context_declared, manifest_context_warnings = self._manifest_list_entries(name, "context_providers", codex, claude, package)
+        context_providers, parse_context_warnings = self._parse_context_providers(root_path, name, context_declared)
         hook_warnings = [*manifest_hook_warnings, *parse_hook_warnings]
         policy_warnings = [*manifest_policy_warnings, *parse_policy_warnings]
+        command_warnings = [*manifest_command_warnings, *parse_command_warnings]
+        tool_warnings = [*manifest_tool_warnings, *parse_tool_warnings]
+        mcp_warnings = parse_mcp_warnings
+        context_warnings = [*manifest_context_warnings, *parse_context_warnings]
+        trust = PluginTrustPolicy.model_validate(codex.get("trust") or claude.get("trust") or package.get("trust") or {})
+        enabled = bool(codex.get("enabled", claude.get("enabled", package.get("enabled", True))))
         if name == SUPERPOWERS_PLUGIN_NAME and skills_path and (Path(skills_path) / SUPERPOWERS_BOOTSTRAP_SKILL / "SKILL.md").exists():
             bootstrap_skill = SUPERPOWERS_BOOTSTRAP_SKILL
         manifest = PluginManifest.model_validate(
@@ -133,19 +198,51 @@ class PluginService:
                 "bootstrap_skill": bootstrap_skill,
                 "hooks": hooks_declared,
                 "policies": policies_declared,
+                "commands": commands_declared,
+                "tools": tools_declared,
+                "mcp_servers": codex.get("mcp_servers") or claude.get("mcp_servers") or package.get("mcp_servers") or {},
+                "context_providers": context_declared,
+                "trust": trust.model_dump(mode="json", exclude_none=True),
+                "enabled": enabled,
             }
         )
+        if not enabled:
+            return PluginContribution(
+                plugin_name=name,
+                root_path=str(root_path),
+                manifest=manifest,
+                skills_path=str(skills_path) if skills_path else None,
+                bootstrap_skill=bootstrap_skill,
+                enabled=False,
+                disabled_reason="disabled by plugin manifest",
+                trust=trust,
+                hook_warnings=hook_warnings,
+                policy_warnings=policy_warnings,
+                command_warnings=command_warnings,
+                tool_warnings=tool_warnings,
+                mcp_warnings=mcp_warnings,
+                context_warnings=context_warnings,
+            )
         contribution = PluginContribution(
             plugin_name=name,
             root_path=str(root_path),
             manifest=manifest,
             skills_path=str(skills_path) if skills_path else None,
             bootstrap_skill=bootstrap_skill,
+            trust=trust,
             system_context_fragments=[],
             hooks=hooks,
             hook_warnings=hook_warnings,
             policies=policies,
             policy_warnings=policy_warnings,
+            commands=commands,
+            command_warnings=command_warnings,
+            tools=tools,
+            tool_warnings=tool_warnings,
+            mcp_servers=mcp_servers,
+            mcp_warnings=mcp_warnings,
+            context_providers=context_providers,
+            context_warnings=context_warnings,
         )
         if is_superpowers_repo(root_path, name) and skills_path:
             skill_names = self._skill_registry_ids(contribution)
@@ -388,6 +485,123 @@ class PluginService:
                 continue
             entries.extend(raw_policies)
         return entries, warnings
+
+    @staticmethod
+    def _manifest_list_entries(plugin_name: str, field: str, *manifests: dict[str, Any]) -> tuple[list[Any], list[dict[str, str]]]:
+        entries: list[Any] = []
+        warnings: list[dict[str, str]] = []
+        for manifest in manifests:
+            if field not in manifest:
+                continue
+            raw_entries = manifest.get(field)
+            if raw_entries is None:
+                continue
+            if not isinstance(raw_entries, list):
+                warnings.append({"plugin": plugin_name, field.rstrip("s"): field, "error": f"plugin {field} field must be a list"})
+                continue
+            entries.extend(raw_entries)
+        return entries, warnings
+
+    @staticmethod
+    def _parse_commands(plugin_name: str, raw_commands: list[Any]) -> tuple[list[PluginCommandContribution], list[dict[str, str]]]:
+        commands: list[PluginCommandContribution] = []
+        warnings: list[dict[str, str]] = []
+        for index, raw in enumerate(raw_commands):
+            try:
+                if not isinstance(raw, dict):
+                    raise ValueError("plugin command entry must be an object")
+                payload = dict(raw)
+                payload["plugin_name"] = plugin_name
+                payload["command_type"] = payload.get("command_type") or payload.get("type")
+                payload.pop("type", None)
+                payload["skill"] = payload.get("skill") or payload.get("skill_name")
+                payload.pop("skill_name", None)
+                commands.append(PluginCommandContribution.model_validate(payload))
+            except Exception as exc:
+                warnings.append({"plugin": plugin_name, "command": str(raw.get("name", index)) if isinstance(raw, dict) else str(index), "error": str(exc)})
+        return commands, warnings
+
+    def _parse_tools(self, root_path: Path, plugin_name: str, raw_tools: list[Any]) -> tuple[list[PluginToolContribution], list[dict[str, str]]]:
+        tools: list[PluginToolContribution] = []
+        warnings: list[dict[str, str]] = []
+        for index, raw in enumerate(raw_tools):
+            try:
+                if not isinstance(raw, dict):
+                    raise ValueError("plugin tool entry must be an object")
+                payload = dict(raw)
+                payload["kind"] = payload.get("kind") or payload.get("type") or "static_text"
+                payload.pop("type", None)
+                path = payload.get("path")
+                if path:
+                    safe_path = self._safe_child(root_path, str(path))
+                    payload.setdefault("metadata", {})
+                    payload["metadata"] = {**payload["metadata"], "root_path": str(root_path), "resolved_path": str(safe_path)}
+                else:
+                    payload["metadata"] = {**(payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}), "root_path": str(root_path)}
+                payload["plugin_name"] = plugin_name
+                tools.append(PluginToolContribution.model_validate(payload))
+            except Exception as exc:
+                warnings.append({"plugin": plugin_name, "tool": str(raw.get("name", index)) if isinstance(raw, dict) else str(index), "error": str(exc)})
+        return tools, warnings
+
+    def _parse_mcp_servers(self, root_path: Path, plugin_name: str, raw_servers: Any) -> tuple[list[PluginMCPContribution], list[dict[str, str]]]:
+        servers: list[PluginMCPContribution] = []
+        warnings: list[dict[str, str]] = []
+        if not raw_servers:
+            return servers, warnings
+        if not isinstance(raw_servers, dict):
+            return servers, [{"plugin": plugin_name, "server": "mcp_servers", "error": "plugin mcp_servers field must be an object"}]
+        for server_name, raw in raw_servers.items():
+            try:
+                if not isinstance(raw, dict):
+                    raise ValueError("plugin MCP server config must be an object")
+                config = dict(raw)
+                cwd = config.get("cwd")
+                if cwd is not None:
+                    config["cwd"] = str(self._safe_child(root_path, str(cwd)))
+                else:
+                    config["cwd"] = str(root_path)
+                registry_name = f"{plugin_name}.{server_name}"
+                config["name"] = registry_name
+                config.setdefault("source", "plugin")
+                config.setdefault("plugin_name", plugin_name)
+                servers.append(
+                    PluginMCPContribution(
+                        plugin_name=plugin_name,
+                        server_name=str(server_name),
+                        registry_name=registry_name,
+                        config=config,
+                        enabled=bool(config.get("enabled", True)),
+                    )
+                )
+            except Exception as exc:
+                warnings.append({"plugin": plugin_name, "server": str(server_name), "error": str(exc)})
+        return servers, warnings
+
+    def _parse_context_providers(
+        self,
+        root_path: Path,
+        plugin_name: str,
+        raw_context_providers: list[Any],
+    ) -> tuple[list[PluginContextProviderContribution], list[dict[str, str]]]:
+        providers: list[PluginContextProviderContribution] = []
+        warnings: list[dict[str, str]] = []
+        for index, raw in enumerate(raw_context_providers):
+            try:
+                if not isinstance(raw, dict):
+                    raise ValueError("plugin context provider entry must be an object")
+                payload = dict(raw)
+                payload["kind"] = payload.get("kind") or payload.get("type") or "static"
+                payload.pop("type", None)
+                path = payload.get("path")
+                if path:
+                    self._safe_child(root_path, str(path))
+                payload["plugin_name"] = plugin_name
+                payload["root_path"] = str(root_path)
+                providers.append(PluginContextProviderContribution.model_validate(payload))
+            except Exception as exc:
+                warnings.append({"plugin": plugin_name, "context_provider": str(raw.get("name", index)) if isinstance(raw, dict) else str(index), "error": str(exc)})
+        return providers, warnings
 
     @staticmethod
     def _parse_policies(plugin_name: str, raw_policies: list[Any]) -> tuple[list[PluginPolicyContribution], list[dict[str, str]]]:

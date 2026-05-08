@@ -1,0 +1,93 @@
+{
+  "name": "example_plugin",
+  "version": "0.1.0",
+  "description": "Example data-only plugin demonstrating the Phase 8 SDK contract.",
+  "skills": "./skills",
+  "trust": {
+    "level": "untrusted",
+    "reason": "Example plugin contributions are declarative and data-only."
+  },
+  "bootstrap": {
+    "context": "Example plugin bootstrap context."
+  },
+  "hooks": [
+    {
+      "id": "example_plugin.add_context",
+      "point": "pre_model",
+      "action": "add_system_context",
+      "content": "EXAMPLE_PLUGIN_HOOK_CONTEXT",
+      "priority": 90
+    },
+    {
+      "id": "example_plugin.emit_event",
+      "point": "pre_model",
+      "action": "add_event",
+      "event_data": {
+        "marker": "EXAMPLE_PLUGIN_HOOK_CONTEXT"
+      },
+      "priority": 91
+    }
+  ],
+  "policies": [
+    {
+      "id": "example_plugin.example_policy",
+      "type": "skill_activation",
+      "skill": "example_plugin/example-skill",
+      "match_any": ["example plugin policy"],
+      "reason": "Example plugin policy matched.",
+      "priority": 50
+    }
+  ],
+  "commands": [
+    {
+      "name": "example",
+      "type": "static_response",
+      "description": "Return a static example plugin response.",
+      "response": "Hello from example plugin"
+    },
+    {
+      "name": "example_prompt",
+      "type": "prompt",
+      "description": "Expand arguments into a prompt.",
+      "prompt": "Example plugin prompt: {args}"
+    },
+    {
+      "name": "example_skill",
+      "type": "skill",
+      "description": "Invoke the example plugin skill.",
+      "skill": "example_plugin/example-skill"
+    }
+  ],
+  "tools": [
+    {
+      "name": "static_hello",
+      "kind": "static_text",
+      "description": "Return static text from a declarative plugin tool.",
+      "response": "EXAMPLE_PLUGIN_TOOL_RESPONSE"
+    },
+    {
+      "name": "reference_lookup",
+      "kind": "context_lookup",
+      "description": "Return the example plugin reference document.",
+      "path": "docs/reference.md"
+    }
+  ],
+  "context_providers": [
+    {
+      "name": "reference",
+      "kind": "plugin_file",
+      "description": "Attach the example plugin reference document.",
+      "path": "docs/reference.md"
+    }
+  ],
+  "mcp_servers": {
+    "fake": {
+      "enabled": true,
+      "transport": "stdio",
+      "command": "python",
+      "args": ["mcp/fake_mcp_server.py"],
+      "cwd": ".",
+      "timeout_seconds": 5
+    }
+  }
+}

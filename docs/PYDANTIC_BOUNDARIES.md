@@ -23,6 +23,7 @@ Boundary contracts are used where raw or cross-layer data enters the agent runti
 - observability config/trace/events -> `LangfuseConfig`, `TraceContext`, `TraceMetadata`, and `ObservabilityEvent`
 - subagent requests/lifecycle/results -> `SubagentRequest`, `ChildRunMetadata`, `SubagentResult`, and `ResultMergePolicy`
 - eval/replay scenarios/reports -> `EvalScenario`, `EvalStep`, `EvalExpectations`, expected assertion DTOs, `EvalRunResult`, and `EvalReport`
+- config diagnostics -> `ConfigSource`, `ConfigValueOrigin`, `ConfigDiagnostic`, and `EffectiveConfigReport`
 
 The LangGraph state remains checkpointer-safe: nodes store dictionaries and lists in state, and validate them at node/service boundaries with `model_validate(...)`. Outgoing DTOs are serialized with `model_dump(mode="json")`.
 
@@ -102,6 +103,8 @@ Plugin records stored in LangGraph state are JSON-safe dictionaries produced fro
 Plugin hook entries from manifests are validated into `HookContribution` records before registration. Malformed hook entries remain structured warnings, not raw unvalidated runtime data.
 
 Plugin policy entries from manifests are validated into `PluginPolicyContribution` records. `plugin_policy_node` passes a read-only `PluginPolicyContext` to the generic evaluator and only applies controlled `PluginPolicyResult` actions such as `activate_skill`.
+
+Phase 8 adds typed plugin SDK contribution DTOs: `PluginCommandContribution`, `PluginToolContribution`, `PluginMCPContribution`, `PluginContextProviderContribution`, `PluginTrustPolicy`, and `PluginSDKDiagnostic`. These models keep plugin commands/tools/MCP/context data-only and JSON-safe.
 
 ## Hooks
 

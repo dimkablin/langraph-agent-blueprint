@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from langgraph_agent_blueprint.config import format_config_explain, format_config_validate
+from langgraph_agent_blueprint.models.config import EffectiveConfigReport
+
 from .base import Command, CommandResult
 
 
@@ -79,14 +82,26 @@ def _plugins(args: str, state: dict[str, Any]) -> CommandResult:
     for plugin in sorted(plugins, key=lambda item: item.get("name", "")):
         bootstrap = plugin.get("bootstrap_skill") or "none"
         lines.append(
-            f"- {plugin.get('name')}: enabled, version: {plugin.get('version', 'unknown')}, "
+            f"- {plugin.get('name')}: {'enabled' if plugin.get('enabled', True) else 'disabled'}, version: {plugin.get('version', 'unknown')}, "
             f"skills: {plugin.get('skills_count', 0)}, hooks: {plugin.get('hooks_count', 0)}, "
-            f"policies: {plugin.get('policies_count', 0)}, bootstrap: {bootstrap}"
+            f"policies: {plugin.get('policies_count', 0)}, commands: {plugin.get('commands_count', 0)}, "
+            f"tools: {plugin.get('tools_count', 0)}, mcp: {plugin.get('mcp_servers_count', 0)}, "
+            f"context: {plugin.get('context_providers_count', 0)}, bootstrap: {bootstrap}"
         )
+        if plugin.get("disabled_reason"):
+            lines.append(f"  disabled: {plugin.get('disabled_reason')}")
         for warning in plugin.get("hook_warnings", []):
             lines.append(f"  hook warning: {warning.get('hook')}: {warning.get('error')}")
         for warning in plugin.get("policy_warnings", []):
             lines.append(f"  policy warning: {warning.get('policy')}: {warning.get('error')}")
+        for warning in plugin.get("command_warnings", []):
+            lines.append(f"  command warning: {warning.get('command')}: {warning.get('error')}")
+        for warning in plugin.get("tool_warnings", []):
+            lines.append(f"  tool warning: {warning.get('tool')}: {warning.get('error')}")
+        for warning in plugin.get("mcp_warnings", []):
+            lines.append(f"  mcp warning: {warning.get('server')}: {warning.get('error')}")
+        for warning in plugin.get("context_warnings", []):
+            lines.append(f"  context warning: {warning.get('context_provider')}: {warning.get('error')}")
     errors = plugin_state.get("errors", [])
     if errors:
         lines.append("Plugin errors:")
@@ -148,9 +163,19 @@ def _cost(args: str, state: dict[str, Any]) -> CommandResult:
 
 
 def _config(args: str, state: dict[str, Any]) -> CommandResult:
-    config = state.get("metadata", {}).get("config", {})
-    lines = [f"{key}: {value}" for key, value in sorted(config.items())]
-    return CommandResult(True, "Config:\n" + "\n".join(lines))
+    metadata = state.get("metadata", {})
+    view = (args or "show").strip().split(maxsplit=1)[0] or "show"
+    if view == "show":
+        config = metadata.get("config", {})
+        lines = [f"{key}: {value}" for key, value in sorted(config.items())]
+        return CommandResult(True, "Config:\n" + "\n".join(lines))
+    report_data = metadata.get("config_report")
+    report = EffectiveConfigReport.model_validate(report_data) if isinstance(report_data, dict) else None
+    if view == "explain":
+        return CommandResult(True, format_config_explain(report))
+    if view == "validate":
+        return CommandResult(True, format_config_validate(report))
+    return CommandResult(True, "Usage: /config [show|explain|validate]")
 
 
 def _doctor(args: str, state: dict[str, Any]) -> CommandResult:

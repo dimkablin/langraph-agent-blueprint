@@ -1,0 +1,17 @@
+id: plugin-hook-context
+description: Example plugin hook should contribute system context and emit a hook event.
+provider: fake
+workspace_fixture: basic_repo
+plugin_fixtures:
+  - example-plugin
+steps:
+  - input:
+      text: hello from hook scenario
+    expect:
+      events:
+        - type: hook_event
+          contains:
+            hook_id: example_plugin.emit_event
+      final_response:
+        contains:
+          - Fake response

@@ -1,0 +1,19 @@
+id: plugin-context-provider
+description: Example plugin context provider should resolve as plugin_provided context.
+provider: fake
+workspace_fixture: basic_repo
+plugin_fixtures:
+  - example-plugin
+steps:
+  - input:
+      text: Use @plugin:example_plugin:reference
+    expect:
+      context_fragments:
+        - kind: plugin
+          title_contains: example_plugin:reference
+          content_contains: EXAMPLE_PLUGIN_CONTEXT_MARKER
+          trust: plugin_provided
+      events:
+        - type: context_fragment_added
+          contains:
+            kind: plugin
