@@ -46,6 +46,10 @@ For example, the Superpowers plugin registers:
 - `superpowers/test-driven-development`
 - `superpowers/systematic-debugging`
 
+This repository also declares `langgraph-agent.toml` with `skills.paths = ["skills"]`.
+That loads `skills/code-prompt/SKILL.md` as the project-local prompt-driven `code-prompt`
+skill without plugin policy activation.
+
 Unqualified aliases such as `brainstorming` may resolve to a plugin skill only when no local or built-in skill with that name exists.
 
 Optional audited skills are documented but disabled initially: `loop`, `schedule`, `keybindings-help`, `lorem-ipsum`, `claude-api`, `claude-api-content`, `claude-in-chrome`.
