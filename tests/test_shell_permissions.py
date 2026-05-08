@@ -1,7 +1,5 @@
 ﻿"""Pytest coverage for shell permissions behavior in the Python/LangGraph assistant."""
 
-from langgraph.types import Command
-
 from langgraph_agent_blueprint.config import AppConfig
 from langgraph_agent_blueprint.dependencies import build_dependencies
 from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime

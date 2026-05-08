@@ -2,3 +2,5 @@
 
 from .builtin import _resume as handler
 
+__all__ = ["handler"]
+

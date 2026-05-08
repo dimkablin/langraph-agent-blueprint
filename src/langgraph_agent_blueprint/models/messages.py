@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from langgraph_agent_blueprint.models.base import dump_model
-from langgraph_agent_blueprint.models.events import EventType, RuntimeEvent, Severity, make_event
+from langgraph_agent_blueprint.models.events import RuntimeEvent, make_event
 
 
 class StreamEvent(RuntimeEvent):

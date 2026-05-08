@@ -11,13 +11,11 @@ from pydantic import ValidationError
 
 from langgraph_agent_blueprint.models import (
     MCPConnectionState,
-    MCPHttpConfig,
     MCPPromptContribution,
     MCPPromptGetResult,
     MCPResourceContribution,
     MCPResourceReadResult,
     MCPServerConfig,
-    MCPStdioConfig,
     MCPToolCallRequest,
     MCPToolCallResult,
     MCPToolContribution,

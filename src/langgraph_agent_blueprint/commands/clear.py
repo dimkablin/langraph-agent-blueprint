@@ -2,3 +2,5 @@
 
 from .builtin import _clear as handler
 
+__all__ = ["handler"]
+

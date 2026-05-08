@@ -2,3 +2,5 @@
 
 from .builtin import _doctor as handler
 
+__all__ = ["handler"]
+

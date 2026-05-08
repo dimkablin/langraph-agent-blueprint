@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from langgraph_agent_blueprint.models import ToolCall, ToolResult, ToolStateEffect, dump_model, event
-from langgraph_agent_blueprint.tools import BaseTool, ToolExecutionContext, ToolRegistry
+from langgraph_agent_blueprint.tools import ToolExecutionContext, ToolRegistry
 from langgraph_agent_blueprint.tools.base import freeze_context_value
 
 

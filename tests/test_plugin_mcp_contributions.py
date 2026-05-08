@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -14,21 +15,21 @@ from langgraph_agent_blueprint.services.plugin_service import PluginService
 def test_plugin_mcp_config_merges_and_discovers_explicitly(tmp_path: Path) -> None:
     plugin = tmp_path / "example_plugin"
     (plugin / ".codex-plugin").mkdir(parents=True)
+    fake_server = Path(__file__).parent / "fixtures" / "mcp" / "fake_mcp_server.py"
+    manifest = {
+        "name": "example_plugin",
+        "mcp_servers": {
+            "fake": {
+                "enabled": True,
+                "transport": "stdio",
+                "command": sys.executable,
+                "args": [str(fake_server)],
+                "cwd": ".",
+            }
+        },
+    }
     (plugin / ".codex-plugin" / "plugin.json").write_text(
-        f"""
-{{
-  "name": "example_plugin",
-  "mcp_servers": {{
-    "fake": {{
-      "enabled": true,
-      "transport": "stdio",
-      "command": "{sys.executable.replace('\\', '\\\\')}",
-      "args": ["{str((Path(__file__).parent / 'fixtures' / 'mcp' / 'fake_mcp_server.py')).replace('\\', '\\\\')}"],
-      "cwd": "."
-    }}
-  }}
-}}
-""".strip(),
+        json.dumps(manifest),
         encoding="utf-8",
     )
 
@@ -59,4 +60,3 @@ def test_plugin_mcp_cwd_escape_is_reported_as_warning(tmp_path: Path) -> None:
 
     assert state["mcp"] == []
     assert any("path traversal" in warning["error"] for warning in state["mcp_warnings"])
-
