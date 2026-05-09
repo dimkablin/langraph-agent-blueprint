@@ -8,16 +8,18 @@ import { RuntimeSidebar } from "./components/layout/RuntimeSidebar.tsx";
 import { StatusHeader } from "./components/layout/StatusHeader.tsx";
 import { PermissionPanel } from "./components/permissions/PermissionPanel.tsx";
 import { RegistryPanel } from "./components/registries/RegistryPanel.tsx";
-import { RuntimeStatusPanel } from "./components/status/RuntimeStatusPanel.tsx";
+import { SettingsCenter } from "./components/settings/SettingsCenter.tsx";
 import { useRuntimeChat } from "./hooks/useRuntimeChat.ts";
 import { useRuntimeRegistries } from "./hooks/useRuntimeRegistries.ts";
 import { useRuntimeSessions } from "./hooks/useRuntimeSessions.ts";
 import { useRuntimeStatus } from "./hooks/useRuntimeStatus.ts";
+import { useUIPreferences } from "./hooks/useUIPreferences.ts";
 
 export default function App() {
   const { commands, skills, tools, registryError } = useRuntimeRegistries();
   const { sessions, sessionError, refreshSessions, reportSessionError, clearSessionError } = useRuntimeSessions();
   const { runtimeStatus } = useRuntimeStatus();
+  const { preferences, updatePreferences } = useUIPreferences();
   const {
     runtimeState,
     busy,
@@ -38,9 +40,17 @@ export default function App() {
 
   const contextMaxTokens = numericConfigValue(runtimeStatus?.config?.values.context_max_tokens);
   const isNewChat = runtimeState.messages.length === 0 && !runtimeState.pendingPermission && !runtimeState.error;
+  const shellBaseClassName = sidebarOpen ? "app-shell app-shell-sidebar-open" : "app-shell";
+  const shellClassName = [
+    shellBaseClassName,
+    `app-density-${preferences.density}`,
+    `app-theme-${preferences.theme}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <main className={sidebarOpen ? "app-shell app-shell-sidebar-open" : "app-shell"}>
+    <main className={shellClassName}>
       <RuntimeSidebar
         open={sidebarOpen}
         sessions={sessions}
@@ -83,7 +93,7 @@ export default function App() {
             ) : (
               <>
                 <div className="chat-scroll">
-                  <MessageList messages={runtimeState.messages} isStreaming={runtimeState.isStreaming || busy} />
+                  <MessageList messages={runtimeState.messages} isStreaming={runtimeState.isStreaming || busy} autoScroll={preferences.autoScroll} />
                 </div>
                 {runtimeState.error ? <div className="error-banner">{runtimeState.error}</div> : null}
                 <PermissionPanel
@@ -112,7 +122,15 @@ export default function App() {
         <RegistryPanel commands={commands} skills={skills} tools={tools} error={registryError} />
       </RuntimeDrawer>
       <RuntimeDrawer side="right" title="Настройки" open={activeDrawer === "settings"} onClose={() => setActiveDrawer(null)}>
-        <RuntimeStatusPanel status={runtimeStatus} />
+        <SettingsCenter
+          status={runtimeStatus}
+          skills={skills}
+          context={runtimeState.context}
+          contextMaxTokens={contextMaxTokens}
+          modelIntelligenceLevel={modelIntelligenceLevel}
+          preferences={preferences}
+          onPreferencesChange={updatePreferences}
+        />
       </RuntimeDrawer>
     </main>
   );

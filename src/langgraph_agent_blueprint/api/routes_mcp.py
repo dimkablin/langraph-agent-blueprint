@@ -7,6 +7,11 @@ from .schemas import MCPStatusDTO
 router = APIRouter()
 
 
+@router.get("/mcp/snapshot", response_model=MCPStatusDTO)
+def snapshot_mcp(request: Request) -> dict:
+    return request.app.state.runtime.dependencies.mcp_service.passive_snapshot()
+
+
 @router.get("/mcp", response_model=MCPStatusDTO)
 def list_mcp(request: Request) -> dict:
     return request.app.state.runtime.dependencies.mcp_service.discover()

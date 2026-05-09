@@ -1,5 +1,6 @@
 import { requestJson } from "./client.ts";
 import type {
+  ConfigExplainDTO,
   ConfigShowDTO,
   ConfigValidateDTO,
   HookStatusDTO,
@@ -12,24 +13,27 @@ export type RuntimeStatus = {
   plugins: PluginStatusDTO | null;
   hooks: HookStatusDTO | null;
   config: ConfigShowDTO | null;
+  configExplain: ConfigExplainDTO | null;
   configValidation: ConfigValidateDTO | null;
   observability: ObservabilityStatusDTO | null;
   mcp: MCPStatusDTO | null;
 };
 
 export async function fetchRuntimeStatus(): Promise<RuntimeStatus> {
-  const [plugins, hooks, config, configValidation, observability, mcp] = await Promise.allSettled([
+  const [plugins, hooks, config, configExplain, configValidation, observability, mcp] = await Promise.allSettled([
     requestJson<PluginStatusDTO>("/plugins"),
     requestJson<HookStatusDTO>("/hooks"),
     requestJson<ConfigShowDTO>("/config"),
+    requestJson<ConfigExplainDTO>("/config/explain"),
     requestJson<ConfigValidateDTO>("/config/validate"),
     requestJson<ObservabilityStatusDTO>("/observability"),
-    requestJson<MCPStatusDTO>("/mcp"),
+    requestJson<MCPStatusDTO>("/mcp/snapshot"),
   ]);
   return {
     plugins: settledValue(plugins),
     hooks: settledValue(hooks),
     config: settledValue(config),
+    configExplain: settledValue(configExplain),
     configValidation: settledValue(configValidation),
     observability: settledValue(observability),
     mcp: settledValue(mcp),

@@ -153,6 +153,11 @@ export type SessionDetailDTO = {
 };
 
 export type ConfigShowDTO = { values: Record<string, unknown> };
+export type ConfigExplainDTO = {
+  sources: Record<string, unknown>[];
+  values: Record<string, unknown>[];
+  diagnostics: Record<string, unknown>[];
+};
 export type ConfigValidateDTO = { ok: boolean; diagnostics: Record<string, unknown>[] };
 export type PluginStatusDTO = {
   plugins: Record<string, unknown>[];
@@ -174,5 +179,13 @@ export type ObservabilityStatusDTO = {
   enabled: boolean;
   mode: string;
   sdk_installed?: boolean | null;
+  base_url_configured?: boolean;
+  public_key_present?: boolean;
+  secret_key_present?: boolean;
+  environment?: string | null;
+  release?: string | null;
+  capture_inputs?: boolean;
+  capture_outputs?: boolean;
+  runtime_events_mode?: string;
   last_error?: string | null;
 };

@@ -1,0 +1,210 @@
+.app-theme-light {
+  color-scheme: light;
+  --background: #f7f7f8;
+  --foreground: #17181f;
+  --card: #ffffff;
+  --card-elevated: #f1f2f5;
+  --card-sunken: #e9eaef;
+  --muted: #606672;
+  --muted-weak: #7d8490;
+  --border: rgba(20, 24, 32, 0.12);
+  --scrollbar-track: var(--background);
+  --scrollbar-thumb: color-mix(in oklab, var(--foreground) 18%, transparent);
+}
+
+.app-density-compact {
+  --chat-edge-gap: 10px;
+}
+
+.app-density-compact .message-list {
+  gap: 12px;
+}
+
+.app-density-compact .composer-box textarea {
+  min-height: 46px;
+  padding-block: 10px 4px;
+}
+
+.settings-center {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+}
+
+.settings-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.settings-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.settings-section-heading h3 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-section-heading span,
+.settings-row small,
+.settings-empty,
+.settings-help {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-rows,
+.settings-card-list,
+.settings-control-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-row,
+.settings-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(112px, 0.9fr) minmax(0, 1.1fr);
+  gap: 4px 10px;
+  padding: 8px 9px;
+  font-size: 12px;
+}
+
+.settings-row > span {
+  color: var(--muted);
+}
+
+.settings-row strong {
+  min-width: 0;
+  justify-self: end;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.settings-row small {
+  grid-column: 1 / -1;
+}
+
+.settings-row-locked {
+  border-style: dashed;
+}
+
+.settings-card {
+  padding: 9px;
+}
+
+.settings-card > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.settings-card > div:first-child span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.settings-card p,
+.settings-warning,
+.settings-help {
+  margin: 6px 0 0;
+  line-height: 1.45;
+}
+
+.settings-card p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-warning {
+  border: 1px solid rgba(234, 179, 8, 0.28);
+  border-radius: var(--radius);
+  background: rgba(234, 179, 8, 0.08);
+  color: #fde68a;
+  padding: 8px;
+  font-size: 12px;
+}
+
+.settings-inline-badges,
+.settings-summary-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.settings-badge-ok {
+  border-color: rgba(59, 130, 246, 0.34);
+  color: color-mix(in oklab, var(--primary) 78%, var(--foreground));
+}
+
+.settings-badge-warning {
+  border-color: rgba(234, 179, 8, 0.34);
+  color: #fde68a;
+}
+
+.settings-badge-danger {
+  border-color: rgba(239, 68, 68, 0.42);
+  color: #fca5a5;
+}
+
+.settings-control-grid label,
+.settings-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--muted);
+  padding: 8px 9px;
+  font-size: 12px;
+}
+
+.settings-control-grid select {
+  min-width: 128px;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--card-sunken);
+  color: var(--foreground);
+  padding: 5px 7px;
+}
+
+.settings-checkbox {
+  justify-content: flex-start;
+}
+
+.settings-empty {
+  margin: 0;
+}

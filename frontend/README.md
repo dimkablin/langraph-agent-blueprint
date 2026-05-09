@@ -23,8 +23,13 @@ set VITE_API_BASE_URL=http://127.0.0.1:8000
 - `src/api/`: typed HTTP and SSE clients for runtime endpoints.
 - `src/runtime/`: event reducer, selectors, and view-model helpers.
 - `src/components/`: presentation-only chat, timeline, approval, session,
-  context, registry, and status panels.
+  context, registry, settings, and status panels.
 
 The live chat path uses `POST /chat/stream` and parses Server-Sent Event
 `StreamFrame` payloads. Approval uses `POST /approval` with typed
 `PermissionDecisionDTO`.
+
+The Settings Center is read-only for backend/runtime config and uses local-only
+preferences for theme, density, event verbosity, debug-event visibility, and
+auto-scroll. It uses `GET /mcp/snapshot` for passive MCP status so opening the
+settings panel does not start configured MCP stdio processes.

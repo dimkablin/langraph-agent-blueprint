@@ -67,6 +67,8 @@ Tool, resource, and prompt calls are made later by `MCPService` against the conn
 
 Dependency construction is side-effect-light: `build_dependencies` constructs `MCPService` but does not start configured stdio processes. Discovery happens during explicit graph registry loading (`load_registries`) or explicit diagnostics/status paths such as `/mcp` and `/doctor`, where discovery events and errors can be surfaced in graph state.
 
+The frontend Settings Center uses `GET /mcp/snapshot` for passive status. That endpoint returns configured servers, enabled flags, invalid config diagnostics, last known state, and a warning when discovery has not been run, but it does not start stdio processes. `GET /mcp` remains the explicit discovery/status endpoint.
+
 ## ToolRegistry Integration
 
 Discovered tools register as:
@@ -147,6 +149,13 @@ Slash command visibility:
 
 `/doctor` includes MCP server counts, enabled counts, discovered tool/resource/prompt counts, server statuses, and transport support.
 Invalid MCP config entries are shown in both `/mcp` and `/doctor`.
+
+API status routes:
+
+```text
+GET /mcp/snapshot  # passive, no discovery/startup
+GET /mcp           # explicit discovery/status
+```
 
 There is no `lg-agent mcp ...` CLI subcommand in Phase 2; use `/mcp` through `lg-agent query` or chat.
 

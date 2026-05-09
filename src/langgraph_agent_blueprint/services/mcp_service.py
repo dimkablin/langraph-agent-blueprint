@@ -98,6 +98,20 @@ class MCPService:
             self._discovered = True
         return self.snapshot()
 
+    def passive_snapshot(self) -> dict[str, Any]:
+        """Return current MCP state without starting transports or discovery."""
+
+        snapshot = self.snapshot()
+        warnings = list(snapshot["warnings"])
+        if self.enabled_server_configs() and not self._discovered:
+            warnings.append(
+                {
+                    "type": "mcp_discovery_not_run",
+                    "message": "MCP discovery has not been run; use /mcp for explicit discovery.",
+                }
+            )
+        return {**snapshot, "warnings": warnings}
+
     def snapshot(self) -> dict[str, Any]:
         return {
             "servers": [state.model_dump(mode="json") for state in self._states.values()],

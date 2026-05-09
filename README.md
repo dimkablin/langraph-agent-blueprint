@@ -126,7 +126,7 @@ Scenarios live in `evals/scenarios/`, fixtures in `evals/fixtures/`, and reports
 
 ## MCP Client Runtime
 
-MCP servers are optional and explicit. Phase 2 supports local stdio MCP clients for `initialize`, `tools/list`, `tools/call`, `resources/list/read`, and `prompts/list/get`. Streamable HTTP is modeled but reported as unsupported in this phase.
+MCP servers are optional and explicit. Phase 2 supports local stdio MCP clients for `initialize`, `tools/list`, `tools/call`, `resources/list/read`, and `prompts/list/get`. Streamable HTTP is modeled but reported as unsupported in this phase. The API exposes passive `GET /mcp/snapshot` for frontend status panels and explicit discovery/status through `GET /mcp`.
 
 Example environment config:
 
@@ -198,7 +198,7 @@ When enabled, Superpowers skills are registered as `superpowers/<skill-name>`, `
 
 ## Run React Runtime Frontend
 
-The browser frontend is a TypeScript React thin client over the LangGraph runtime. It does not execute tools directly; it calls graph-facing FastAPI endpoints such as `/chat`, `/chat/stream` (SSE), `/approval`, `/sessions`, `/commands`, `/skills`, `/tools`, and read-only runtime status endpoints. The UI includes streamed chat, a runtime event timeline, approval controls, registry/session/context panels, and read-only runtime status.
+The browser frontend is a TypeScript React thin client over the LangGraph runtime. It does not execute tools directly; it calls graph-facing FastAPI endpoints such as `/chat`, `/chat/stream` (SSE), `/approval`, `/sessions`, `/commands`, `/skills`, `/tools`, and read-only runtime status endpoints. The UI includes streamed chat, approval controls, registry/session/context panels, and a read-only Settings Center with local-only UI preferences. Settings does not mutate backend config, edit secrets, install plugins, or start MCP discovery; passive MCP status uses `/mcp/snapshot`.
 
 Start the API:
 

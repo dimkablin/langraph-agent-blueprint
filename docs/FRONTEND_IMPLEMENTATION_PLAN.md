@@ -59,7 +59,7 @@ Backend dependency:
 - `GET /commands`.
 - `GET /tools`.
 - `GET /skills`.
-- Read-only status endpoints: `GET /plugins`, `/hooks`, `/config`, `/config/explain`, `/config/validate`, `/observability`, `/mcp`.
+- Read-only status endpoints: `GET /plugins`, `/hooks`, `/config`, `/config/explain`, `/config/validate`, `/observability`, `/mcp/snapshot`.
 
 ### 4. Sessions Panel
 
@@ -100,7 +100,7 @@ Backend dependency:
 MVP:
 
 - Read-only plugin status once endpoint exists.
-- MCP server/tool/resource/prompt status through `GET /mcp`.
+- MCP server/tool/resource/prompt status through passive `GET /mcp/snapshot`; explicit discovery remains on `GET /mcp`.
 
 Defer:
 
@@ -112,8 +112,8 @@ Defer:
 
 MVP:
 
-- Read-only config show/explain/validate once endpoints exist.
-- Observability status once endpoint exists.
+- Completed: Settings Center renders read-only config show/explain/validate, runtime status, extension status, context budgets, MCP snapshot, and observability status.
+- Completed: UI-only preferences persist locally and do not write backend config.
 
 Defer:
 
@@ -238,4 +238,5 @@ Recommended runner:
 5. Completed: Session panel.
 6. Completed: Context panel.
 7. Completed: Basic read-only MCP/plugin/config/observability status summary.
-8. Next: richer panels, upload/download, subagent detail, eval dashboard, and plugin management.
+8. Completed: Read-only Settings Center with local-only UI preferences.
+9. Next: richer panels, upload/download, subagent detail, eval dashboard, settings schema/patch API, and plugin management.
