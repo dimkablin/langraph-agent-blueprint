@@ -112,7 +112,8 @@ Defer:
 
 MVP:
 
-- Completed: Settings Center renders read-only config show/explain/validate, runtime status, extension status, context budgets, MCP snapshot, and observability status.
+- Completed: Settings opens as a separate tabbed app view rather than a small drawer.
+- Completed: Settings renders read-only config show/explain/validate, runtime status, extension status, MCP snapshot, plugin status, and skill registry data.
 - Completed: UI-only preferences persist locally and do not write backend config.
 
 Defer:
@@ -160,10 +161,7 @@ frontend/src/components/events/
 frontend/src/components/permissions/
 frontend/src/components/sessions/
 frontend/src/components/context/
-frontend/src/components/plugins/
-frontend/src/components/mcp/
-frontend/src/components/config/
-frontend/src/components/observability/
+frontend/src/components/settings/
 frontend/src/components/layout/
 ```
 
@@ -238,5 +236,5 @@ Recommended runner:
 5. Completed: Session panel.
 6. Completed: Context panel.
 7. Completed: Basic read-only MCP/plugin/config/observability status summary.
-8. Completed: Read-only Settings Center with local-only UI preferences.
+8. Completed: Read-only tabbed Settings page with local-only UI preferences.
 9. Next: richer panels, upload/download, subagent detail, eval dashboard, settings schema/patch API, and plugin management.

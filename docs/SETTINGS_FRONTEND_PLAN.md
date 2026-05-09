@@ -2,14 +2,15 @@
 
 Audit date: 2026-05-09
 
-This plan describes the Settings Center direction. The initial MVP is now implemented as a read-only backend/runtime settings center plus local-only UI preferences.
+This plan describes the Settings Center direction. The MVP is now implemented as a separate tabbed frontend view with read-only backend/runtime settings plus local-only UI preferences.
 
 ## Implemented MVP Update
 
 Implemented in the frontend:
 
-- `SettingsCenter` in the existing right-side settings drawer.
-- Read-only Model, Runtime, Plugins, Skills, Hooks, MCP, Context, and Observability sections.
+- `SettingsPage` opens as its own app view instead of a small right-side drawer.
+- Tabs: `Общее`, `Внешний вид`, `Конфигурация`, `Серверы MCP`, `Плагины`, `Скилы`.
+- Read-only Model, Runtime, Config, Plugins, Skills, and MCP snapshot sections.
 - Local-only UI preferences for theme, density, event verbosity, debug-event visibility, and auto-scroll.
 - Preferences persist to browser `localStorage`.
 - Settings data comes from existing graph-facing APIs and does not mutate backend config.
@@ -242,8 +243,16 @@ Suggested files:
 
 ```text
 frontend/src/components/settings/
+  SettingsPage.tsx
+  SettingsTabs.tsx
   SettingsCenter.tsx
   SettingsSection.tsx
+  GeneralSettingsTab.tsx
+  AppearanceSettingsTab.tsx
+  ConfigurationSettingsTab.tsx
+  MCPServersSettingsTab.tsx
+  PluginsSettingsTab.tsx
+  SkillsSettingsTab.tsx
   ModelSettingsSection.tsx
   RuntimeSettingsSection.tsx
   PluginSettingsSection.tsx
@@ -256,7 +265,7 @@ frontend/src/components/settings/
 
 frontend/src/api/settings.ts
 frontend/src/api/config.ts
-frontend/src/runtime/settings.ts
+frontend/src/runtime/settingsPage.ts
 frontend/src/runtime/uiPreferences.ts
 ```
 
@@ -274,21 +283,24 @@ Do not merge UI preferences into backend config DTOs.
 
 ## Visual Integration
 
-Current frontend already has:
+Current frontend now has:
 
-- right-side runtime drawer
+- separate settings app view
+- left settings tab list
 - sidebar settings action
-- status panel
+- local UI preferences
 - registry/context/session panels
 
-Settings Center can replace `RuntimeStatusPanel` inside the existing settings drawer. The current `RuntimeStatusPanel` can become a small overview section inside the new center.
+The sidebar settings action switches `AppView` from `chat` to `settings`. Chat state remains in memory while the settings view is open, and the user can return to the chat without resetting the active session.
 
 From the external widget audit, `WidgetAccountSettings.tsx` is visual reference only. Do not copy its old auth, data analyst settings, local mock tools, or backend assumptions.
 
-## Tests To Add Later
+## Tests
 
 Frontend tests:
 
+- settings page opens as a separate tabbed view
+- settings tabs expose stable labels
 - settings center renders redacted config
 - model settings display provider/model/key presence
 - plugin/skill/hook sections render backend data
@@ -296,7 +308,7 @@ Frontend tests:
 - dangerous settings are read-only or disabled
 - UI-only preferences update local state
 - no secret-like values appear in DOM
-- unknown setting descriptor renders safely
+- static tests guard against plugin install/update/remove, backend config mutation, and automatic MCP discovery from Settings
 
 Backend contract tests:
 
@@ -324,7 +336,8 @@ Do not include in the first Settings Center:
 1. Completed: Build read-only Settings Center using existing endpoints.
 2. Completed: Add frontend UI preferences with local persistence.
 3. Completed: Add passive MCP snapshot endpoint for settings.
-4. Add backend `GET /settings` and `GET /settings/schema` if the read-only frontend starts duplicating too much mapping.
-5. Add validation-only settings patch endpoint.
-6. Add safe project config patch endpoint.
-7. Add extension enable/disable through the generic settings patch.
+4. Completed: Promote Settings to a separate tabbed frontend view.
+5. Add backend `GET /settings` and `GET /settings/schema` if the read-only frontend starts duplicating too much mapping.
+6. Add validation-only settings patch endpoint.
+7. Add safe project config patch endpoint.
+8. Add extension enable/disable through the generic settings patch.

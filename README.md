@@ -198,7 +198,7 @@ When enabled, Superpowers skills are registered as `superpowers/<skill-name>`, `
 
 ## Run React Runtime Frontend
 
-The browser frontend is a TypeScript React thin client over the LangGraph runtime. It does not execute tools directly; it calls graph-facing FastAPI endpoints such as `/chat`, `/chat/stream` (SSE), `/approval`, `/sessions`, `/commands`, `/skills`, `/tools`, and read-only runtime status endpoints. The UI includes streamed chat, approval controls, registry/session/context panels, and a read-only Settings Center with local-only UI preferences. Settings does not mutate backend config, edit secrets, install plugins, or start MCP discovery; passive MCP status uses `/mcp/snapshot`.
+The browser frontend is a TypeScript React thin client over the LangGraph runtime. It does not execute tools directly; it calls graph-facing FastAPI endpoints such as `/chat`, `/chat/stream` (SSE), `/approval`, `/sessions`, `/commands`, `/skills`, `/tools`, and read-only runtime status endpoints. The UI includes streamed chat, approval controls, registry/session/context surfaces, and a separate read-only tabbed Settings view with local-only UI preferences. Settings does not mutate backend config, edit secrets, install plugins, or start MCP discovery; passive MCP status uses `/mcp/snapshot`.
 
 Start the API:
 
