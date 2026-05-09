@@ -25,6 +25,145 @@
   padding-block: 10px 4px;
 }
 
+.settings-page {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--background);
+  padding: 12px 18px 18px;
+}
+
+.settings-page-shell {
+  width: min(1120px, 100%);
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 18px;
+  margin: 0 auto;
+}
+
+.settings-page-sidebar,
+.settings-page-content {
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--surface-radius);
+  background: color-mix(in oklab, var(--card) 82%, var(--background));
+}
+
+.settings-page-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px;
+}
+
+.settings-page-title span,
+.settings-page-content-header span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-page-title h1,
+.settings-page-content-header h2 {
+  margin: 4px 0 0;
+  letter-spacing: 0;
+}
+
+.settings-page-title h1 {
+  font-size: 24px;
+}
+
+.settings-page-content-header h2 {
+  font-size: 22px;
+}
+
+.settings-page-title p,
+.settings-page-content-header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.settings-back-button,
+.settings-tab {
+  border: 0;
+  border-radius: var(--control-radius);
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+}
+
+.settings-back-button {
+  align-self: flex-start;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-back-button:hover,
+.settings-back-button:focus-visible,
+.settings-tab:hover,
+.settings-tab:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--foreground);
+}
+
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 10px;
+}
+
+.settings-tab strong {
+  font-size: 13px;
+}
+
+.settings-tab span {
+  color: var(--muted-weak);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.settings-tab-active,
+.settings-tab-active:hover,
+.settings-tab-active:focus-visible {
+  background: color-mix(in oklab, var(--primary) 18%, transparent);
+  color: var(--foreground);
+}
+
+.settings-page-content {
+  overflow: auto;
+  padding: 18px;
+}
+
+.settings-page-content-header {
+  margin-bottom: 16px;
+}
+
+.settings-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .settings-center {
   display: flex;
   flex-direction: column;
@@ -70,6 +209,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.settings-card-list-spacious {
+  gap: 10px;
 }
 
 .settings-row,
@@ -205,6 +348,47 @@
   justify-content: flex-start;
 }
 
+.settings-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-search input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--card-sunken);
+  color: var(--foreground);
+  padding: 8px 10px;
+}
+
 .settings-empty {
   margin: 0;
+}
+
+@media (max-width: 820px) {
+  .settings-page {
+    padding: 8px;
+  }
+
+  .settings-page-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-page-sidebar {
+    gap: 12px;
+  }
+
+  .settings-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
 }

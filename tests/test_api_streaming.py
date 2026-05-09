@@ -47,6 +47,21 @@ def test_chat_stream_endpoint_returns_sse_runtime_event_frames(tmp_path):
         assert {"id", "type", "timestamp", "session_id", "severity", "data"} <= set(frame["event"])
 
 
+def test_chat_stream_preserves_runtime_event_envelope_for_long_model_output(tmp_path):
+    app = create_app(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
+    client = TestClient(app)
+    message = "x" * 5000
+
+    _content_type, frames = _stream_frames(client, {"message": message})
+
+    assert not [frame for frame in frames if frame.get("type") == "error"]
+    assert frames[-1]["type"] == "done"
+    assert frames[-1]["final_response"] == f"Fake response: {message}"
+    model_message = next(frame["event"] for frame in frames if frame.get("event", {}).get("type") == "model_message")
+    assert {"id", "type", "timestamp", "session_id", "severity", "data"} <= set(model_message)
+    assert model_message["data"]["content"] == f"Fake response: {message}"
+
+
 def test_chat_stream_emits_permission_required_before_done(tmp_path):
     app = create_app(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
     client = TestClient(app)
@@ -74,4 +89,3 @@ def test_chat_stream_invalid_request_uses_structured_validation_error(tmp_path):
 
     assert response.status_code == 422
     assert response.json()["detail"]
-

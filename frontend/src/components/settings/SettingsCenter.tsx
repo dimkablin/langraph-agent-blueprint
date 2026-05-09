@@ -3,17 +3,7 @@ import type { RuntimeStatus } from "../../api/status.ts";
 import type { ModelIntelligenceLevel } from "../../runtime/modelIntelligence.ts";
 import type { RuntimeContextState } from "../../runtime/reducer.ts";
 import type { UIPreferences } from "../../runtime/uiPreferences.ts";
-import { ContextSettingsSection } from "./ContextSettingsSection.tsx";
-import { HookSettingsSection } from "./HookSettingsSection.tsx";
-import { MCPSettingsSection } from "./MCPSettingsSection.tsx";
-import { ModelSettingsSection } from "./ModelSettingsSection.tsx";
-import { ObservabilitySettingsSection } from "./ObservabilitySettingsSection.tsx";
-import { PluginSettingsSection } from "./PluginSettingsSection.tsx";
-import { RuntimeSettingsSection } from "./RuntimeSettingsSection.tsx";
-import { SkillSettingsSection } from "./SkillSettingsSection.tsx";
-import { SettingsRows, SettingsSection, StatusBadge } from "./SettingsSection.tsx";
-import { UIPreferencesSection } from "./UIPreferencesSection.tsx";
-import "./settings.css";
+import { SettingsPage } from "./SettingsPage.tsx";
 
 export function SettingsCenter({
   status,
@@ -23,6 +13,9 @@ export function SettingsCenter({
   modelIntelligenceLevel,
   preferences,
   onPreferencesChange,
+  sessionId = null,
+  threadId = null,
+  onBack = () => undefined,
 }: {
   status: RuntimeStatus | null;
   skills: RegistryMap;
@@ -31,28 +24,22 @@ export function SettingsCenter({
   modelIntelligenceLevel: ModelIntelligenceLevel;
   preferences: UIPreferences;
   onPreferencesChange: (patch: Partial<UIPreferences>) => void;
+  sessionId?: string | null;
+  threadId?: string | null;
+  onBack?: () => void;
 }) {
   return (
-    <div className="settings-center" aria-label="Settings Center">
-      <SettingsSection title="Overview" eyebrow="read-only">
-        <SettingsRows
-          rows={[
-            { label: "Backend settings", value: <StatusBadge>read-only</StatusBadge>, note: "no browser-side config writes" },
-            { label: "Config health", value: status?.configValidation?.ok === false ? <StatusBadge tone="warning">warnings</StatusBadge> : <StatusBadge tone="ok">ok</StatusBadge> },
-            { label: "Config sources", value: String(status?.configExplain?.sources.length ?? 0) },
-            { label: "Dangerous settings", value: <StatusBadge tone="warning">config file only</StatusBadge>, note: "keys, MCP commands, plugin installs, and network trust are locked" },
-          ]}
-        />
-      </SettingsSection>
-      <ModelSettingsSection config={status?.config ?? null} intelligenceLevel={modelIntelligenceLevel} />
-      <RuntimeSettingsSection config={status?.config ?? null} />
-      <UIPreferencesSection preferences={preferences} onChange={onPreferencesChange} />
-      <PluginSettingsSection status={status?.plugins ?? null} />
-      <SkillSettingsSection skills={skills} />
-      <HookSettingsSection status={status?.hooks ?? null} />
-      <MCPSettingsSection status={status?.mcp ?? null} />
-      <ContextSettingsSection config={status?.config ?? null} context={context} configuredMaxTokens={contextMaxTokens} />
-      <ObservabilitySettingsSection status={status?.observability ?? null} />
-    </div>
+    <SettingsPage
+      status={status}
+      skills={skills}
+      context={context}
+      contextMaxTokens={contextMaxTokens}
+      modelIntelligenceLevel={modelIntelligenceLevel}
+      preferences={preferences}
+      sessionId={sessionId}
+      threadId={threadId}
+      onPreferencesChange={onPreferencesChange}
+      onBack={onBack}
+    />
   );
 }

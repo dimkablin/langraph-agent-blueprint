@@ -35,9 +35,10 @@ def runtime_event_dto(event: dict[str, Any] | RuntimeEvent, *, redactor: Any | N
     """Validate and redact one RuntimeEvent for frontend delivery."""
 
     payload = event.model_dump(mode="json") if isinstance(event, RuntimeEvent) else dict(event)
-    if redactor is not None:
-        payload = redactor(payload)
-    return RuntimeEventDTO.model_validate(payload)
+    dto = RuntimeEventDTO.model_validate(payload)
+    if redactor is None:
+        return dto
+    return dto.model_copy(update={"data": _frontend_event_data(dto.type, dto.data, redactor=redactor)})
 
 
 def runtime_event_dtos(events: list[dict[str, Any]], *, redactor: Any | None = None) -> list[RuntimeEventDTO]:
@@ -230,6 +231,23 @@ def export_path_for_frontend(path: Path, root: Path) -> str:
         return str(path.resolve().relative_to(root.resolve()))
     except ValueError:
         return path.name
+
+
+def _frontend_event_data(event_type: str, data: dict[str, Any], *, redactor: Any) -> dict[str, Any]:
+    """Redact event payloads without allowing observability truncation to replace the event envelope."""
+
+    redacted: dict[str, Any] = {}
+    for key, value in data.items():
+        key_text = str(key)
+        if key_text == "content" and event_type in {"model_message", "final_response"}:
+            redacted[key_text] = _bounded_text(value)
+            continue
+        scoped = redactor({key_text: value})
+        if isinstance(scoped, dict) and key_text in scoped:
+            redacted[key_text] = scoped[key_text]
+        else:
+            redacted[key_text] = scoped
+    return redacted
 
 
 def _message_payload(message: Any) -> dict[str, Any]:

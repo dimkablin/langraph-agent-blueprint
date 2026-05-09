@@ -111,12 +111,14 @@ test("backend frontend contract still exposes typed streaming, sessions, and sta
 test("chat controls are icon-triggered and message avatars are removed", () => {
   const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
   const header = readFileSync(join(srcRoot, "components", "layout", "StatusHeader.tsx"), "utf8");
+  const sidebar = readFileSync(join(srcRoot, "components", "layout", "RuntimeSidebar.tsx"), "utf8");
   const bubble = readFileSync(join(srcRoot, "components", "chat", "MessageBubble.tsx"), "utf8");
 
   assert.doesNotMatch(app, /activeDrawer === "chats"/);
   assert.doesNotMatch(app, /title="Чаты"/);
   assert.match(app, /title="Commands \/ Skills \/ Tools"/);
-  assert.match(app, /title="Настройки"/);
+  assert.match(sidebar, /onOpenSettings/);
+  assert.match(sidebar, /IconSettings/);
   assert.match(header, /IconLayoutSidebarLeftExpand/);
   assert.match(header, /IconPlus/);
   assert.match(header, /IconHelpCircle/);
@@ -294,10 +296,14 @@ test("chat presentation borrows widget width, message blocks, and floating compo
   assert.match(styles, /--chat-column-width:\s*760px/);
   assert.match(styles, /--chat-edge-gap:\s*12px/);
   assert.match(styles, /\.icon-button\s*\{[^}]*border-radius:\s*var\(--control-radius\)/);
-  assert.match(styles, /\.chat-column\s*\{[^}]*flex:\s*0 1 auto/);
-  assert.match(styles, /\.chat-column\s*\{[^}]*width:\s*min\(var\(--chat-column-width\),\s*calc\(100% - 24px\)\)/);
-  assert.match(styles, /\.chat-column\s*\{[^}]*max-width:\s*var\(--chat-column-width\)/);
+  assert.match(styles, /\.chat-column\s*\{[^}]*flex:\s*1 1 auto/);
+  assert.match(styles, /\.chat-column\s*\{[^}]*width:\s*100%/);
+  assert.match(styles, /\.chat-column\s*\{[^}]*max-width:\s*none/);
+  assert.match(styles, /\.chat-column\s*\{[^}]*margin:\s*0/);
   assert.match(styles, /\.chat-scroll\s*\{[^}]*padding:\s*22px 0 150px/);
+  assert.match(styles, /\.chat-scroll\s*\{[^}]*scrollbar-gutter:\s*stable both-edges/);
+  assert.match(styles, /\.message-list\s*\{[^}]*width:\s*min\(var\(--chat-column-width\),\s*calc\(100% - 24px\)\)/);
+  assert.match(styles, /\.message-list\s*\{[^}]*margin:\s*0 auto/);
   assert.match(styles, /\.message-row\s*\{[^}]*width:\s*100%/);
   assert.match(styles, /\.message-card\s*\{[^}]*width:\s*100%/);
   assert.match(styles, /\.message-card-user\s*\{[^}]*max-width:\s*min\(720px,\s*88%\)/);
@@ -306,11 +312,14 @@ test("chat presentation borrows widget width, message blocks, and floating compo
   assert.doesNotMatch(styles, /\.message-card-user\s*\{[^}]*background:\s*var\(--primary\)/);
   assert.match(styles, /\.composer\s*\{[^}]*position:\s*sticky/);
   assert.match(styles, /\.composer\s*\{[^}]*width:\s*100%/);
-  assert.match(styles, /\.composer\s*\{[^}]*background:\s*var\(--background\)/);
+  assert.match(styles, /\.composer\s*\{[^}]*background:\s*transparent/);
   assert.match(styles, /\.composer\s*\{[^}]*padding:\s*0;/);
   assert.match(styles, /\.composer\s*\{[^}]*margin:\s*-96px 0 0/);
+  assert.match(styles, /\.composer-surface\s*\{[^}]*width:\s*min\(var\(--chat-column-width\),\s*calc\(100% - 24px\)\)/);
+  assert.match(styles, /\.composer-surface\s*\{[^}]*margin:\s*0 auto/);
   assert.match(styles, /\.composer-surface\s*\{[^}]*background:\s*var\(--background\)/);
   assert.match(styles, /\.composer-surface\s*\{[^}]*border-radius:\s*var\(--surface-radius\) var\(--surface-radius\) 0 0/);
+  assert.match(styles, /\.composer-surface\s*\{[^}]*overflow:\s*hidden/);
   assert.match(styles, /\.composer-box\s*\{[^}]*width:\s*100%/);
   assert.match(styles, /\.composer-box\s*\{[^}]*border-radius:\s*var\(--surface-radius\)/);
   assert.match(styles, /\.composer-box textarea\s*\{[^}]*min-height:\s*56px/);
@@ -403,4 +412,33 @@ test("composer shows typed suggestions for context references and slash commands
   assert.match(helper, /@glob:src\/\*\*\/\*\.py/);
   assert.match(styles, /composer-suggestions/);
   assert.doesNotMatch(styles, /34,\s*197,\s*94|#86efac|#b7f7cb/i);
+});
+
+test("settings opens as a separate tabbed page with safe read-only runtime data", () => {
+  const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
+  const statusApi = readFileSync(join(srcRoot, "api", "status.ts"), "utf8");
+  const settingsPage = readFileSync(join(srcRoot, "components", "settings", "SettingsPage.tsx"), "utf8");
+  const settingsTabs = readFileSync(join(srcRoot, "components", "settings", "SettingsTabs.tsx"), "utf8");
+  const settingsRuntime = readFileSync(join(srcRoot, "runtime", "settingsPage.ts"), "utf8");
+  const styles = readFileSync(join(srcRoot, "components", "settings", "settings.css"), "utf8");
+
+  assert.match(app, /type AppView = "chat" \| "settings"/);
+  assert.match(app, /setAppView\("settings"\)/);
+  assert.match(app, /<SettingsPage/);
+  assert.doesNotMatch(app, /activeDrawer.*settings/);
+  assert.match(settingsRuntime, /Общее/);
+  assert.match(settingsRuntime, /Внешний вид/);
+  assert.match(settingsRuntime, /Конфигурация/);
+  assert.match(settingsRuntime, /Серверы MCP/);
+  assert.match(settingsRuntime, /Плагины/);
+  assert.match(settingsRuntime, /Скилы/);
+  assert.match(settingsTabs, /aria-selected/);
+  assert.match(settingsPage, /GeneralSettingsTab/);
+  assert.match(settingsPage, /AppearanceSettingsTab/);
+  assert.match(settingsPage, /ConfigurationSettingsTab/);
+  assert.match(settingsPage, /MCPServersSettingsTab/);
+  assert.match(statusApi, /\/mcp\/snapshot/);
+  assert.doesNotMatch(`${settingsPage}\n${statusApi}`, /plugins\/install|plugins\/update|plugins\/remove|PATCH \/settings|requestJson<.*>\("\/mcp"\)/);
+  assert.match(styles, /settings-page-shell/);
+  assert.match(styles, /settings-tab-active/);
 });
