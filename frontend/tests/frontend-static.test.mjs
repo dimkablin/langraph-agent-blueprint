@@ -120,6 +120,9 @@ test("chat controls are icon-triggered and message avatars are removed", () => {
   assert.match(header, /IconLayoutSidebarLeftExpand/);
   assert.match(header, /IconPlus/);
   assert.match(header, /IconHelpCircle/);
+  assert.match(header, /data-tooltip="Боковая панель"/);
+  assert.match(header, /data-tooltip="Новый чат"/);
+  assert.doesNotMatch(header, /title="Боковая панель"|title="Новый чат"/);
   assert.doesNotMatch(header, /Settings/);
   assert.doesNotMatch(header, /onOpenSettings/);
   assert.doesNotMatch(header, /MessageSquare/);
@@ -141,6 +144,12 @@ test("header action buttons are borderless icon-only controls", () => {
   assert.match(styles, /\.icon-button\s*\{[^}]*border:\s*0/);
   assert.match(styles, /\.icon-button\s*\{[^}]*background:\s*transparent/);
   assert.match(styles, /\.icon-button\s*\{[^}]*padding:\s*0/);
+  assert.match(styles, /\[data-tooltip\]::after\s*\{[^}]*content:\s*attr\(data-tooltip\)/);
+  assert.match(styles, /\[data-tooltip\]::after\s*\{[^}]*background:\s*var\(--card-elevated\)/);
+  assert.match(styles, /\[data-tooltip\]::after\s*\{[^}]*max-width:\s*min\(220px,\s*calc\(100vw - 24px\)\)/);
+  assert.match(styles, /\[data-tooltip\]\[data-tooltip-align="start"\]::after/);
+  assert.match(styles, /\[data-tooltip\]\[data-tooltip-align="end"\]::after/);
+  assert.match(styles, /\[data-tooltip\]:hover::after/);
   assert.match(styles, /\.icon-button:hover,[\s\S]*\.icon-button:focus-visible\s*\{[^}]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.08\)/);
   assert.doesNotMatch(styles, /\.icon-button\s*\{[^}]*border:\s*1px/);
   assert.doesNotMatch(styles, /brand-lockup|brand-mark/);
@@ -312,6 +321,9 @@ test("chat presentation borrows widget width, message blocks, and floating compo
   assert.match(styles, /\.send-button\s*\{[^}]*border-radius:\s*999px/);
   assert.match(styles, /\.send-button svg\s*\{[^}]*display:\s*block/);
   assert.match(composer, /className="stop-icon"/);
+  assert.match(composer, /data-tooltip="Остановить"/);
+  assert.match(composer, /data-tooltip="Отправить"/);
+  assert.match(composer, /data-tooltip-align="end"/);
   assert.match(styles, /\.stop-icon\s*\{[^}]*width:\s*9px/);
   assert.match(styles, /\.stop-icon\s*\{[^}]*height:\s*9px/);
   assert.match(styles, /\.stop-icon\s*\{[^}]*background:\s*currentColor/);
@@ -354,6 +366,11 @@ test("model intelligence picker sits between context meter and send action", () 
   assert.match(composer, /ComposerContextMeter[\s\S]*ComposerIntelligencePicker[\s\S]*send-button/);
   assert.match(picker, /Интеллект модели/);
   assert.match(picker, /role="menuitemradio"/);
+  assert.match(picker, /Интеллект модели/);
+  assert.match(picker, /data-tooltip=\{`Интеллект: \$\{selected\.label\}`\}/);
+  assert.match(picker, /data-tooltip-placement="top"/);
+  assert.match(picker, /data-tooltip-align="start"/);
+  assert.doesNotMatch(picker, /title=/);
   assert.doesNotMatch(picker, /Brain/);
   assert.match(picker, /\{selected\.label\}/);
   assert.doesNotMatch(composer, /useState<ModelIntelligenceLevel>/);

@@ -35,7 +35,16 @@ function MessageMeta({ align, content, timestamp }: { align: "assistant" | "user
   return (
     <div className={align === "user" ? "message-meta message-meta-user" : "message-meta message-meta-assistant"}>
       <time dateTime={timestamp}>{time}</time>
-      <button type="button" className="message-copy-button" onClick={() => void copyMessage()} disabled={!canCopy} aria-label="Copy message">
+      <button
+        type="button"
+        className="message-copy-button"
+        onClick={() => void copyMessage()}
+        disabled={!canCopy}
+        aria-label="Copy message"
+        data-tooltip={copied ? "Скопировано" : "Копировать"}
+        data-tooltip-placement="top"
+        data-tooltip-align={align === "user" ? "end" : "start"}
+      >
         {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
       </button>
     </div>

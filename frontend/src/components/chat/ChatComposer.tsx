@@ -107,11 +107,28 @@ export function ChatComposer({
               onClose={() => setIntelligenceOpen(false)}
             />
             {isStreaming ? (
-              <button className="send-button stop" type="button" onClick={onStop} aria-label="Stop stream">
+              <button
+                className="send-button stop"
+                type="button"
+                onClick={onStop}
+                aria-label="Stop stream"
+                data-tooltip="Остановить"
+                data-tooltip-placement="top"
+                data-tooltip-align="end"
+              >
                 <span className="stop-icon" aria-hidden="true" />
               </button>
             ) : (
-              <button className="send-button" type="button" onClick={submit} disabled={disabled || !input.trim()} aria-label="Send message">
+              <button
+                className="send-button"
+                type="button"
+                onClick={submit}
+                disabled={disabled || !input.trim()}
+                aria-label="Send message"
+                data-tooltip="Отправить"
+                data-tooltip-placement="top"
+                data-tooltip-align="end"
+              >
                 <IconArrowUp size={19} />
               </button>
             )}

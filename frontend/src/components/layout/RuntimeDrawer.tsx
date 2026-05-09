@@ -22,7 +22,7 @@ export function RuntimeDrawer({
       <aside className={`runtime-drawer runtime-drawer-${side}`} aria-label={title}>
         <div className="drawer-header">
           <h2>{title}</h2>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Закрыть">
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Закрыть" data-tooltip="Закрыть" data-tooltip-align="end">
             <IconX size={18} />
           </button>
         </div>

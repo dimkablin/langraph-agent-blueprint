@@ -167,6 +167,7 @@ pre {
 }
 
 .icon-button {
+  position: relative;
   min-width: 36px;
   height: 36px;
   display: inline-flex;
@@ -177,6 +178,74 @@ pre {
   background: transparent;
   color: var(--muted);
   padding: 0;
+}
+
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 40;
+  width: max-content;
+  max-width: min(220px, calc(100vw - 24px));
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--card-elevated);
+  color: var(--foreground);
+  content: attr(data-tooltip);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  opacity: 0;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  transform: translate(-50%, -2px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  white-space: normal;
+}
+
+[data-tooltip][data-tooltip-placement="top"]::after {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, 2px);
+}
+
+[data-tooltip][data-tooltip-align="start"]::after {
+  left: 0;
+  transform: translate(0, -2px);
+}
+
+[data-tooltip][data-tooltip-placement="top"][data-tooltip-align="start"]::after {
+  transform: translate(0, 2px);
+}
+
+[data-tooltip][data-tooltip-align="end"]::after {
+  right: 0;
+  left: auto;
+  transform: translate(0, -2px);
+}
+
+[data-tooltip][data-tooltip-placement="top"][data-tooltip-align="end"]::after {
+  transform: translate(0, 2px);
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+[data-tooltip][data-tooltip-align="start"]:hover::after,
+[data-tooltip][data-tooltip-align="start"]:focus-visible::after,
+[data-tooltip][data-tooltip-align="end"]:hover::after,
+[data-tooltip][data-tooltip-align="end"]:focus-visible::after {
+  transform: translate(0, 0);
 }
 
 .icon-button:hover,

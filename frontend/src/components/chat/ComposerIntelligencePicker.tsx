@@ -55,7 +55,9 @@ export function ComposerIntelligencePicker({
         aria-label={`Уровень интеллекта модели: ${selected.label}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={`Интеллект: ${selected.label}`}
+        data-tooltip={`Интеллект: ${selected.label}`}
+        data-tooltip-placement="top"
+        data-tooltip-align="start"
       >
         <span>{selected.label}</span>
         <IconChevronDown size={13} />
