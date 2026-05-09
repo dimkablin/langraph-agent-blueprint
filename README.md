@@ -203,7 +203,7 @@ The browser frontend is a TypeScript React thin client over the LangGraph runtim
 Start the API:
 
 ```bash
-uvicorn langgraph_agent_blueprint.api.server:create_app --factory --host 127.0.0.1 --port 8000
+lg-agent serve --factory --host 127.0.0.1 --port 8000 --reload
 ```
 
 Start the frontend:

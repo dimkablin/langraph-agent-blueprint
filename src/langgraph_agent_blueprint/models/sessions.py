@@ -14,6 +14,7 @@ class SessionMetadata(RuntimeModel):
 
     session_id: str
     project_root: str
+    title: str | None = None
     cwd: str | None = None
     provider: str | None = None
     model: str | None = None
@@ -26,7 +27,7 @@ class SessionMetadata(RuntimeModel):
     def from_record(cls, record: dict[str, Any]) -> "SessionMetadata":
         """Validate known metadata fields and place unknown flat fields into `extra`."""
 
-        known = {"session_id", "project_root", "cwd", "provider", "model", "created_at", "updated_at", "usage"}
+        known = {"session_id", "project_root", "title", "cwd", "provider", "model", "created_at", "updated_at", "usage"}
         payload = {key: value for key, value in record.items() if key in known}
         payload["extra"] = {key: value for key, value in record.items() if key not in known}
         return cls.model_validate(payload)

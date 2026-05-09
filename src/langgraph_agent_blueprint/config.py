@@ -255,14 +255,27 @@ def format_config_validate(report: EffectiveConfigReport | None) -> str:
 def _redact_for_display(value: Any, key: str | None = None) -> Any:
     """Recursively redact secrets from config/status dictionaries."""
 
-    sensitive_parts = ("api_key", "apikey", "authorization", "auth", "key", "password", "secret", "token")
-    if key and any(part in key.lower() for part in sensitive_parts):
+    if key and _is_sensitive_display_key(key):
         return "***" if value not in (None, "") else None
     if isinstance(value, dict):
         return {str(item_key): _redact_for_display(item_value, str(item_key)) for item_key, item_value in value.items()}
     if isinstance(value, list):
         return [_redact_for_display(item) for item in value]
     return value
+
+
+def _is_sensitive_display_key(key: str) -> bool:
+    lowered = key.lower()
+    public_token_budget_keys = {
+        "context_max_tokens",
+        "max_tokens",
+        "used_tokens",
+        "token_estimate",
+    }
+    if lowered in public_token_budget_keys:
+        return False
+    sensitive_parts = ("api_key", "apikey", "authorization", "auth", "key", "password", "secret", "token")
+    return any(part in lowered for part in sensitive_parts)
 
 
 def _default_user_config_path() -> Path:

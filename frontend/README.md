@@ -7,6 +7,7 @@ policy, or duplicate graph workflow logic in the browser.
 ## Run
 
 ```bash
+lg-agent serve --factory --host 127.0.0.1 --port 8000 --reload
 npm install
 npm run dev
 ```
@@ -27,4 +28,3 @@ set VITE_API_BASE_URL=http://127.0.0.1:8000
 The live chat path uses `POST /chat/stream` and parses Server-Sent Event
 `StreamFrame` payloads. Approval uses `POST /approval` with typed
 `PermissionDecisionDTO`.
-

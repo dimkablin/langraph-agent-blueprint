@@ -39,10 +39,13 @@ export type PermissionDecisionDTO = {
   reason?: string | null;
 };
 
+export type ModelIntelligenceLevel = "low" | "medium" | "high" | "very_high";
+
 export type ChatRequest = {
   message: string;
   session_id?: string | null;
   thread_id?: string | null;
+  model_intelligence?: ModelIntelligenceLevel | null;
   attachments?: AttachmentRef[];
 };
 
@@ -106,6 +109,7 @@ export type ContextStateDTO = {
 
 export type SessionListItemDTO = {
   session_id: string;
+  title?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   provider?: string | null;
@@ -132,6 +136,7 @@ export type ChildRunListItemDTO = {
 
 export type SessionDetailDTO = {
   session_id: string;
+  title?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   provider?: string | null;
@@ -171,4 +176,3 @@ export type ObservabilityStatusDTO = {
   sdk_installed?: boolean | null;
   last_error?: string | null;
 };
-

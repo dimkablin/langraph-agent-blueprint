@@ -50,6 +50,23 @@ def test_config_explain_redacts_secrets_and_reports_invalid_values(tmp_path: Pat
     assert any(item.status == "warning" and item.key == "network_enabled" for item in report.diagnostics)
 
 
+def test_config_redaction_keeps_numeric_context_token_budget_visible(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    config, report = AppConfig.load_with_report(
+        project_root=project,
+        environ={"CONTEXT_MAX_TOKENS": "12000", "OPENAI_API_KEY": "sk-secret"},
+    )
+
+    values = {value.key: value for value in report.values}
+    assert config.redacted()["context_max_tokens"] == 12000
+    assert values["context_max_tokens"].value_repr == "12000"
+    assert values["context_max_tokens"].redacted is False
+    assert config.redacted()["openai_api_key"] == "***"
+    assert values["openai_api_key"].redacted is True
+
+
 def test_project_config_supports_observability_langfuse_table(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()

@@ -44,6 +44,14 @@ def test_chat_response_events_use_runtime_event_dto(tmp_path):
     assert event_items == {"$ref": "#/components/schemas/RuntimeEventDTO"}
 
 
+def test_chat_request_exposes_typed_model_intelligence_contract(tmp_path):
+    app = create_app(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
+    chat_request_schema = app.openapi()["components"]["schemas"]["ChatRequest"]
+
+    model_intelligence = chat_request_schema["properties"]["model_intelligence"]
+    assert model_intelligence["anyOf"][0]["enum"] == ["low", "medium", "high", "very_high"]
+
+
 def test_registry_endpoints_return_typed_object_maps(tmp_path):
     app = create_app(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
     client = TestClient(app)
@@ -55,4 +63,3 @@ def test_registry_endpoints_return_typed_object_maps(tmp_path):
         first = next(iter(payload.values()))
         assert "name" in first
         assert "description" in first
-

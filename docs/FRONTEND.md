@@ -38,7 +38,7 @@ The frontend does not call tools or services directly. It calls:
 Start the Python API:
 
 ```bash
-uvicorn langgraph_agent_blueprint.api.server:create_app --factory --host 127.0.0.1 --port 8000
+lg-agent serve --factory --host 127.0.0.1 --port 8000 --reload
 ```
 
 Start the React app:

@@ -29,6 +29,7 @@ app.add_typer(plugins_app, name="plugins")
 app.add_typer(eval_app, name="eval")
 app.add_typer(config_app, name="config")
 console = Console()
+DEFAULT_API_APP = "langgraph_agent_blueprint.api.server:create_app"
 
 
 def _runtime(project_root: Optional[Path] = None) -> AssistantGraphRuntime:
@@ -39,6 +40,17 @@ def _runtime(project_root: Optional[Path] = None) -> AssistantGraphRuntime:
 def _config_report(project_root: Optional[Path] = None) -> AppConfig:
     config, _report = AppConfig.load_with_report(project_root=project_root or Path.cwd())
     return config
+
+
+def _run_api_server(*, app_path: str, host: str, port: int, **uvicorn_options: object) -> None:
+    """Run the FastAPI adapter through uvicorn without importing API deps at CLI import time."""
+
+    try:
+        import uvicorn
+    except ImportError as exc:  # pragma: no cover - depends on optional install extras.
+        raise typer.ClickException('API server dependencies are missing. Install with: python -m pip install -e ".[api]"') from exc
+
+    uvicorn.run(app_path, host=host, port=port, **uvicorn_options)
 
 
 @app.command()
@@ -65,6 +77,18 @@ def query(
         print(json.dumps({"session_id": result["session_id"], "final_response": result["final_response"], "usage": result.get("usage", {})}, ensure_ascii=False))
     else:
         console.print(result["final_response"])
+
+
+@app.command()
+def serve(
+    factory: bool = typer.Option(True, "--factory/--no-factory", help="Treat the API target as an application factory."),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host interface for the API server."),
+    port: int = typer.Option(8000, "--port", help="TCP port for the API server."),
+    reload: bool = typer.Option(False, "--reload", help="Restart the API server when source files change."),
+) -> None:
+    """Start the FastAPI runtime API used by the React frontend."""
+
+    _run_api_server(app_path=DEFAULT_API_APP, host=host, port=port, factory=factory, reload=reload)
 
 
 @app.command()

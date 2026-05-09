@@ -30,7 +30,10 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
         messages=current.get("messages", []),
         system_context=current.get("context_status", {}).get("system_context", ""),
         tools=available_tools,
-        metadata={"tool_results": current.get("tool_results", [])},
+        metadata={
+            "tool_results": current.get("tool_results", []),
+            "model_intelligence": current.get("metadata", {}).get("model_intelligence"),
+        },
     )
     response = deps.model_provider.generate(request)
     tool_calls = validate_list(ToolCall, response.tool_calls)

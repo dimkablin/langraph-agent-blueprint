@@ -1,43 +1,31 @@
-import { Bot, CircleAlert, CircleCheck, Radio } from "lucide-react";
-
-import { compactId } from "../../runtime/viewModels.ts";
+import { IconHelpCircle, IconLayoutSidebarLeftExpand, IconPlus } from "../../icons.ts";
 
 export function StatusHeader({
-  status,
-  apiStatus,
-  sessionId,
-  threadId,
+  onNewChat,
+  onToggleSidebar,
+  onOpenHelp,
 }: {
-  status: string;
-  apiStatus: string;
-  sessionId: string | null;
-  threadId: string | null;
+  onNewChat: () => void;
+  onToggleSidebar: () => void;
+  onOpenHelp: () => void;
 }) {
-  const isError = apiStatus.startsWith("api error");
   return (
     <header className="app-header">
-      <div className="brand-lockup">
-        <div className="brand-mark">
-          <Bot size={18} />
-        </div>
-        <div>
-          <strong>langgraph-agent-blueprint</strong>
-          <span>Thin runtime frontend</span>
-        </div>
+      <div className="header-leading" aria-label="Chat controls">
+        <button type="button" className="icon-button" onClick={onToggleSidebar} aria-label="Боковая панель" title="Боковая панель">
+          <IconLayoutSidebarLeftExpand size={18} />
+        </button>
+        <button type="button" className="icon-button" onClick={onNewChat} aria-label="Новый чат" title="Новый чат">
+          <IconPlus size={18} />
+        </button>
       </div>
       <div className="header-status">
-        <span>
-          <Radio size={14} />
-          {status}
-        </span>
-        <span className={isError ? "status-bad" : "status-good"}>
-          {isError ? <CircleAlert size={14} /> : <CircleCheck size={14} />}
-          {apiStatus}
-        </span>
-        <span>session {compactId(sessionId)}</span>
-        <span>thread {compactId(threadId)}</span>
+        <div className="header-actions" aria-label="Runtime panels">
+          <button type="button" className="icon-button icon-button-square" onClick={onOpenHelp} aria-label="Справка" title="Commands / Skills / Tools">
+            <IconHelpCircle size={18} />
+          </button>
+        </div>
       </div>
     </header>
   );
 }
-

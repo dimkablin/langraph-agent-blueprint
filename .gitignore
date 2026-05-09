@@ -8,6 +8,7 @@ logs/
 pytest_tmp/
 pytest-cache-files-*/
 test_runs/
+.eval_runs/
 __pycache__/
 *.pyc
 *.pyo

@@ -17,6 +17,8 @@ from langgraph_agent_blueprint.models import (
 )
 from langgraph_agent_blueprint.utils.ids import validate_session_id, validate_thread_id
 
+ModelIntelligenceLevel = Literal["low", "medium", "high", "very_high"]
+
 
 class RuntimeEventDTO(BaseModel):
     """Stable frontend event envelope emitted by graph runtime adapters."""
@@ -47,6 +49,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
     thread_id: str | None = None
+    model_intelligence: ModelIntelligenceLevel | None = None
     attachments: list[AttachmentRef] = Field(default_factory=list)
 
     @field_validator("session_id")
@@ -195,6 +198,7 @@ class SessionListItemDTO(BaseModel):
     """Frontend session list item with counts instead of raw storage shape."""
 
     session_id: str
+    title: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
     provider: str | None = None
@@ -210,6 +214,7 @@ class SessionDetailDTO(BaseModel):
     """Frontend-safe session detail DTO."""
 
     session_id: str
+    title: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
     provider: str | None = None

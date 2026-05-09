@@ -142,6 +142,7 @@ def session_list_item_dto(
     snapshot = snapshot or {}
     return SessionListItemDTO(
         session_id=str(metadata.get("session_id") or ""),
+        title=_session_title(metadata, snapshot.get("messages", []) or []),
         created_at=metadata.get("created_at"),
         updated_at=metadata.get("updated_at"),
         provider=metadata.get("provider"),
@@ -172,6 +173,7 @@ def session_detail_dto(
         safe_metadata = redactor(safe_metadata)
     return SessionDetailDTO(
         session_id=str(metadata.get("session_id") or ""),
+        title=_session_title(metadata, snapshot.get("messages", []) or []),
         created_at=metadata.get("created_at"),
         updated_at=metadata.get("updated_at"),
         provider=metadata.get("provider"),
@@ -244,6 +246,28 @@ def _last_ai_message_content(messages: list[Any]) -> str | None:
         if payload.get("role") == "ai" and payload.get("content"):
             return _bounded_text(payload["content"])
     return None
+
+
+def _session_title(metadata: dict[str, Any], messages: list[Any]) -> str | None:
+    stored_title = str(metadata.get("title") or "")[:72]
+    if stored_title:
+        return stored_title
+    return _first_chat_message_title(messages)
+
+
+def _first_chat_message_title(messages: list[Any]) -> str | None:
+    fallback: str | None = None
+    for message in messages:
+        payload = _message_payload(message)
+        content = _bounded_text(payload.get("content", ""))[:72]
+        if not content:
+            continue
+        role = payload.get("role")
+        if role in {"human", "user"}:
+            return content
+        if fallback is None:
+            fallback = content
+    return fallback
 
 
 def _bounded_text(value: Any) -> str:

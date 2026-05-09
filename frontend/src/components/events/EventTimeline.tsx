@@ -1,6 +1,6 @@
-import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 
+import { IconChevronRight } from "../../icons.ts";
 import { safeJson } from "../../runtime/events.ts";
 import type { ActivityItem } from "../../runtime/reducer.ts";
 
@@ -21,7 +21,7 @@ export function EventTimeline({ activities }: { activities: ActivityItem[] }) {
             return (
               <article className={`activity-row activity-${activity.status}`} key={activity.id}>
                 <button type="button" onClick={() => setExpanded((items) => ({ ...items, [activity.id]: !open }))}>
-                  <ChevronRight size={14} className={open ? "rotated" : ""} />
+                  <IconChevronRight size={16} className={open ? "rotated" : ""} />
                   <span className="activity-kind">{activity.kind}</span>
                   <strong>{activity.label}</strong>
                 </button>
@@ -37,4 +37,3 @@ export function EventTimeline({ activities }: { activities: ActivityItem[] }) {
     </section>
   );
 }
-

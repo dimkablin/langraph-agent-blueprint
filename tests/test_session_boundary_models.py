@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+from langgraph_agent_blueprint.graph.nodes.normalize_input import normalize_input_node
 from langgraph_agent_blueprint.models.events import RuntimeEvent, make_event
+from langgraph_agent_blueprint.models.hooks import HookRunSummary
 from langgraph_agent_blueprint.models.sessions import SessionMetadata
 from langgraph_agent_blueprint.models.tools import ToolResult
 from langgraph_agent_blueprint.storage.session_storage import SessionStorage
@@ -22,6 +26,20 @@ def test_session_metadata_preserves_unknown_runtime_metadata_as_extra():
     assert metadata.session_id == "session_1"
     assert metadata.usage == {"total_tokens": 10}
     assert metadata.extra["graph_finished"] is True
+
+
+class _NoopHookService:
+    def run(self, context):
+        return HookRunSummary(hook_point=context.hook_point)
+
+
+def test_normalize_input_stores_raw_72_character_session_title_slice():
+    input_text = "  first\nmessage with raw spacing  " + ("x" * 100)
+    deps = SimpleNamespace(hook_service=_NoopHookService())
+
+    update = normalize_input_node({"input_text": input_text, "messages": [], "metadata": {}}, deps)
+
+    assert update["metadata"]["title"] == input_text[:72]
 
 
 def test_session_storage_validates_events_and_skips_corrupt_jsonl(tmp_path):

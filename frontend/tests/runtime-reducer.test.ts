@@ -45,7 +45,7 @@ test("permission_required and permission_resolved update modal state", () => {
   assert.equal(resolved.activities.at(-1)?.kind, "permission");
 });
 
-test("context events populate context panel state", () => {
+test("context events populate runtime context state", () => {
   let state = createInitialRuntimeState();
   state = applyRuntimeEvent(state, event("context_fragment_added", { id: "ctx_1", kind: "file", title: "README.md", trust: "trusted_local", token_estimate: 12 }));
   state = applyRuntimeEvent(state, event("context_budget_applied", { max_tokens: 100, used_tokens: 12, included: ["ctx_1"] }));

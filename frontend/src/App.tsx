@@ -1,220 +1,141 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 
-import { sendApproval } from "./api/approval.ts";
-import { fetchCommands, fetchSkills, fetchTools } from "./api/registries.ts";
-import { exportSession, fetchSessionContext, fetchSessionDetail, fetchSessions } from "./api/sessions.ts";
-import { fetchRuntimeStatus, type RuntimeStatus } from "./api/status.ts";
-import { streamChat } from "./api/stream.ts";
-import type { RegistryMap, SessionDetailDTO, SessionListItemDTO } from "./api/schemas.ts";
 import { ChatComposer } from "./components/chat/ChatComposer.tsx";
 import { MessageList } from "./components/chat/MessageList.tsx";
-import { ContextPanel } from "./components/context/ContextPanel.tsx";
-import { EventTimeline } from "./components/events/EventTimeline.tsx";
+import { WelcomePromptExamples, type WelcomePromptExample } from "./components/chat/WelcomePromptExamples.tsx";
+import { RuntimeDrawer } from "./components/layout/RuntimeDrawer.tsx";
+import { RuntimeSidebar } from "./components/layout/RuntimeSidebar.tsx";
 import { StatusHeader } from "./components/layout/StatusHeader.tsx";
 import { PermissionPanel } from "./components/permissions/PermissionPanel.tsx";
 import { RegistryPanel } from "./components/registries/RegistryPanel.tsx";
-import { SessionsPanel } from "./components/sessions/SessionsPanel.tsx";
 import { RuntimeStatusPanel } from "./components/status/RuntimeStatusPanel.tsx";
-import {
-  appendUserMessage,
-  applyChatResponse,
-  applyContextState,
-  applyRuntimeEvent,
-  applySessionDetail,
-  applyStreamFrame,
-  createInitialRuntimeState,
-  markStreamingStopped,
-  setThreadId,
-} from "./runtime/reducer.ts";
-import { statusText, visibleActivities } from "./runtime/selectors.ts";
+import { useRuntimeChat } from "./hooks/useRuntimeChat.ts";
+import { useRuntimeRegistries } from "./hooks/useRuntimeRegistries.ts";
+import { useRuntimeSessions } from "./hooks/useRuntimeSessions.ts";
+import { useRuntimeStatus } from "./hooks/useRuntimeStatus.ts";
 
 export default function App() {
-  const [runtimeState, setRuntimeState] = useState(createInitialRuntimeState);
-  const [commands, setCommands] = useState<RegistryMap>({});
-  const [skills, setSkills] = useState<RegistryMap>({});
-  const [tools, setTools] = useState<RegistryMap>({});
-  const [sessions, setSessions] = useState<SessionListItemDTO[]>([]);
-  const [selectedSession, setSelectedSession] = useState<SessionDetailDTO | null>(null);
-  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
-  const [apiStatus, setApiStatus] = useState("api pending");
-  const [registryError, setRegistryError] = useState<string | null>(null);
-  const [sessionError, setSessionError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
+  const { commands, skills, tools, registryError } = useRuntimeRegistries();
+  const { sessions, sessionError, refreshSessions, reportSessionError, clearSessionError } = useRuntimeSessions();
+  const { runtimeStatus } = useRuntimeStatus();
+  const {
+    runtimeState,
+    busy,
+    modelIntelligenceLevel,
+    setModelIntelligenceLevel,
+    submitMessage,
+    stopStream,
+    startNewChat,
+    resolvePermission,
+    selectSession,
+  } = useRuntimeChat({
+    onSessionsChanged: refreshSessions,
+    onSessionError: reportSessionError,
+    clearSessionError,
+  });
+  const [activeDrawer, setActiveDrawer] = useState<"help" | "settings" | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    void refreshRegistries();
-    void refreshSessions();
-    void refreshRuntimeStatus();
-    return () => abortRef.current?.abort();
-  }, []);
-
-  async function refreshRegistries() {
-    try {
-      const [commandData, skillData, toolData] = await Promise.all([fetchCommands(), fetchSkills(), fetchTools()]);
-      setCommands(commandData);
-      setSkills(skillData);
-      setTools(toolData);
-      setRegistryError(null);
-      setApiStatus("api ready");
-    } catch (error) {
-      setRegistryError(error instanceof Error ? error.message : String(error));
-      setApiStatus("api error");
-    }
-  }
-
-  async function refreshSessions() {
-    try {
-      setSessions(await fetchSessions());
-      setSessionError(null);
-    } catch (error) {
-      setSessionError(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  async function refreshRuntimeStatus() {
-    setRuntimeStatus(await fetchRuntimeStatus());
-  }
-
-  async function submitMessage(message: string) {
-    const threadId = runtimeState.threadId || newRuntimeId("thread");
-    abortRef.current?.abort();
-    abortRef.current = new AbortController();
-    setBusy(true);
-    setRuntimeState((state) => setThreadId(appendUserMessage(state, message), threadId));
-    try {
-      await streamChat(
-        {
-          message,
-          session_id: runtimeState.sessionId,
-          thread_id: threadId,
-        },
-        {
-          signal: abortRef.current.signal,
-          onFrame(frame) {
-            setRuntimeState((state) => applyStreamFrame(state, frame));
-          },
-        },
-      );
-      await refreshSessions();
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return;
-      }
-      setRuntimeState((state) =>
-        applyStreamFrame(state, {
-          type: "error",
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function stopStream() {
-    abortRef.current?.abort();
-    setBusy(false);
-    setRuntimeState((state) => markStreamingStopped(state));
-  }
-
-  async function resolvePermission(decision: "approved" | "rejected") {
-    const permission = runtimeState.pendingPermission;
-    if (!permission || !runtimeState.threadId) return;
-    setBusy(true);
-    try {
-      const response = await sendApproval({
-        thread_id: runtimeState.threadId,
-        session_id: runtimeState.sessionId,
-        decision: {
-          tool_call_id: permission.tool_call_id,
-          decision,
-          reason: decision === "approved" ? "approved in frontend" : "rejected in frontend",
-        },
-      });
-      setRuntimeState((state) => applyChatResponse(state, response));
-      await refreshSessions();
-    } catch (error) {
-      setRuntimeState((state) =>
-        applyRuntimeEvent(state, {
-          id: `approval-error-${Date.now()}`,
-          type: "error",
-          timestamp: new Date().toISOString(),
-          session_id: state.sessionId || "unknown",
-          severity: "error",
-          data: { error: error instanceof Error ? error.message : String(error) },
-        }),
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function selectSession(sessionId: string) {
-    try {
-      const detail = await fetchSessionDetail(sessionId);
-      const context = await fetchSessionContext(sessionId);
-      setSelectedSession(detail);
-      setRuntimeState((state) => applyContextState(applySessionDetail(state, detail), context));
-      setSessionError(null);
-    } catch (error) {
-      setSessionError(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  async function handleExport(sessionId: string) {
-    try {
-      const result = await exportSession(sessionId);
-      setSessionError(`Exported ${result.format}: ${result.path}`);
-    } catch (error) {
-      setSessionError(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  const activities = useMemo(() => visibleActivities(runtimeState), [runtimeState]);
+  const contextMaxTokens = numericConfigValue(runtimeStatus?.config?.values.context_max_tokens);
+  const isNewChat = runtimeState.messages.length === 0 && !runtimeState.pendingPermission && !runtimeState.error;
 
   return (
-    <main className="app-shell">
-      <StatusHeader
-        status={statusText(runtimeState)}
-        apiStatus={apiStatus}
-        sessionId={runtimeState.sessionId}
-        threadId={runtimeState.threadId}
+    <main className={sidebarOpen ? "app-shell app-shell-sidebar-open" : "app-shell"}>
+      <RuntimeSidebar
+        open={sidebarOpen}
+        sessions={sessions}
+        activeSessionId={runtimeState.sessionId}
+        error={sessionError}
+        onNewChat={startNewChat}
+        onOpenPlugins={() => setActiveDrawer("help")}
+        onOpenSettings={() => setActiveDrawer("settings")}
+        onSelectSession={(sessionId) => void selectSession(sessionId)}
       />
-      <div className="runtime-workspace">
-        <section className="chat-column">
-          <div className="chat-scroll">
-            <MessageList messages={runtimeState.messages} isStreaming={runtimeState.isStreaming || busy} />
-          </div>
-          {runtimeState.error ? <div className="error-banner">{runtimeState.error}</div> : null}
-          <PermissionPanel
-            request={runtimeState.pendingPermission}
-            busy={busy}
-            onApprove={() => void resolvePermission("approved")}
-            onReject={() => void resolvePermission("rejected")}
-          />
-          <ChatComposer disabled={busy && !runtimeState.isStreaming} isStreaming={runtimeState.isStreaming || busy} onSubmit={(value) => void submitMessage(value)} onStop={stopStream} />
-        </section>
-        <aside className="side-panel">
-          <EventTimeline activities={activities} />
-          <ContextPanel context={runtimeState.context} />
-          <SessionsPanel
-            sessions={sessions}
-            selected={selectedSession}
-            activeSessionId={runtimeState.sessionId}
-            error={sessionError}
-            onSelect={(sessionId) => void selectSession(sessionId)}
-            onExport={(sessionId) => void handleExport(sessionId)}
-          />
-          <RegistryPanel commands={commands} skills={skills} tools={tools} error={registryError} />
-          <RuntimeStatusPanel status={runtimeStatus} />
-        </aside>
+      <div className="app-main">
+        <StatusHeader
+          onNewChat={startNewChat}
+          onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          onOpenHelp={() => setActiveDrawer("help")}
+        />
+        <div className="app-body">
+          <section className={isNewChat ? "chat-column chat-column-welcome" : "chat-column"}>
+            {isNewChat ? (
+              <div className="welcome-chat">
+                <h1>Что нужно сделать?</h1>
+                <ChatComposer
+                  commands={commands}
+                  context={runtimeState.context}
+                  contextMaxTokens={contextMaxTokens}
+                  disabled={busy && !runtimeState.isStreaming}
+                  intelligenceLevel={modelIntelligenceLevel}
+                  isStreaming={runtimeState.isStreaming || busy}
+                  onIntelligenceChange={setModelIntelligenceLevel}
+                  onSubmit={(value) => void submitMessage(value)}
+                  onStop={stopStream}
+                  variant="welcome"
+                />
+                <WelcomePromptExamples
+                  disabled={busy}
+                  examples={WELCOME_PROMPT_EXAMPLES}
+                  onSelect={(prompt) => void submitMessage(prompt)}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="chat-scroll">
+                  <MessageList messages={runtimeState.messages} isStreaming={runtimeState.isStreaming || busy} />
+                </div>
+                {runtimeState.error ? <div className="error-banner">{runtimeState.error}</div> : null}
+                <PermissionPanel
+                  request={runtimeState.pendingPermission}
+                  busy={busy}
+                  onApprove={() => void resolvePermission("approved")}
+                  onReject={() => void resolvePermission("rejected")}
+                />
+                <ChatComposer
+                  commands={commands}
+                  context={runtimeState.context}
+                  contextMaxTokens={contextMaxTokens}
+                  disabled={busy && !runtimeState.isStreaming}
+                  intelligenceLevel={modelIntelligenceLevel}
+                  isStreaming={runtimeState.isStreaming || busy}
+                  onIntelligenceChange={setModelIntelligenceLevel}
+                  onSubmit={(value) => void submitMessage(value)}
+                  onStop={stopStream}
+                />
+              </>
+            )}
+          </section>
+        </div>
       </div>
+      <RuntimeDrawer side="right" title="Commands / Skills / Tools" open={activeDrawer === "help"} onClose={() => setActiveDrawer(null)}>
+        <RegistryPanel commands={commands} skills={skills} tools={tools} error={registryError} />
+      </RuntimeDrawer>
+      <RuntimeDrawer side="right" title="Настройки" open={activeDrawer === "settings"} onClose={() => setActiveDrawer(null)}>
+        <RuntimeStatusPanel status={runtimeStatus} />
+      </RuntimeDrawer>
     </main>
   );
 }
 
-function newRuntimeId(prefix: "thread"): string {
-  const random = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now());
-  return `${prefix}_${random.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32)}`;
+const WELCOME_PROMPT_EXAMPLES: WelcomePromptExample[] = [
+  {
+    title: "Проверь последние изменения на риски корректности",
+    prompt: "Проверь последние изменения проекта на риски корректности и поддерживаемости.",
+    icon: "review",
+  },
+  {
+    title: "Покажи, какие плагины и skills доступны",
+    prompt: "/skills",
+    icon: "plugin",
+  },
+  {
+    title: "Составь план исправления frontend layout",
+    prompt: "Составь короткий план исправления frontend layout без изменения backend runtime.",
+    icon: "plan",
+  },
+];
+
+function numericConfigValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

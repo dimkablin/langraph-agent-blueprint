@@ -47,6 +47,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             input_kind="headless",
             session_id=request.session_id,
             thread_id=request.thread_id,
+            model_intelligence=request.model_intelligence,
             attachments=attachments,
         )
         permission_required = None

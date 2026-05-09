@@ -1,7 +1,7 @@
-import { Command, Search, ShieldAlert, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { RegistryMap } from "../../api/schemas.ts";
+import { IconCommand, IconSearch, IconShieldExclamation, IconSparkles } from "../../icons.ts";
 import { registryItems } from "../../runtime/viewModels.ts";
 
 export function RegistryPanel({
@@ -18,9 +18,9 @@ export function RegistryPanel({
   const [query, setQuery] = useState("");
   const groups = useMemo(
     () => [
-      { title: "Commands", icon: <Command size={15} />, items: registryItems(commands) },
-      { title: "Skills", icon: <Sparkles size={15} />, items: registryItems(skills) },
-      { title: "Tools", icon: <ShieldAlert size={15} />, items: registryItems(tools) },
+      { title: "Commands", icon: <IconCommand size={17} />, items: registryItems(commands) },
+      { title: "Skills", icon: <IconSparkles size={17} />, items: registryItems(skills) },
+      { title: "Tools", icon: <IconShieldExclamation size={17} />, items: registryItems(tools) },
     ],
     [commands, skills, tools],
   );
@@ -33,7 +33,7 @@ export function RegistryPanel({
         <span>{groups.reduce((total, group) => total + group.items.length, 0)}</span>
       </div>
       <label className="search-box">
-        <Search size={14} />
+        <IconSearch size={16} />
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter registries" />
       </label>
       {error ? <p className="error-text">{error}</p> : null}
@@ -57,4 +57,3 @@ export function RegistryPanel({
     </section>
   );
 }
-

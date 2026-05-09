@@ -147,6 +147,7 @@ class AssistantGraphRuntime:
         thread_id: str | None = None,
         project_root: str | Path | None = None,
         turn_index: int | None = None,
+        model_intelligence: str | None = None,
         attachments: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Run one graph turn, hydrating persisted session state when a session id is supplied."""
@@ -163,6 +164,8 @@ class AssistantGraphRuntime:
             self._hydrate_session_state(state)
         if attachments:
             state["attachments"] = [dump_model(AttachmentRef.model_validate(item)) for item in attachments]
+        if model_intelligence:
+            state["metadata"] = {**state.get("metadata", {}), "model_intelligence": model_intelligence}
         if turn_index is not None:
             state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
         trace_context = self._trace_context(state)
@@ -213,6 +216,7 @@ class AssistantGraphRuntime:
         thread_id: str | None = None,
         project_root: str | Path | None = None,
         turn_index: int | None = None,
+        model_intelligence: str | None = None,
         attachments: list[dict[str, Any]] | None = None,
     ) -> Iterable[dict[str, Any]]:
         """Yield newly appended UI events from LangGraph value-stream state updates."""
@@ -231,6 +235,8 @@ class AssistantGraphRuntime:
                 self._hydrate_session_state(state)
             if attachments:
                 state["attachments"] = [dump_model(AttachmentRef.model_validate(item)) for item in attachments]
+            if model_intelligence:
+                state["metadata"] = {**state.get("metadata", {}), "model_intelligence": model_intelligence}
             if turn_index is not None:
                 state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
             final_chunk: dict[str, Any] | None = None

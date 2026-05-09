@@ -1,7 +1,5 @@
-import { Download, MessagesSquare } from "lucide-react";
-
 import type { SessionDetailDTO, SessionListItemDTO } from "../../api/schemas.ts";
-import { compactId } from "../../runtime/viewModels.ts";
+import { IconDownload } from "../../icons.ts";
 
 export function SessionsPanel({
   sessions,
@@ -33,22 +31,18 @@ export function SessionsPanel({
             key={session.session_id}
             onClick={() => onSelect(session.session_id)}
           >
-            <MessagesSquare size={14} />
-            <span>{compactId(session.session_id)}</span>
-            <small>
-              {session.message_count} messages · {session.event_count} events
-            </small>
+            <span>{sessionTitle(session)}</span>
           </button>
         ))}
       </div>
       {selected ? (
         <div className="session-detail">
-          <strong>{compactId(selected.session_id)}</strong>
+          <strong>{selected.title || "Новый чат"}</strong>
           <span>{selected.messages.length} messages</span>
           <span>{selected.events.length} events</span>
           <span>{selected.child_runs.length} child runs</span>
           <button type="button" onClick={() => onExport(selected.session_id)}>
-            <Download size={14} />
+            <IconDownload size={16} />
             Export markdown
           </button>
         </div>
@@ -57,3 +51,6 @@ export function SessionsPanel({
   );
 }
 
+function sessionTitle(session: SessionListItemDTO): string {
+  return session.title || "Новый чат";
+}

@@ -1,7 +1,6 @@
-import { Check, ShieldAlert, X } from "lucide-react";
-
 import { safeJson } from "../../runtime/events.ts";
 import type { PermissionRequest } from "../../api/schemas.ts";
+import { IconCheck, IconShieldExclamation, IconX } from "../../icons.ts";
 
 export function PermissionPanel({
   request,
@@ -17,7 +16,7 @@ export function PermissionPanel({
   if (!request) return null;
   return (
     <section className="permission-panel" role="alert">
-      <ShieldAlert size={20} />
+      <IconShieldExclamation size={23} />
       <div className="permission-copy">
         <strong>{request.tool_name}</strong>
         <span>
@@ -29,15 +28,14 @@ export function PermissionPanel({
       </div>
       <div className="permission-actions">
         <button type="button" onClick={onApprove} disabled={busy}>
-          <Check size={16} />
+          <IconCheck size={18} />
           Approve
         </button>
         <button className="danger" type="button" onClick={onReject} disabled={busy}>
-          <X size={16} />
+          <IconX size={18} />
           Reject
         </button>
       </div>
     </section>
   );
 }
-

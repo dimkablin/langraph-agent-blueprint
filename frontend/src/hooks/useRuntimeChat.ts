@@ -1,0 +1,159 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { sendApproval } from "../api/approval.ts";
+import { fetchSessionContext, fetchSessionDetail } from "../api/sessions.ts";
+import { streamChat } from "../api/stream.ts";
+import { DEFAULT_MODEL_INTELLIGENCE_LEVEL, type ModelIntelligenceLevel } from "../runtime/modelIntelligence.ts";
+import {
+  appendUserMessage,
+  applyChatResponse,
+  applyContextState,
+  applyRuntimeEvent,
+  applySessionDetail,
+  applyStreamFrame,
+  createInitialRuntimeState,
+  markStreamingStopped,
+  setThreadId,
+} from "../runtime/reducer.ts";
+
+type UseRuntimeChatOptions = {
+  onSessionsChanged?: () => Promise<void> | void;
+  onSessionError?: (error: unknown) => void;
+  clearSessionError?: () => void;
+};
+
+export function useRuntimeChat({ onSessionsChanged, onSessionError, clearSessionError }: UseRuntimeChatOptions = {}) {
+  const [runtimeState, setRuntimeState] = useState(createInitialRuntimeState);
+  const [modelIntelligenceLevel, setModelIntelligenceLevel] = useState<ModelIntelligenceLevel>(DEFAULT_MODEL_INTELLIGENCE_LEVEL);
+  const [busy, setBusy] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const refreshSessions = useCallback(async () => {
+    await onSessionsChanged?.();
+  }, [onSessionsChanged]);
+
+  const submitMessage = useCallback(
+    async (message: string) => {
+      const threadId = runtimeState.threadId || newRuntimeId("thread");
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+      setBusy(true);
+      setRuntimeState((state) => setThreadId(appendUserMessage(state, message), threadId));
+      try {
+        await streamChat(
+          {
+            message,
+            session_id: runtimeState.sessionId,
+            thread_id: threadId,
+            model_intelligence: modelIntelligenceLevel,
+          },
+          {
+            signal: abortRef.current.signal,
+            onFrame(frame) {
+              setRuntimeState((state) => applyStreamFrame(state, frame));
+            },
+          },
+        );
+        await refreshSessions();
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setRuntimeState((state) =>
+          applyStreamFrame(state, {
+            type: "error",
+            error: errorMessage(error),
+          }),
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [modelIntelligenceLevel, refreshSessions, runtimeState.sessionId, runtimeState.threadId],
+  );
+
+  const stopStream = useCallback(() => {
+    abortRef.current?.abort();
+    setBusy(false);
+    setRuntimeState((state) => markStreamingStopped(state));
+  }, []);
+
+  const startNewChat = useCallback(() => {
+    abortRef.current?.abort();
+    setBusy(false);
+    clearSessionError?.();
+    setRuntimeState(createInitialRuntimeState());
+  }, [clearSessionError]);
+
+  const resolvePermission = useCallback(
+    async (decision: "approved" | "rejected") => {
+      const permission = runtimeState.pendingPermission;
+      if (!permission || !runtimeState.threadId) return;
+      setBusy(true);
+      try {
+        const response = await sendApproval({
+          thread_id: runtimeState.threadId,
+          session_id: runtimeState.sessionId,
+          decision: {
+            tool_call_id: permission.tool_call_id,
+            decision,
+            reason: decision === "approved" ? "approved in frontend" : "rejected in frontend",
+          },
+        });
+        setRuntimeState((state) => applyChatResponse(state, response));
+        await refreshSessions();
+      } catch (error) {
+        setRuntimeState((state) =>
+          applyRuntimeEvent(state, {
+            id: `approval-error-${Date.now()}`,
+            type: "error",
+            timestamp: new Date().toISOString(),
+            session_id: state.sessionId || "unknown",
+            severity: "error",
+            data: { error: errorMessage(error) },
+          }),
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refreshSessions, runtimeState.pendingPermission, runtimeState.sessionId, runtimeState.threadId],
+  );
+
+  const selectSession = useCallback(
+    async (sessionId: string) => {
+      try {
+        const detail = await fetchSessionDetail(sessionId);
+        const context = await fetchSessionContext(sessionId);
+        setRuntimeState((state) => applyContextState(applySessionDetail(state, detail), context));
+        clearSessionError?.();
+      } catch (error) {
+        onSessionError?.(error);
+      }
+    },
+    [clearSessionError, onSessionError],
+  );
+
+  return {
+    runtimeState,
+    busy,
+    modelIntelligenceLevel,
+    setModelIntelligenceLevel,
+    submitMessage,
+    stopStream,
+    startNewChat,
+    resolvePermission,
+    selectSession,
+  };
+}
+
+function newRuntimeId(prefix: "thread"): string {
+  const random = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now());
+  return `${prefix}_${random.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32)}`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

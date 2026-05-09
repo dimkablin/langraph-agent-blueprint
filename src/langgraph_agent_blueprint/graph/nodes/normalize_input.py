@@ -16,6 +16,10 @@ def normalize_input_node(state: dict, deps: AppDependencies) -> dict:
     if state.get("metadata", {}).get("input_normalized"):
         return {}
     metadata = {**state.get("metadata", {}), "input_normalized": True}
+    if "title" not in metadata and not state.get("messages"):
+        title = state.get("input_text", "")[:72]
+        if title:
+            metadata["title"] = title
     attachments = [dump_model(item) for item in validate_list(AttachmentRef, state.get("attachments", []))]
     existing_refs = validate_list(ContextReference, state.get("context_references", []))
     parsed_refs = parse_context_references(state.get("input_text", ""))
@@ -30,4 +34,3 @@ def normalize_input_node(state: dict, deps: AppDependencies) -> dict:
     }
     hook_update = run_hook_point(deps, state_with_update(state, update), "user_prompt")
     return merge_updates(update, hook_update)
-
