@@ -1,28 +1,38 @@
 import { useMemo, useState } from "react";
 
 import type { SessionListItemDTO } from "../../api/schemas.ts";
-import { IconBlocks, IconPlus, IconSearch, IconSettings } from "../../icons.ts";
+import { IconBlocks, IconMessages, IconPlus, IconSearch, IconSettings } from "../../icons.ts";
 import { formatSessionTime } from "../../runtime/sessionTime.ts";
+import type { SettingsTab } from "../../runtime/settingsPage.ts";
+import { SettingsTabs } from "../settings/SettingsTabs.tsx";
 
 type RuntimeSidebarProps = {
   open: boolean;
+  mode: "chat" | "settings";
   sessions: SessionListItemDTO[];
   activeSessionId: string | null;
   error: string | null;
+  settingsActiveTab: SettingsTab;
   onNewChat: () => void;
+  onOpenChat: () => void;
   onOpenPlugins: () => void;
   onOpenSettings: () => void;
+  onSettingsTabChange: (tab: SettingsTab) => void;
   onSelectSession: (sessionId: string) => void;
 };
 
 export function RuntimeSidebar({
   open,
+  mode,
   sessions,
   activeSessionId,
   error,
+  settingsActiveTab,
   onNewChat,
+  onOpenChat,
   onOpenPlugins,
   onOpenSettings,
+  onSettingsTabChange,
   onSelectSession,
 }: RuntimeSidebarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -39,12 +49,65 @@ export function RuntimeSidebar({
   return (
     <aside className="runtime-sidebar" aria-label="Боковая панель">
       <div className="runtime-sidebar-panel">
+        {mode === "settings" ? (
+          <SettingsSidebar
+            activeTab={settingsActiveTab}
+            onChange={onSettingsTabChange}
+            onOpenChat={onOpenChat}
+          />
+        ) : (
+          <ChatSidebar
+            activeSessionId={activeSessionId}
+            error={error}
+            filteredSessions={filteredSessions}
+            searchOpen={searchOpen}
+            query={query}
+            onNewChat={onNewChat}
+            onOpenPlugins={onOpenPlugins}
+            onOpenSettings={onOpenSettings}
+            onQueryChange={setQuery}
+            onSearchToggle={() => setSearchOpen((value) => !value)}
+            onSelectSession={onSelectSession}
+          />
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function ChatSidebar({
+  activeSessionId,
+  error,
+  filteredSessions,
+  searchOpen,
+  query,
+  onNewChat,
+  onOpenPlugins,
+  onOpenSettings,
+  onQueryChange,
+  onSearchToggle,
+  onSelectSession,
+}: {
+  activeSessionId: string | null;
+  error: string | null;
+  filteredSessions: SessionListItemDTO[];
+  searchOpen: boolean;
+  query: string;
+  onNewChat: () => void;
+  onOpenPlugins: () => void;
+  onOpenSettings: () => void;
+  onQueryChange: (query: string) => void;
+  onSearchToggle: () => void;
+  onSelectSession: (sessionId: string) => void;
+}) {
+  return (
+    <>
       <nav className="runtime-sidebar-actions" aria-label="Быстрые действия">
         <button type="button" className="runtime-sidebar-action" onClick={onNewChat}>
           <IconPlus size={17} />
           <span>Новый чат</span>
         </button>
-        <button type="button" className="runtime-sidebar-action" onClick={() => setSearchOpen((value) => !value)}>
+        <button type="button" className="runtime-sidebar-action" onClick={onSearchToggle}>
           <IconSearch size={17} />
           <span>Поиск</span>
         </button>
@@ -56,7 +119,7 @@ export function RuntimeSidebar({
       {searchOpen ? (
         <label className="runtime-sidebar-search">
           <IconSearch size={16} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск чатов" autoFocus />
+          <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Поиск чатов" autoFocus />
         </label>
       ) : null}
       <section className="runtime-sidebar-section" aria-label="Чаты">
@@ -90,8 +153,32 @@ export function RuntimeSidebar({
           <span>Настройки</span>
         </button>
       </div>
+    </>
+  );
+}
+
+function SettingsSidebar({
+  activeTab,
+  onChange,
+  onOpenChat,
+}: {
+  activeTab: SettingsTab;
+  onChange: (tab: SettingsTab) => void;
+  onOpenChat: () => void;
+}) {
+  return (
+    <>
+      <div className="settings-sidebar-heading">
+        <span>Настройки</span>
       </div>
-    </aside>
+      <SettingsTabs activeTab={activeTab} onChange={onChange} />
+      <div className="runtime-sidebar-bottom">
+        <button type="button" className="runtime-sidebar-action" onClick={onOpenChat}>
+          <IconMessages size={17} />
+          <span>Чаты</span>
+        </button>
+      </div>
+    </>
   );
 }
 

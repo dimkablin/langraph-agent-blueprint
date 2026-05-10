@@ -6,14 +6,23 @@ import type { ChatMessage } from "../../runtime/reducer.ts";
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
+  const isTechnical = isTechnicalMessage(message);
+  const messageClass = isUser ? "message-card message-card-user" : isTechnical ? "message-card message-card-technical" : "message-card";
   return (
     <article className={isUser ? "message-row message-row-user" : "message-row"}>
-      <div className={isUser ? "message-card message-card-user" : "message-card"}>
+      <div className={messageClass}>
         <MarkdownBlock content={message.content} inverted={isUser} />
       </div>
       <MessageMeta align={isUser ? "user" : "assistant"} content={message.content} timestamp={message.timestamp} />
     </article>
   );
+}
+
+function isTechnicalMessage(message: ChatMessage): boolean {
+  if (message.role === "user") return false;
+  const content = message.content.trim();
+  if (!content) return false;
+  return (content.startsWith("{") && content.endsWith("}")) || (content.startsWith("[") && content.endsWith("]")) || content.startsWith("```json");
 }
 
 function MessageMeta({ align, content, timestamp }: { align: "assistant" | "user"; content: string; timestamp: string }) {

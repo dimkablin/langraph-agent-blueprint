@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 
 import { ChatComposer } from "./components/chat/ChatComposer.tsx";
 import { MessageList } from "./components/chat/MessageList.tsx";
@@ -14,6 +14,8 @@ import { useRuntimeRegistries } from "./hooks/useRuntimeRegistries.ts";
 import { useRuntimeSessions } from "./hooks/useRuntimeSessions.ts";
 import { useRuntimeStatus } from "./hooks/useRuntimeStatus.ts";
 import { useUIPreferences } from "./hooks/useUIPreferences.ts";
+import { DEFAULT_SETTINGS_TAB, type SettingsTab } from "./runtime/settingsPage.ts";
+import { themeConfigForPreferences, themeCSSVariables } from "./runtime/uiPreferences.ts";
 
 type AppView = "chat" | "settings";
 
@@ -39,18 +41,22 @@ export default function App() {
   });
   const [activeDrawer, setActiveDrawer] = useState<"help" | null>(null);
   const [appView, setAppView] = useState<AppView>("chat");
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>(DEFAULT_SETTINGS_TAB);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const contextMaxTokens = numericConfigValue(runtimeStatus?.config?.values.context_max_tokens);
   const isNewChat = runtimeState.messages.length === 0 && !runtimeState.pendingPermission && !runtimeState.error;
+  const sidebarIsTranslucent = !themeConfigForPreferences(preferences).opaqueWindows;
   const shellBaseClassName = sidebarOpen ? "app-shell app-shell-sidebar-open" : "app-shell";
   const shellClassName = [
     shellBaseClassName,
     `app-density-${preferences.density}`,
     `app-theme-${preferences.theme}`,
+    sidebarIsTranslucent ? "app-shell-sidebar-glass" : "",
   ]
     .filter(Boolean)
     .join(" ");
+  const shellStyle = themeCSSVariables(preferences) as CSSProperties;
 
   const openChatView = () => setAppView("chat");
   const handleNewChat = () => {
@@ -63,19 +69,24 @@ export default function App() {
   };
   const handleOpenSettings = () => {
     setActiveDrawer(null);
+    setSidebarOpen(true);
     setAppView("settings");
   };
 
   return (
-    <main className={shellClassName}>
+    <main className={shellClassName} style={shellStyle}>
       <RuntimeSidebar
         open={sidebarOpen}
+        mode={appView}
         sessions={sessions}
         activeSessionId={runtimeState.sessionId}
         error={sessionError}
+        settingsActiveTab={activeSettingsTab}
         onNewChat={handleNewChat}
+        onOpenChat={openChatView}
         onOpenPlugins={() => setActiveDrawer("help")}
         onOpenSettings={handleOpenSettings}
+        onSettingsTabChange={setActiveSettingsTab}
         onSelectSession={handleSelectSession}
       />
       <div className="app-main">
@@ -87,6 +98,7 @@ export default function App() {
         <div className="app-body">
           {appView === "settings" ? (
             <SettingsPage
+              activeTab={activeSettingsTab}
               status={runtimeStatus}
               skills={skills}
               context={runtimeState.context}
@@ -96,7 +108,6 @@ export default function App() {
               sessionId={runtimeState.sessionId}
               threadId={runtimeState.threadId}
               onPreferencesChange={updatePreferences}
-              onBack={openChatView}
             />
           ) : (
             <section className={isNewChat ? "chat-column chat-column-welcome" : "chat-column"}>

@@ -7,7 +7,7 @@ export const SETTINGS_TABS = [
   {
     id: "appearance",
     label: "Внешний вид",
-    description: "Local interface preferences stored in this browser.",
+    description: "",
   },
   {
     id: "configuration",
@@ -43,4 +43,8 @@ export function isSettingsTab(value: string): value is SettingsTab {
 
 export function settingsTabLabel(tabId: SettingsTab): string {
   return SETTINGS_TABS.find((tab) => tab.id === tabId)?.label ?? tabId;
+}
+
+export function settingsTabDescription(tabId: SettingsTab): string {
+  return SETTINGS_TABS.find((tab) => tab.id === tabId)?.description ?? "";
 }

@@ -1,5 +1,17 @@
 import type { UIPreferences } from "../../runtime/uiPreferences.ts";
-import { SettingsSection, StatusBadge } from "./SettingsSection.tsx";
+import { SettingsSection } from "./SettingsSection.tsx";
+import { SettingsSelect, type SettingsSelectOption } from "./SettingsSelect.tsx";
+
+const DENSITY_OPTIONS: readonly SettingsSelectOption<UIPreferences["density"]>[] = [
+  { value: "comfortable", label: "Comfortable", description: "Default spacing" },
+  { value: "compact", label: "Compact", description: "Tighter chat layout" },
+];
+
+const VERBOSITY_OPTIONS: readonly SettingsSelectOption<UIPreferences["eventVerbosity"]>[] = [
+  { value: "essential", label: "Essential", description: "Only important runtime events" },
+  { value: "normal", label: "Normal", description: "Balanced event timeline" },
+  { value: "debug", label: "Debug", description: "Include low-signal events" },
+];
 
 export function UIPreferencesSection({
   preferences,
@@ -9,31 +21,16 @@ export function UIPreferencesSection({
   onChange: (patch: Partial<UIPreferences>) => void;
 }) {
   return (
-    <SettingsSection title="UI Preferences" eyebrow="local only">
+    <SettingsSection title="Поведение интерфейса">
       <div className="settings-control-grid">
-        <label>
-          Theme
-          <select value={preferences.theme} onChange={(event) => onChange({ theme: event.target.value as UIPreferences["theme"] })}>
-            <option value="system">System</option>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
-        </label>
-        <label>
-          Density
-          <select value={preferences.density} onChange={(event) => onChange({ density: event.target.value as UIPreferences["density"] })}>
-            <option value="comfortable">Comfortable</option>
-            <option value="compact">Compact</option>
-          </select>
-        </label>
-        <label>
-          Events
-          <select value={preferences.eventVerbosity} onChange={(event) => onChange({ eventVerbosity: event.target.value as UIPreferences["eventVerbosity"] })}>
-            <option value="essential">Essential</option>
-            <option value="normal">Normal</option>
-            <option value="debug">Debug</option>
-          </select>
-        </label>
+        <div className="settings-control-row">
+          <span>Density</span>
+          <SettingsSelect label="Density" value={preferences.density} options={DENSITY_OPTIONS} onChange={(density) => onChange({ density })} />
+        </div>
+        <div className="settings-control-row">
+          <span>Events</span>
+          <SettingsSelect label="Events" value={preferences.eventVerbosity} options={VERBOSITY_OPTIONS} onChange={(eventVerbosity) => onChange({ eventVerbosity })} />
+        </div>
       </div>
       <label className="settings-checkbox">
         <input type="checkbox" checked={preferences.autoScroll} onChange={(event) => onChange({ autoScroll: event.target.checked })} />
@@ -43,10 +40,6 @@ export function UIPreferencesSection({
         <input type="checkbox" checked={preferences.showDebugEvents} onChange={(event) => onChange({ showDebugEvents: event.target.checked })} />
         Show debug/low-signal events
       </label>
-      <p className="settings-help">
-        These preferences are stored in localStorage and never write backend config.
-      </p>
-      <StatusBadge>frontend only</StatusBadge>
     </SettingsSection>
   );
 }

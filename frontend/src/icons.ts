@@ -1,5 +1,7 @@
 import { createElement, type SVGProps } from "react";
 
+// Glyph paths mirror lucide-react v0.487.0 from the donor widget project.
+// They stay local so the frontend keeps a single lightweight icon boundary.
 export type AppIconProps = Omit<SVGProps<SVGSVGElement>, "height" | "width"> & {
   size?: number | string;
 };
@@ -12,13 +14,10 @@ type IconPath = {
   height?: number;
   r?: number;
   rx?: number;
+  ry?: number;
   width?: number;
   x?: number;
-  x1?: number;
-  x2?: number;
   y?: number;
-  y1?: number;
-  y2?: number;
 };
 
 function makeIcon(paths: IconPath[]) {
@@ -33,6 +32,7 @@ function makeIcon(paths: IconPath[]) {
         strokeLinecap: "round",
         strokeLinejoin: "round",
         strokeWidth,
+        vectorEffect: "non-scaling-stroke",
         viewBox: "0 0 24 24",
         width: size,
         ...props,
@@ -47,70 +47,113 @@ function makeIcon(paths: IconPath[]) {
   };
 }
 
-export const IconArrowUp = makeIcon([{ d: "M12 19V5" }, { d: "M5 12l7-7 7 7" }]);
+export const IconArrowUp = makeIcon([
+  { d: "M12 19V5" },
+  { d: "m5 12 7-7 7 7" },
+]);
+export const IconArrowLeft = makeIcon([{ d: "m12 19-7-7 7-7" }, { d: "M19 12H5" }]);
 export const IconAt = makeIcon([
   { cx: 12, cy: 12, r: 4 },
   { d: "M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" },
 ]);
 export const IconBlocks = makeIcon([
-  { x: 4, y: 4, width: 6, height: 6, rx: 1 },
-  { x: 14, y: 4, width: 6, height: 6, rx: 1 },
-  { x: 4, y: 14, width: 6, height: 6, rx: 1 },
-  { x: 14, y: 14, width: 6, height: 6, rx: 1 },
+  { x: 14, y: 3, width: 7, height: 7, rx: 1 },
+  { d: "M10 21V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H3" },
 ]);
-export const IconCheck = makeIcon([{ d: "M5 12l5 5L20 7" }]);
-export const IconChevronDown = makeIcon([{ d: "M6 9l6 6 6-6" }]);
-export const IconChevronRight = makeIcon([{ d: "M9 6l6 6-6 6" }]);
-export const IconCommand = makeIcon([
-  { d: "M9 9h6v6H9z" },
-  { d: "M5 9a2 2 0 1 1 4 0v2H7a2 2 0 0 1-2-2" },
-  { d: "M19 9a2 2 0 1 0-4 0v2h2a2 2 0 0 0 2-2" },
-  { d: "M5 15a2 2 0 1 0 4 0v-2H7a2 2 0 0 0-2 2" },
-  { d: "M19 15a2 2 0 1 1-4 0v-2h2a2 2 0 0 1 2 2" },
-]);
+export const IconCheck = makeIcon([{ d: "M20 6 9 17l-5-5" }]);
+export const IconChevronDown = makeIcon([{ d: "m6 9 6 6 6-6" }]);
+export const IconChevronRight = makeIcon([{ d: "m9 18 6-6-6-6" }]);
+export const IconCommand = makeIcon([{ d: "M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" }]);
 export const IconCopy = makeIcon([
-  { x: 8, y: 8, width: 11, height: 11, rx: 2 },
-  { d: "M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" },
+  { x: 8, y: 8, width: 14, height: 14, rx: 2, ry: 2 },
+  { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" },
 ]);
-export const IconDownload = makeIcon([{ d: "M12 3v12" }, { d: "M7 10l5 5 5-5" }, { d: "M5 21h14" }]);
+export const IconDownload = makeIcon([
+  { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" },
+  { d: "m7 10 5 5 5-5" },
+  { d: "M12 15V3" },
+]);
 export const IconFileText = makeIcon([
-  { d: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" },
-  { d: "M14 3v5h5" },
-  { d: "M9 13h6" },
-  { d: "M9 17h4" },
+  { d: "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" },
+  { d: "M14 2v4a2 2 0 0 0 2 2h4" },
+  { d: "M10 9H8" },
+  { d: "M16 13H8" },
+  { d: "M16 17H8" },
 ]);
 export const IconGitCompare = makeIcon([
-  { cx: 7, cy: 5, r: 2 },
-  { cx: 17, cy: 19, r: 2 },
-  { d: "M7 7v10a2 2 0 0 0 2 2h6" },
-  { d: "M17 17V7a2 2 0 0 0-2-2H9" },
+  { cx: 18, cy: 18, r: 3 },
+  { cx: 6, cy: 6, r: 3 },
+  { d: "M13 6h3a2 2 0 0 1 2 2v7" },
+  { d: "M11 18H8a2 2 0 0 1-2-2V9" },
 ]);
 export const IconHelpCircle = makeIcon([
-  { cx: 12, cy: 12, r: 9 },
-  { d: "M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4" },
+  { cx: 12, cy: 12, r: 10 },
+  { d: "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" },
   { d: "M12 17h.01" },
 ]);
 export const IconLayoutSidebarLeftExpand = makeIcon([
-  { x: 4, y: 4, width: 16, height: 16, rx: 2 },
-  { d: "M9 4v16" },
-  { d: "M14 10l2 2-2 2" },
+  { x: 3, y: 3, width: 18, height: 18, rx: 2 },
+  { d: "M9 3v18" },
+  { d: "m14 9 3 3-3 3" },
 ]);
-export const IconListCheck = makeIcon([{ d: "M10 6h10" }, { d: "M10 12h10" }, { d: "M10 18h10" }, { d: "M4 6l1.5 1.5L8 5" }, { d: "M4 12l1.5 1.5L8 11" }, { d: "M4 18l1.5 1.5L8 17" }]);
-export const IconMessages = makeIcon([
-  { d: "M7 8h10" },
-  { d: "M7 12h6" },
-  { d: "M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-8l-5 4v-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" },
+export const IconListCheck = makeIcon([
+  { d: "m3 17 2 2 4-4" },
+  { d: "m3 7 2 2 4-4" },
+  { d: "M13 6h8" },
+  { d: "M13 12h8" },
+  { d: "M13 18h8" },
 ]);
-export const IconPlus = makeIcon([{ d: "M12 5v14" }, { d: "M5 12h14" }]);
-export const IconSearch = makeIcon([{ cx: 10, cy: 10, r: 6 }, { d: "M15 15l5 5" }]);
+export const IconMessages = makeIcon([{ d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }]);
+export const IconPaperclip = makeIcon([
+  { d: "m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" },
+]);
+export const IconPlus = makeIcon([{ d: "M5 12h14" }, { d: "M12 5v14" }]);
+export const IconSearch = makeIcon([{ cx: 11, cy: 11, r: 8 }, { d: "m21 21-4.3-4.3" }]);
 export const IconSettings = makeIcon([
-  { cx: 12, cy: 12, r: 3 },
-  { d: "M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3-.2-.1a1.7 1.7 0 0 0-2 .1 1.7 1.7 0 0 0-.8 1.7V22h-3.6v-.3a1.7 1.7 0 0 0-1.2-1.6 1.7 1.7 0 0 0-1.8.3l-.2.1-2-3 .1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4v-5h.4a1.7 1.7 0 0 0 1.5-1A1.7 1.7 0 0 0 5.6 6.6l-.1-.1 2-3 .2.1a1.7 1.7 0 0 0 2-.1 1.7 1.7 0 0 0 .8-1.7V2h3.6v.3a1.7 1.7 0 0 0 1.2 1.6 1.7 1.7 0 0 0 1.8-.3l.2-.1 2 3-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.4v5h-.4a1.7 1.7 0 0 0-1.5.5z" },
+  { d: "M20 7h-9" },
+  { d: "M14 17H5" },
+  { cx: 17, cy: 17, r: 3 },
+  { cx: 7, cy: 7, r: 3 },
+]);
+export const IconTrash = makeIcon([
+  { d: "M3 6h18" },
+  { d: "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" },
+  { d: "M19 6 18 20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" },
+  { d: "M10 11v6" },
+  { d: "M14 11v6" },
+]);
+export const IconMoon = makeIcon([{ d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" }]);
+export const IconMonitor = makeIcon([
+  { x: 2, y: 3, width: 20, height: 14, rx: 2 },
+  { d: "M8 21h8" },
+  { d: "M12 17v4" },
+]);
+export const IconSun = makeIcon([
+  { cx: 12, cy: 12, r: 4 },
+  { d: "M12 2v2" },
+  { d: "M12 20v2" },
+  { d: "m4.93 4.93 1.41 1.41" },
+  { d: "m17.66 17.66 1.41 1.41" },
+  { d: "M2 12h2" },
+  { d: "M20 12h2" },
+  { d: "m6.34 17.66-1.41 1.41" },
+  { d: "m19.07 4.93-1.41 1.41" },
+]);
+export const IconType = makeIcon([
+  { d: "M4 7V4h16v3" },
+  { d: "M9 20h6" },
+  { d: "M12 4v16" },
 ]);
 export const IconShieldExclamation = makeIcon([
-  { d: "M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z" },
-  { d: "M12 8v5" },
-  { d: "M12 17h.01" },
+  { d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" },
+  { d: "M12 8v4" },
+  { d: "M12 16h.01" },
 ]);
-export const IconSparkles = makeIcon([{ d: "M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" }, { d: "M5 16l.8 2.2L8 19l-2.2.8L5 22l-.8-2.2L2 19l2.2-.8z" }, { d: "M19 13l.8 2.2L22 16l-2.2.8L19 19l-.8-2.2L16 16l2.2-.8z" }]);
-export const IconX = makeIcon([{ d: "M18 6L6 18" }, { d: "M6 6l12 12" }]);
+export const IconSparkles = makeIcon([
+  { d: "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" },
+  { d: "M20 3v4" },
+  { d: "M22 5h-4" },
+  { d: "M4 17v2" },
+  { d: "M5 18H3" },
+]);
+export const IconX = makeIcon([{ d: "M18 6 6 18" }, { d: "m6 6 12 12" }]);

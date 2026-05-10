@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ComposerActionMenu } from "./ComposerActionMenu.tsx";
 import { ComposerContextMeter } from "./ComposerContextMeter.tsx";
 import { ComposerIntelligencePicker } from "./ComposerIntelligencePicker.tsx";
 import { ComposerSuggestions } from "./ComposerSuggestions.tsx";
@@ -80,6 +81,8 @@ export function ChatComposer({
         <div className="composer-box">
           <ComposerSuggestions trigger={trigger} suggestions={suggestions} onSelect={selectSuggestion} />
           <textarea
+            id={variant === "welcome" ? "welcome-chat-composer" : "chat-composer"}
+            name={variant === "welcome" ? "welcome-chat-composer" : "chat-composer"}
             ref={textareaRef}
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -98,40 +101,45 @@ export function ChatComposer({
             rows={1}
           />
           <div className="composer-footer">
-            <ComposerContextMeter context={context} configuredMaxTokens={contextMaxTokens} />
-            <ComposerIntelligencePicker
-              level={intelligenceLevel}
-              open={intelligenceOpen}
-              onToggle={() => setIntelligenceOpen((value) => !value)}
-              onChange={onIntelligenceChange}
-              onClose={() => setIntelligenceOpen(false)}
-            />
-            {isStreaming ? (
-              <button
-                className="send-button stop"
-                type="button"
-                onClick={onStop}
-                aria-label="Stop stream"
-                data-tooltip="Остановить"
-                data-tooltip-placement="top"
-                data-tooltip-align="end"
-              >
-                <span className="stop-icon" aria-hidden="true" />
-              </button>
-            ) : (
-              <button
-                className="send-button"
-                type="button"
-                onClick={submit}
-                disabled={disabled || !input.trim()}
-                aria-label="Send message"
-                data-tooltip="Отправить"
-                data-tooltip-placement="top"
-                data-tooltip-align="end"
-              >
-                <IconArrowUp size={19} />
-              </button>
-            )}
+            <div className="composer-footer-left">
+              <ComposerActionMenu />
+            </div>
+            <div className="composer-footer-right">
+              <ComposerContextMeter context={context} configuredMaxTokens={contextMaxTokens} />
+              <ComposerIntelligencePicker
+                level={intelligenceLevel}
+                open={intelligenceOpen}
+                onToggle={() => setIntelligenceOpen((value) => !value)}
+                onChange={onIntelligenceChange}
+                onClose={() => setIntelligenceOpen(false)}
+              />
+              {isStreaming ? (
+                <button
+                  className="send-button stop"
+                  type="button"
+                  onClick={onStop}
+                  aria-label="Stop stream"
+                  data-tooltip="Остановить"
+                  data-tooltip-placement="top"
+                  data-tooltip-align="end"
+                >
+                  <span className="stop-icon" aria-hidden="true" />
+                </button>
+              ) : (
+                <button
+                  className="send-button"
+                  type="button"
+                  onClick={submit}
+                  disabled={disabled || !input.trim()}
+                  aria-label="Send message"
+                  data-tooltip="Отправить"
+                  data-tooltip-placement="top"
+                  data-tooltip-align="end"
+                >
+                  <IconArrowUp size={19} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

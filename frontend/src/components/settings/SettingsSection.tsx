@@ -17,12 +17,12 @@ export function SettingsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="settings-section">
+    <section className="settings-section settings-section-group">
       <div className="settings-section-heading">
         <h3>{title}</h3>
         {eyebrow ? <span>{eyebrow}</span> : null}
       </div>
-      {children}
+      <div className="settings-section-card">{children}</div>
     </section>
   );
 }
@@ -32,8 +32,10 @@ export function SettingsRows({ rows }: { rows: SettingRow[] }) {
     <div className="settings-rows">
       {rows.map((row) => (
         <div className={row.locked ? "settings-row settings-row-locked" : "settings-row"} key={row.label}>
-          <span>{row.label}</span>
-          <strong>{row.value}</strong>
+          <div className="settings-row-main">
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
+          </div>
           {row.note ? <small>{row.note}</small> : null}
         </div>
       ))}

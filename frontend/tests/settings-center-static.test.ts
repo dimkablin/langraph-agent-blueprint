@@ -30,11 +30,23 @@ test("settings center is read-only for backend config and uses passive MCP statu
   assert.match(settingsPage, /SkillsSettingsTab/);
   assert.match(settingsTabs, /aria-selected/);
   assert.match(settingsCenter, /SettingsPage/);
-  assert.match(`${settingsCenter}\n${settingsPage}`, /read-only/i);
-  assert.match(`${settingsCenter}\n${settingsPage}`, /config file only/i);
   assert.match(uiPreferences, /localStorage/);
   assert.match(uiPreferences, /eventVerbosity/);
   assert.doesNotMatch(`${settingsCenter}\n${settingsPage}\n${statusApi}`, /PATCH \/settings|requestJson<.*>\("\/settings"/);
   assert.doesNotMatch(`${settingsCenter}\n${settingsPage}`, /api[_-]?key\s*[:=]/i);
+  assert.doesNotMatch(
+    `${settingsCenter}\n${settingsPage}`,
+    new RegExp(
+      [
+        "Local interface " + "preferences",
+        "Backend\\/runtime " + "settings",
+        "config file " + "only",
+        "local " + "only",
+        "These preferences are " + "stored",
+        "frontend " + "only",
+      ].join("|"),
+      "i",
+    ),
+  );
   assert.doesNotMatch(`${settingsCenter}\n${settingsPage}\n${statusApi}`, /plugins\/install|plugins\/update|plugins\/remove|\/mcp"\)/);
 });
