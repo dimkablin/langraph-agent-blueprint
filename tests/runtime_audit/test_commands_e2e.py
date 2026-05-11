@@ -17,9 +17,13 @@ def _runtime(tmp_path):
 
 def test_compact_command_runs_compaction_path(tmp_path):
     result = _runtime(tmp_path).invoke("/compact", input_kind="headless", project_root=tmp_path)
+    event_types = [event["type"] for event in result["ui_events"]]
 
-    assert result["final_response"] == "Context compacted."
-    assert any(event["type"] == "compact_finished" for event in result["ui_events"])
+    assert not result["final_response"]
+    assert "compact_started" in event_types
+    assert "compact_finished" in event_types
+    assert event_types.index("compact_started") < event_types.index("compact_finished")
+    assert "final_response" not in event_types
     assert result["context_status"]["compacted"] is True
 
 

@@ -66,10 +66,7 @@ def _sse_event_stream(events: Iterable[dict[str, Any]], *, redactor: Any) -> Ite
             if dto.type == "final_response":
                 final_response = str(dto.data.get("content") or "")
             yield _sse_frame("runtime_event", StreamFrame(type="event", event=dto).model_dump(mode="json", exclude_none=True))
-        yield _sse_frame(
-            "done",
-            StreamFrame(type="done", session_id=session_id, final_response=final_response).model_dump(mode="json", exclude_none=True),
-        )
+        yield _sse_frame("done", _done_frame_payload(session_id=session_id, final_response=final_response))
     except Exception as exc:
         yield _sse_frame("error", StreamFrame(type="error", error=str(exc)).model_dump(mode="json", exclude_none=True))
 
@@ -79,6 +76,15 @@ def _session_id_from_event(event: RuntimeEventDTO, current: str | None) -> str |
         return event.session_id
     data_session_id = event.data.get("session_id")
     return str(data_session_id) if data_session_id else current
+
+
+def _done_frame_payload(*, session_id: str | None, final_response: str | None) -> dict[str, Any]:
+    payload = StreamFrame(type="done", session_id=session_id, final_response=final_response).model_dump(
+        mode="json",
+        exclude_none=True,
+    )
+    payload["final_response"] = final_response
+    return payload
 
 
 def _sse_frame(event_name: str, payload: dict[str, Any]) -> str:

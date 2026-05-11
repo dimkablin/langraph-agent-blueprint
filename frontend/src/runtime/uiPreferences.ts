@@ -2,7 +2,7 @@ import type { RuntimeEvent } from "../api/schemas.ts";
 
 export type UITheme = "system" | "light" | "dark";
 export type ThemeVariant = "light" | "dark";
-export type ThemePresetId = "codex" | "matrix" | "everforest" | "notion" | "github";
+export type ThemePresetId = "codex" | "matrix" | "temple" | "everforest" | "notion" | "github";
 export type UIDensity = "comfortable" | "compact";
 export type EventVerbosity = "essential" | "normal" | "debug";
 
@@ -41,6 +41,7 @@ export type UIPreferences = {
   themes: ThemePreferences;
   density: UIDensity;
   eventVerbosity: EventVerbosity;
+  blockRadius: number;
   autoScroll: boolean;
   showDebugEvents: boolean;
 };
@@ -58,6 +59,11 @@ export const THEME_VARIANTS: ThemeVariant[] = ["light", "dark"];
 const DEFAULT_UI_FONT = "Inter";
 const DEFAULT_CODE_FONT = "\"Jetbrains Mono\"";
 const DEFAULT_DARK_CODE_FONT = "\"Geist Mono\", ui-monospace, \"SFMono-Regular\"";
+const DARK_SIDEBAR_SURFACE_MIX = 72;
+const DARK_SIDEBAR_SHADOW_SURFACE = "#000000";
+export const UI_BLOCK_RADIUS_MIN = 0;
+export const UI_BLOCK_RADIUS_MAX = 32;
+export const DEFAULT_UI_BLOCK_RADIUS = 18;
 
 const THEME_PRESETS: Record<ThemeVariant, ThemePresetOption[]> = {
   light: [
@@ -69,6 +75,7 @@ const THEME_PRESETS: Record<ThemeVariant, ThemePresetOption[]> = {
   dark: [
     { value: "codex", label: "Codex", description: "Clean dark developer surface" },
     { value: "matrix", label: "Matrix", description: "Monospace terminal surface" },
+    { value: "temple", label: "Temple", description: "High-contrast dark temple surface" },
     { value: "github", label: "GitHub", description: "GitHub dark developer surface" },
   ],
 };
@@ -193,6 +200,23 @@ const THEME_PRESET_CONFIGS: Record<ThemeVariant, Partial<Record<ThemePresetId, T
       },
       contrast: 49,
     },
+    temple: {
+      ...DEFAULT_THEME_PREFERENCES.dark,
+      preset: "temple",
+      codeThemeId: "temple",
+      accent: "#e4f222",
+      surface: "#02120c",
+      ink: "#c7e6da",
+      uiFont: "Geist, Inter",
+      codeFont: DEFAULT_DARK_CODE_FONT,
+      opaqueWindows: true,
+      semanticColors: {
+        diffAdded: "#40c977",
+        diffRemoved: "#fa423e",
+        skill: "#e4f222",
+      },
+      contrast: 100,
+    },
     github: {
       ...DEFAULT_THEME_PREFERENCES.dark,
       preset: "github",
@@ -218,12 +242,13 @@ export const DEFAULT_UI_PREFERENCES: UIPreferences = {
   themes: DEFAULT_THEME_PREFERENCES,
   density: "comfortable",
   eventVerbosity: "normal",
+  blockRadius: DEFAULT_UI_BLOCK_RADIUS,
   autoScroll: true,
   showDebugEvents: false,
 };
 
 const THEME_VALUES: UITheme[] = ["system", "light", "dark"];
-const THEME_PRESET_VALUES: ThemePresetId[] = ["codex", "matrix", "everforest", "notion", "github"];
+const THEME_PRESET_VALUES: ThemePresetId[] = ["codex", "matrix", "temple", "everforest", "notion", "github"];
 const DENSITY_VALUES: UIDensity[] = ["comfortable", "compact"];
 const VERBOSITY_VALUES: EventVerbosity[] = ["essential", "normal", "debug"];
 
@@ -309,12 +334,21 @@ export function themeCSSVariables(preferences: UIPreferences): Record<`--${strin
   const variant = activeThemeVariant(preferences.theme);
   const theme = themeConfigForPreferences(preferences);
   const contrast = theme.contrast;
+  const sidebarMix = clampPercentage(99 - contrast * 0.07);
+  const defaultSidebarSurface = `color-mix(in oklab, ${theme.surface} ${sidebarMix}%, ${theme.ink})`;
+  const sidebarSurface =
+    variant === "dark"
+      ? `color-mix(in oklab, ${theme.surface} ${DARK_SIDEBAR_SURFACE_MIX}%, ${DARK_SIDEBAR_SHADOW_SURFACE})`
+      : defaultSidebarSurface;
+  const swapPageAndSidebar = variant === "dark" && (theme.preset === "codex" || theme.preset === "github");
   const fontScale = fontSizeScale(theme.uiFontSize, theme.codeFontSize);
   return {
     "--codex-theme-id": theme.codeThemeId,
     "--codex-theme-variant": variant,
     "--codex-accent": theme.accent,
     "--codex-surface": theme.surface,
+    "--codex-background-surface": swapPageAndSidebar ? defaultSidebarSurface : theme.surface,
+    "--codex-sidebar-surface": sidebarSurface,
     "--codex-ink": theme.ink,
     "--codex-contrast": String(theme.contrast),
     "--codex-opaque-windows": theme.opaqueWindows ? "1" : "0",
@@ -324,7 +358,7 @@ export function themeCSSVariables(preferences: UIPreferences): Record<`--${strin
     "--theme-surface-1-mix": `${clampPercentage(99 - contrast * 0.05)}%`,
     "--theme-surface-2-mix": `${clampPercentage(98 - contrast * 0.08)}%`,
     "--theme-surface-3-mix": `${clampPercentage(97 - contrast * 0.14)}%`,
-    "--theme-sidebar-mix": `${clampPercentage(99 - contrast * 0.07)}%`,
+    "--theme-sidebar-mix": `${sidebarMix}%`,
     "--theme-terminal-mix": `${clampPercentage(98 - contrast * 0.12)}%`,
     "--theme-muted-mix": `${clampPercentage(46 + contrast * 0.32)}%`,
     "--theme-muted-weak-mix": `${clampPercentage(28 + contrast * 0.28)}%`,
@@ -337,6 +371,7 @@ export function themeCSSVariables(preferences: UIPreferences): Record<`--${strin
     "--font-mono": `${theme.codeFont}, "Cascadia Code", ui-monospace, SFMono-Regular, Consolas, monospace`,
     "--app-ui-font-size": `${theme.uiFontSize}px`,
     "--app-code-font-size": `${theme.codeFontSize}px`,
+    "--ui-element-radius": `${preferences.blockRadius}px`,
     ...fontScale,
     "--app-interactive-cursor": theme.usePointerCursor ? "pointer" : "default",
   };
@@ -363,6 +398,7 @@ function normalizeUIPreferences(value: unknown): UIPreferences {
     themes: normalizeThemePreferences(value.themes),
     density: pickValue(value.density, DENSITY_VALUES, DEFAULT_UI_PREFERENCES.density),
     eventVerbosity: pickValue(value.eventVerbosity, VERBOSITY_VALUES, DEFAULT_UI_PREFERENCES.eventVerbosity),
+    blockRadius: normalizeNumber(value.blockRadius, UI_BLOCK_RADIUS_MIN, UI_BLOCK_RADIUS_MAX, DEFAULT_UI_PREFERENCES.blockRadius),
     autoScroll: typeof value.autoScroll === "boolean" ? value.autoScroll : DEFAULT_UI_PREFERENCES.autoScroll,
     showDebugEvents: typeof value.showDebugEvents === "boolean" ? value.showDebugEvents : DEFAULT_UI_PREFERENCES.showDebugEvents,
   };

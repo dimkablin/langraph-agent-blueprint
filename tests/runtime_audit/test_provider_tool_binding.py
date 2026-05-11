@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage
 
 from langgraph_agent_blueprint.config import AppConfig
 from langgraph_agent_blueprint.models.llm import ModelRequest
@@ -23,6 +23,15 @@ class DummyBindableModel:
     def invoke(self, messages):
         self.invoked_messages = messages
         return AIMessage(content="", tool_calls=[{"id": "call_1", "name": "read_file", "args": {"path": "README.md"}}])
+
+
+class DummyStreamingModel(DummyBindableModel):
+    """Minimal streaming chat model used to assert token streaming integration."""
+
+    def stream(self, messages):
+        self.invoked_messages = messages
+        yield AIMessageChunk(content="Hel")
+        yield AIMessageChunk(content="lo")
 
 
 def test_langchain_provider_receives_system_context_and_bound_tools(monkeypatch):
@@ -58,3 +67,32 @@ def test_langchain_provider_receives_system_context_and_bound_tools(monkeypatch)
                 "status": "pending",
             }
     ]
+
+
+def test_langchain_provider_streams_tokens_and_returns_final_response(monkeypatch):
+    provider = ModelProviderService(AppConfig(llm_provider="ollama", ollama_model="fake"))
+    dummy = DummyStreamingModel()
+    monkeypatch.setattr(provider, "_build_chat_model", lambda provider_name: dummy)
+
+    stream = list(
+        provider.stream_generate(
+            ModelRequest(
+                system_context="You are a coding assistant.",
+                messages=[HumanMessage(content="say hello")],
+                tools={
+                    "read_file": {
+                        "name": "read_file",
+                        "description": "Read a file",
+                        "input_schema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
+                    }
+                },
+            )
+        )
+    )
+
+    assert [event.token for event in stream if event.type == "token"] == ["Hel", "lo"]
+    responses = [event.response for event in stream if event.type == "response"]
+    assert len(responses) == 1
+    assert responses[0].content == "Hello"
+    assert isinstance(dummy.invoked_messages[0], SystemMessage)
+    assert dummy.bound_tools[0]["function"]["name"] == "read_file"

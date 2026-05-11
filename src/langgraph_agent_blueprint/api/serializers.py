@@ -82,6 +82,8 @@ def message_dtos(messages: list[Any]) -> list[MessageDTO]:
     normalized: list[MessageDTO] = []
     for index, message in enumerate(messages):
         payload = _message_payload(message)
+        if _is_internal_compaction_message(payload):
+            continue
         normalized.append(
             MessageDTO(
                 id=str(payload.get("id") or f"message-{index}"),
@@ -122,10 +124,10 @@ def context_state_dto(snapshot: dict[str, Any], *, redactor: Any | None = None) 
     context_status = metadata.get("context_status") if isinstance(metadata.get("context_status"), dict) else {}
     context = ContextStateDTO(
         references=_as_list(metadata.get("context_references")),
-        fragments=_as_list(metadata.get("resolved_context")),
+        fragments=_as_list(metadata.get("resolved_context") or context_status.get("context_fragments")),
         attachments=_as_list(metadata.get("attachments")),
         budget=metadata.get("context_budget") if isinstance(metadata.get("context_budget"), dict) else {},
-        errors=_as_list(context_status.get("context_errors")),
+        errors=_as_list(metadata.get("context_errors") or context_status.get("context_errors")),
     )
     if redactor is None:
         return context
@@ -141,14 +143,15 @@ def session_list_item_dto(
     """Build one frontend session-list row from metadata plus optional loaded counts."""
 
     snapshot = snapshot or {}
+    messages = snapshot.get("messages", []) or []
     return SessionListItemDTO(
         session_id=str(metadata.get("session_id") or ""),
-        title=_session_title(metadata, snapshot.get("messages", []) or []),
+        title=_session_title(metadata, messages),
         created_at=metadata.get("created_at"),
         updated_at=metadata.get("updated_at"),
         provider=metadata.get("provider"),
         model=metadata.get("model"),
-        message_count=len(snapshot.get("messages", []) or []),
+        message_count=len(message_dtos(messages)),
         event_count=len(snapshot.get("events", []) or []),
         tool_call_count=len(snapshot.get("tool_calls", []) or []),
         child_run_count=child_run_count,
@@ -165,6 +168,7 @@ def session_detail_dto(
     """Build a frontend-safe session detail DTO without raw storage-only fields."""
 
     metadata = snapshot.get("metadata", {}) if isinstance(snapshot.get("metadata"), dict) else {}
+    messages = snapshot.get("messages", []) or []
     safe_metadata = {
         key: value
         for key, value in metadata.items()
@@ -174,12 +178,12 @@ def session_detail_dto(
         safe_metadata = redactor(safe_metadata)
     return SessionDetailDTO(
         session_id=str(metadata.get("session_id") or ""),
-        title=_session_title(metadata, snapshot.get("messages", []) or []),
+        title=_session_title(metadata, messages),
         created_at=metadata.get("created_at"),
         updated_at=metadata.get("updated_at"),
         provider=metadata.get("provider"),
         model=metadata.get("model"),
-        messages=message_dtos(snapshot.get("messages", []) or []),
+        messages=message_dtos(messages),
         events=session_event_dtos(snapshot, redactor=redactor),
         tool_calls=tool_call_dtos(snapshot.get("tool_calls", []) or [], redactor=redactor),
         todos=snapshot.get("todos", []) or [],
@@ -239,7 +243,9 @@ def _frontend_event_data(event_type: str, data: dict[str, Any], *, redactor: Any
     redacted: dict[str, Any] = {}
     for key, value in data.items():
         key_text = str(key)
-        if key_text == "content" and event_type in {"model_message", "final_response"}:
+        if (key_text == "content" and event_type in {"model_message", "final_response"}) or (
+            key_text == "token" and event_type == "model_token"
+        ):
             redacted[key_text] = _bounded_text(value)
             continue
         scoped = redactor({key_text: value})
@@ -277,6 +283,8 @@ def _first_chat_message_title(messages: list[Any]) -> str | None:
     fallback: str | None = None
     for message in messages:
         payload = _message_payload(message)
+        if _is_internal_compaction_message(payload):
+            continue
         content = _bounded_text(payload.get("content", ""))[:72]
         if not content:
             continue
@@ -299,6 +307,10 @@ def _bounded_text(value: Any) -> str:
     if len(text) <= MAX_FRONTEND_TEXT_CHARS:
         return text
     return text[:MAX_FRONTEND_TEXT_CHARS] + "...<truncated>"
+
+
+def _is_internal_compaction_message(payload: dict[str, Any]) -> bool:
+    return str(payload.get("role") or "") == "system" and str(payload.get("content") or "").startswith("Compacted prior context:")
 
 
 def _as_list(value: Any) -> list[dict[str, Any]]:

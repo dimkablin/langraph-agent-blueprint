@@ -15,6 +15,20 @@ export type ChatMessage = {
   timestamp: string;
 };
 
+export type ChatTimelineItem =
+  | {
+      kind: "message";
+      message: ChatMessage;
+    }
+  | {
+      kind: "separator";
+      id: string;
+      label: string;
+      timestamp: string;
+      eventType: "compact_started" | "compact_finished";
+      status: "running" | "done";
+    };
+
 export type ActivityKind =
   | "event"
   | "tool"
@@ -49,6 +63,7 @@ export type RuntimeState = {
   sessionId: string | null;
   threadId: string | null;
   messages: ChatMessage[];
+  timeline: ChatTimelineItem[];
   activities: ActivityItem[];
   context: RuntimeContextState;
   pendingPermission: PermissionRequest | null;
@@ -57,11 +72,14 @@ export type RuntimeState = {
   isStreaming: boolean;
 };
 
+const STREAMING_DRAFT_ID_PREFIX = "draft:";
+
 export function createInitialRuntimeState(): RuntimeState {
   return {
     sessionId: null,
     threadId: null,
     messages: [],
+    timeline: [],
     activities: [],
     context: {
       references: [],
@@ -78,17 +96,16 @@ export function createInitialRuntimeState(): RuntimeState {
 }
 
 export function appendUserMessage(state: RuntimeState, content: string): RuntimeState {
+  const message: ChatMessage = {
+    id: `user-${Date.now()}`,
+    role: "user",
+    content,
+    timestamp: new Date().toISOString(),
+  };
   return {
     ...state,
-    messages: [
-      ...state.messages,
-      {
-        id: `user-${Date.now()}`,
-        role: "user",
-        content,
-        timestamp: new Date().toISOString(),
-      },
-    ],
+    messages: [...state.messages, message],
+    timeline: [...state.timeline, messageTimelineItem(message)],
     error: null,
     isStreaming: true,
   };
@@ -101,7 +118,7 @@ export function applyStreamFrame(state: RuntimeState, frame: StreamFrame): Runti
   if (frame.type === "done") {
     const finalResponse = frame.final_response ?? state.finalResponse;
     const next =
-      finalResponse && finalResponse !== state.finalResponse
+      finalResponse && finalResponse !== state.finalResponse && !isCompactionStatusResponse(finalResponse, state)
         ? appendAssistantMessage(state, finalResponse, new Date().toISOString(), `done-${Date.now()}`)
         : state;
     return {
@@ -144,6 +161,11 @@ export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): Run
     };
   }
 
+  if (event.type === "model_token") {
+    const token = tokenString(event.data.token);
+    return token !== null ? appendAssistantToken(next, token, event.timestamp, event.id) : next;
+  }
+
   if (event.type === "model_message") {
     const content = firstString(event.data.content);
     next = content ? appendAssistantMessage(next, content, event.timestamp, event.id) : next;
@@ -183,6 +205,10 @@ export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): Run
         errors: [...next.context.errors, event.data],
       },
     };
+  } else if (event.type === "compact_started") {
+    next = appendTimelineSeparator(next, event, "Контекст автоматически сжимается", "running");
+  } else if (event.type === "compact_finished") {
+    next = completeTimelineSeparator(next, event, "Контекст автоматически сжат");
   } else if (event.type === "error") {
     next = {
       ...next,
@@ -213,7 +239,7 @@ export function applyChatResponse(state: RuntimeState, response: {
   for (const event of response.events || []) {
     next = applyRuntimeEvent(next, event);
   }
-  if (response.final_response && response.final_response !== next.finalResponse) {
+  if (response.final_response && response.final_response !== next.finalResponse && !isCompactionStatusResponse(response.final_response, next)) {
     next = appendAssistantMessage(next, response.final_response, new Date().toISOString(), `response-${Date.now()}`);
     next = { ...next, finalResponse: response.final_response };
   }
@@ -221,14 +247,17 @@ export function applyChatResponse(state: RuntimeState, response: {
 }
 
 export function applySessionDetail(state: RuntimeState, detail: SessionDetailDTO): RuntimeState {
+  const visibleMessages = detail.messages.filter(isVisibleMessageDto);
+  const messages = visibleMessages.map(messageFromDto);
   return {
     ...state,
     sessionId: detail.session_id,
     threadId: stringOrNull(detail.metadata.thread_id) || state.threadId,
-    messages: detail.messages.map(messageFromDto),
+    messages,
+    timeline: messages.map(messageTimelineItem),
     activities: detail.events.map(runtimeEventToActivity),
     context: contextFromDto(detail.context),
-    finalResponse: lastAssistantMessage(detail.messages),
+    finalResponse: lastAssistantMessage(visibleMessages),
     pendingPermission: null,
     error: null,
     isStreaming: false,
@@ -261,21 +290,122 @@ export function runtimeEventToActivity(event: RuntimeEvent): ActivityItem {
 
 function appendAssistantMessage(state: RuntimeState, content: string, timestamp: string, id: string): RuntimeState {
   const last = state.messages.at(-1);
+  if (state.isStreaming && last?.role === "assistant" && isStreamingDraft(last) && content.startsWith(last.content)) {
+    return replaceLastMessage(state, { ...last, id, content, timestamp });
+  }
   if (last?.role === "assistant" && last.content === content) {
+    return state;
+  }
+  const message: ChatMessage = {
+    id,
+    role: "assistant",
+    content,
+    timestamp,
+  };
+  return {
+    ...state,
+    messages: [...state.messages, message],
+    timeline: [...state.timeline, messageTimelineItem(message)],
+  };
+}
+
+function appendAssistantToken(state: RuntimeState, token: string, timestamp: string, id: string): RuntimeState {
+  const last = state.messages.at(-1);
+  if (last?.role === "assistant" && isStreamingDraft(last)) {
+    return replaceLastMessage(state, { ...last, content: `${last.content}${token}`, timestamp });
+  }
+  const message: ChatMessage = {
+    id: `${STREAMING_DRAFT_ID_PREFIX}${id}`,
+    role: "assistant",
+    content: token,
+    timestamp,
+  };
+  return {
+    ...state,
+    messages: [...state.messages, message],
+    timeline: [...state.timeline, messageTimelineItem(message)],
+  };
+}
+
+function tokenString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function isStreamingDraft(message: ChatMessage): boolean {
+  return message.id.startsWith(STREAMING_DRAFT_ID_PREFIX);
+}
+
+function replaceLastMessage(state: RuntimeState, message: ChatMessage): RuntimeState {
+  const timeline = [...state.timeline];
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    if (timeline[index].kind === "message") {
+      timeline[index] = messageTimelineItem(message);
+      break;
+    }
+  }
+  return {
+    ...state,
+    messages: [...state.messages.slice(0, -1), message],
+    timeline,
+  };
+}
+
+function messageTimelineItem(message: ChatMessage): ChatTimelineItem {
+  return { kind: "message", message };
+}
+
+function appendTimelineSeparator(state: RuntimeState, event: RuntimeEvent, label: string, status: "running" | "done"): RuntimeState {
+  if (state.timeline.some((item) => item.kind === "separator" && item.id === event.id)) {
     return state;
   }
   return {
     ...state,
-    messages: [
-      ...state.messages,
+    timeline: [
+      ...state.timeline,
       {
-        id,
-        role: "assistant",
-        content,
-        timestamp,
+        kind: "separator",
+        id: event.id,
+        label,
+        timestamp: event.timestamp,
+        eventType: event.type === "compact_started" ? "compact_started" : "compact_finished",
+        status,
       },
     ],
   };
+}
+
+function completeTimelineSeparator(state: RuntimeState, event: RuntimeEvent, label: string): RuntimeState {
+  if (state.timeline.some((item) => item.kind === "separator" && item.id === event.id && item.eventType === "compact_finished")) {
+    return state;
+  }
+  let runningIndex = -1;
+  for (let index = state.timeline.length - 1; index >= 0; index -= 1) {
+    const item = state.timeline[index];
+    if (item.kind === "separator" && item.eventType === "compact_started" && item.status === "running") {
+      runningIndex = index;
+      break;
+    }
+  }
+  if (runningIndex === -1) {
+    return appendTimelineSeparator(state, event, label, "done");
+  }
+  const timeline = [...state.timeline];
+  timeline[runningIndex] = {
+    kind: "separator",
+    id: event.id,
+    label,
+    timestamp: event.timestamp,
+    eventType: "compact_finished",
+    status: "done",
+  };
+  return { ...state, timeline };
+}
+
+function isCompactionStatusResponse(finalResponse: string, state: RuntimeState): boolean {
+  return (
+    finalResponse.trim() === "Context compacted." &&
+    state.timeline.some((item) => item.kind === "separator" && item.eventType === "compact_finished")
+  );
 }
 
 function permissionFromEvent(event: RuntimeEvent): PermissionRequest {
@@ -341,6 +471,10 @@ function messageFromDto(message: MessageDTO): ChatMessage {
     content: message.content,
     timestamp: new Date().toISOString(),
   };
+}
+
+function isVisibleMessageDto(message: MessageDTO): boolean {
+  return !(message.role === "system" && message.content.startsWith("Compacted prior context:"));
 }
 
 function lastAssistantMessage(messages: MessageDTO[]): string | null {

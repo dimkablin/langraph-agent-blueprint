@@ -52,6 +52,7 @@ test("UI preferences load defaults and persist valid local-only values", () => {
       themes: DEFAULT_THEME_PREFERENCES,
       density: "compact",
       eventVerbosity: "essential",
+      blockRadius: 18,
       autoScroll: false,
       showDebugEvents: false,
     },
@@ -67,6 +68,21 @@ test("UI preferences ignore malformed stored values", () => {
   storage.setItem("lg-agent-ui-preferences", JSON.stringify({ theme: "neon", autoScroll: "yes" }));
 
   assert.deepEqual(loadUIPreferences(storage), DEFAULT_UI_PREFERENCES);
+});
+
+test("UI block radius preference normalizes and drives shared radius variables", () => {
+  const storage = new MemoryStorage();
+
+  const saved = saveUIPreferences({ ...DEFAULT_UI_PREFERENCES, blockRadius: 24 }, storage);
+  const variables = themeCSSVariables(saved);
+
+  assert.equal(saved.blockRadius, 24);
+  assert.equal(loadUIPreferences(storage).blockRadius, 24);
+  assert.equal(variables["--ui-element-radius"], "24px");
+
+  assert.equal(saveUIPreferences({ ...DEFAULT_UI_PREFERENCES, blockRadius: 99 }, storage).blockRadius, 32);
+  assert.equal(saveUIPreferences({ ...DEFAULT_UI_PREFERENCES, blockRadius: -8 }, storage).blockRadius, 0);
+  assert.equal(saveUIPreferences({ ...DEFAULT_UI_PREFERENCES, blockRadius: Number.NaN }, storage).blockRadius, DEFAULT_UI_PREFERENCES.blockRadius);
 });
 
 test("theme preferences expose CSS variables and normalize editable values", () => {
@@ -108,19 +124,41 @@ test("theme presets expose the requested light and dark theme catalog", () => {
   const darkPresets = themePresetOptionsForVariant("dark").map((option) => option.value);
 
   assert.deepEqual(lightPresets, ["codex", "everforest", "notion", "github"]);
-  assert.deepEqual(darkPresets, ["codex", "matrix", "github"]);
+  assert.deepEqual(darkPresets, ["codex", "matrix", "temple", "github"]);
 
   const matrix = applyThemePreset(DEFAULT_UI_PREFERENCES, "dark", "matrix");
+  const temple = applyThemePreset(DEFAULT_UI_PREFERENCES, "dark", "temple");
   const githubLight = applyThemePreset(DEFAULT_UI_PREFERENCES, "light", "github");
   const matrixVariables = themeCSSVariables({ ...matrix, theme: "dark" });
+  const templeVariables = themeCSSVariables({ ...temple, theme: "dark" });
   const githubVariables = themeCSSVariables({ ...githubLight, theme: "light" });
 
   assert.equal(matrix.themes.dark.codeThemeId, "matrix");
   assert.equal(matrixVariables["--codex-accent"], "#1eff5a");
   assert.equal(matrixVariables["--codex-skill"], "#1eff5a");
+  assert.equal(temple.themes.dark.codeThemeId, "temple");
+  assert.equal(templeVariables["--codex-accent"], "#e4f222");
+  assert.equal(templeVariables["--codex-surface"], "#02120c");
+  assert.equal(templeVariables["--codex-ink"], "#c7e6da");
+  assert.equal(templeVariables["--codex-skill"], "#e4f222");
   assert.equal(githubLight.themes.light.codeThemeId, "github");
   assert.equal(githubVariables["--codex-accent"], "#0969da");
   assert.equal(githubVariables["--codex-diff-removed"], "#cf222e");
+});
+
+test("dark presets keep the sidebar darker than the page surface", () => {
+  const codexVariables = themeCSSVariables({ ...DEFAULT_UI_PREFERENCES, theme: "dark" });
+  const github = applyThemePreset(DEFAULT_UI_PREFERENCES, "dark", "github");
+  const githubVariables = themeCSSVariables({ ...github, theme: "dark" });
+  const matrix = applyThemePreset(DEFAULT_UI_PREFERENCES, "dark", "matrix");
+  const matrixVariables = themeCSSVariables({ ...matrix, theme: "dark" });
+
+  assert.equal(codexVariables["--codex-sidebar-surface"], "color-mix(in oklab, #111111 72%, #000000)");
+  assert.equal(codexVariables["--codex-background-surface"], "color-mix(in oklab, #111111 95.57%, #fcfcfc)");
+  assert.equal(githubVariables["--codex-sidebar-surface"], "color-mix(in oklab, #0d1117 72%, #000000)");
+  assert.equal(githubVariables["--codex-background-surface"], "color-mix(in oklab, #0d1117 95.57%, #e6edf3)");
+  assert.equal(matrixVariables["--codex-background-surface"], "#040805");
+  assert.equal(matrixVariables["--codex-sidebar-surface"], "color-mix(in oklab, #040805 72%, #000000)");
 });
 
 test("event verbosity filters debug events without removing errors", () => {

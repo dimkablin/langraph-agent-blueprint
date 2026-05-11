@@ -142,7 +142,7 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         session_service=SessionService(session_storage),
         memory_service=MemoryService(config.storage_dir),
         compaction_service=CompactionService(
-            max_messages_before_compact=max(3, config.auto_compact_threshold // 1000),
+            max_tokens_before_compact=config.auto_compact_threshold,
             keep_recent=config.max_recent_messages_after_compact,
         ),
         hook_registry=hook_registry,

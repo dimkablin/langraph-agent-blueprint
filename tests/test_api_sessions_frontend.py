@@ -81,6 +81,52 @@ def test_session_messages_events_context_and_child_runs_endpoints(tmp_path):
     assert isinstance(child_runs, list)
 
 
+def test_session_context_endpoint_returns_resolved_fragment_content(tmp_path):
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    (project_root / "README.md").write_text("SESSION_CONTEXT_WINDOW_TOKEN", encoding="utf-8")
+    app = create_app(
+        AppConfig(
+            storage_dir=tmp_path / "storage",
+            project_root=project_root,
+            cwd=project_root,
+            llm_provider="fake",
+        )
+    )
+    client = TestClient(app)
+
+    response = client.post("/chat", json={"message": "Use @README.md"})
+    context = client.get(f"/sessions/{response.json()['session_id']}/context").json()
+
+    assert context["references"][0]["value"] == "README.md"
+    assert context["fragments"][0]["title"] == "README.md"
+    assert context["fragments"][0]["content"] == "SESSION_CONTEXT_WINDOW_TOKEN"
+    assert context["budget"]["used_tokens"] > 0
+
+
+def test_session_message_dtos_hide_internal_compaction_summary(tmp_path):
+    app = create_app(AppConfig(storage_dir=tmp_path / "storage", project_root=tmp_path, cwd=tmp_path, llm_provider="fake"))
+    client = TestClient(app)
+
+    first = client.post("/chat", json={"message": "hello before compact"}).json()
+    compact = client.post(
+        "/chat",
+        json={
+            "message": "/compact",
+            "session_id": first["session_id"],
+            "thread_id": first["thread_id"],
+        },
+    )
+
+    assert compact.status_code == 200
+    messages = client.get(f"/sessions/{first['session_id']}/messages").json()
+    detail = client.get(f"/sessions/{first['session_id']}").json()
+
+    assert messages
+    assert not [message for message in messages if str(message["content"]).startswith("Compacted prior context:")]
+    assert not [message for message in detail["messages"] if str(message["content"]).startswith("Compacted prior context:")]
+
+
 def test_session_export_endpoint_returns_export_record(tmp_path):
     app = create_app(AppConfig(storage_dir=tmp_path, llm_provider="fake"))
     client = TestClient(app)

@@ -1,4 +1,5 @@
 import type { ConfigShowDTO, ModelIntelligenceLevel } from "../../api/schemas.ts";
+import { effectiveModelName } from "../../runtime/modelConfig.ts";
 import { MODEL_INTELLIGENCE_OPTIONS } from "../../runtime/modelIntelligence.ts";
 import { SettingsRows, SettingsSection, StatusBadge } from "./SettingsSection.tsx";
 
@@ -12,7 +13,7 @@ export function ModelSettingsSection({
   const values = config?.values ?? {};
   const provider = stringValue(values.llm_provider, "unknown");
   const model = stringValue(values.model_name, "unknown");
-  const providerModel = providerSpecificModel(values, provider);
+  const effectiveModel = effectiveModelName(config);
   const selected = MODEL_INTELLIGENCE_OPTIONS.find((option) => option.id === intelligenceLevel);
 
   return (
@@ -20,7 +21,7 @@ export function ModelSettingsSection({
       <SettingsRows
         rows={[
           { label: "Provider", value: provider, locked: true, note: "config file only" },
-          { label: "Effective model", value: providerModel || model, locked: true, note: "config file only" },
+          { label: "Effective model", value: effectiveModel, locked: true, note: "config file only" },
           { label: "Default model", value: model, locked: true },
           {
             label: "API keys",
@@ -38,14 +39,6 @@ export function ModelSettingsSection({
       />
     </SettingsSection>
   );
-}
-
-function providerSpecificModel(values: Record<string, unknown>, provider: string): string | null {
-  if (provider === "openai") return stringValue(values.openai_model);
-  if (provider === "anthropic") return stringValue(values.anthropic_model);
-  if (provider === "ollama") return stringValue(values.ollama_model);
-  if (provider === "openai_compatible") return stringValue(values.openai_compatible_model);
-  return null;
 }
 
 function present(value: unknown): boolean {

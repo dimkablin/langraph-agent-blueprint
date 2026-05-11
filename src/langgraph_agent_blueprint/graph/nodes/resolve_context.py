@@ -6,6 +6,9 @@ from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.models import AttachmentRef, ContextReference, dump_model, event, validate_list
 
 
+CONTEXT_EVENT_PREVIEW_CHARS = 1200
+
+
 def resolve_context_node(state: dict, deps: AppDependencies) -> dict:
     """Resolve context refs/attachments through provider services and apply a context budget."""
 
@@ -37,6 +40,7 @@ def resolve_context_node(state: dict, deps: AppDependencies) -> dict:
                 trust=fragment.trust,
                 token_estimate=fragment.token_estimate,
                 truncated=fragment.truncated,
+                preview=_preview(fragment.content),
             )
         )
     for error in errors:
@@ -65,7 +69,9 @@ def resolve_context_node(state: dict, deps: AppDependencies) -> dict:
             "context_resolved": True,
             "context_references": [dump_model(reference) for reference in references],
             "attachments": [dump_model(attachment) for attachment in attachments],
+            "resolved_context": [dump_model(fragment) for fragment in budgeted_fragments],
             "context_budget": dump_model(budget_report),
+            "context_errors": errors,
         }
     )
     return {
@@ -75,3 +81,10 @@ def resolve_context_node(state: dict, deps: AppDependencies) -> dict:
         "attachment_contents": [dump_model(content) for content in attachment_contents],
         "ui_events": events,
     }
+
+
+def _preview(content: str) -> str:
+    text = content.strip()
+    if len(text) <= CONTEXT_EVENT_PREVIEW_CHARS:
+        return text
+    return text[:CONTEXT_EVENT_PREVIEW_CHARS].rstrip() + "...<truncated>"

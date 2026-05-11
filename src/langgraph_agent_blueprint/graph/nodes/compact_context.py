@@ -17,9 +17,18 @@ def compact_context_node(state: dict, deps: AppDependencies) -> dict:
     if hook_blocked(pre_update):
         return pre_update
     current = state_with_update(state, pre_update)
+    before_message_count = len(current.get("messages", []))
     update = deps.compaction_service.compact_state(current)
+    compacted_messages = update.get("messages", [])
     update["messages"] = [RemoveMessage(id=REMOVE_ALL_MESSAGES), *update.get("messages", [])]
-    update["final_response"] = "Context compacted."
-    update["ui_events"] = [event("compact_finished", summary=update["context_status"].get("summary", "")[:200])]
+    update["ui_events"] = [
+        event(
+            "compact_finished",
+            summary=update["context_status"].get("summary", "")[:200],
+            before_message_count=before_message_count,
+            after_message_count=len(compacted_messages),
+            estimated_tokens=update["context_status"].get("estimated_tokens"),
+        )
+    ]
     post_update = run_hook_point(deps, state_with_update(current, update), "post_compact")
     return merge_updates(pre_update, update, post_update)

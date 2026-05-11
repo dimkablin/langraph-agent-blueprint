@@ -13,13 +13,14 @@ def persist_session_node(state: dict, deps: AppDependencies) -> dict:
     SessionStorage; storage-level event ids prevent duplicate event rows.
     """
 
+    state_metadata = {key: value for key, value in state.get("metadata", {}).items() if key not in {"streaming_enabled"}}
     metadata = {
-        **state.get("metadata", {}),
+        **state_metadata,
         "session_id": state["session_id"],
         "thread_id": state["thread_id"],
         "project_root": state["project_root"],
         "usage": state.get("usage", {}),
-        "model": state.get("metadata", {}).get("model_name"),
+        "model": state_metadata.get("model_name"),
     }
     deps.session_storage.create_session(state["project_root"], state["session_id"], metadata)
     deps.session_storage.save_messages(state["project_root"], state["session_id"], state.get("messages", []))

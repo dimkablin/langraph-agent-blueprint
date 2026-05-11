@@ -28,6 +28,17 @@ SENSITIVE_KEY_PARTS = (
     "secret",
     "token",
 )
+PUBLIC_NUMERIC_TOKEN_KEYS = {
+    "context_max_tokens",
+    "input_tokens",
+    "max_tokens",
+    "output_tokens",
+    "remaining_tokens",
+    "token_estimate",
+    "tokens",
+    "total_tokens",
+    "used_tokens",
+}
 OUTPUT_EVENT_TYPES = {"final_response", "tool_call_finished", "mcp_tool_call_finished", "model_message"}
 INPUT_EVENT_TYPES = {"command_started", "model_message", "tool_call_started", "mcp_tool_call_started"}
 HIGH_SIGNAL_RUNTIME_EVENTS = {
@@ -195,6 +206,8 @@ class RuntimeEventTraceMapper:
         return self._truncate(redacted)
 
     def _redact_value(self, value: Any, key: str | None = None) -> Any:
+        if key and key.lower() in PUBLIC_NUMERIC_TOKEN_KEYS and isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value
         if key and any(part in key.lower() for part in SENSITIVE_KEY_PARTS):
             return "***" if value not in (None, "") else None
         if isinstance(value, dict):
@@ -307,12 +320,15 @@ class ObservabilityService:
         base_config: dict[str, Any],
         trace_context: TraceContext,
         trace_metadata: TraceMetadata | None = None,
+        *,
+        include_callbacks: bool = True,
     ) -> dict[str, Any]:
         """Merge Langfuse callbacks/tags/metadata into a LangGraph config object."""
 
         graph_config = copy.deepcopy(base_config)
         callbacks = list(graph_config.get("callbacks", []))
-        callbacks.extend(self.get_callbacks(trace_context))
+        if include_callbacks:
+            callbacks.extend(self.get_callbacks(trace_context))
         if callbacks:
             graph_config["callbacks"] = callbacks
         tags = list(dict.fromkeys([*graph_config.get("tags", []), "langgraph-agent-blueprint", trace_context.environment, *trace_context.tags]))
@@ -349,6 +365,18 @@ class ObservabilityService:
         """Open one Langfuse root observation for one user/runtime turn."""
 
         return ScopedObservabilityTurn(self, trace_context, trace_metadata, input_data=input_data, name=name)
+
+    def stream_trace_turn(
+        self,
+        trace_context: TraceContext,
+        trace_metadata: TraceMetadata | None = None,
+        *,
+        input_data: Any | None = None,
+        name: str = "lg-agent graph stream",
+    ) -> "DetachedObservabilityTurn":
+        """Open a stream-safe turn trace without holding OTel context across generator yields."""
+
+        return DetachedObservabilityTurn(self, trace_context, trace_metadata, input_data=input_data, name=name)
 
     def record_runtime_events(self, events: Iterable[RuntimeEvent | dict[str, Any]], trace_context: TraceContext) -> None:
         for item in events:
@@ -702,6 +730,62 @@ class ScopedObservabilityTurn:
                     return
                 except TypeError:
                     continue
+
+
+class DetachedObservabilityTurn(ScopedObservabilityTurn):
+    """Trace facade for streaming responses that must not keep contextvars tokens open across yields."""
+
+    def __enter__(self) -> "DetachedObservabilityTurn":
+        if not self.service.is_enabled():
+            return self
+        if not self.service._has_credentials():
+            self.service._last_error = "Langfuse enabled but public/secret keys are not configured."
+            return self
+        self.client = self.service._ensure_client()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if exc is not None:
+            self.set_output({"error": str(exc)})
+        if self.client is None:
+            self.service.flush()
+            return
+        context_manager = self._start_root_observation()
+        entered = False
+        try:
+            self.root_observation = context_manager.__enter__()
+            entered = True
+        except Exception as start_exc:  # pragma: no cover - defensive SDK boundary
+            self.service._last_error = str(start_exc)
+            self.service.flush()
+            return
+        if self._timeline:
+            self._update_root(metadata={"runtime_timeline": self._timeline[-100:]})
+        if self._output_set:
+            self._update_root(output=self._output)
+        try:
+            if entered:
+                context_manager.__exit__(exc_type, exc, traceback)
+        except Exception as close_exc:  # pragma: no cover - defensive SDK boundary
+            self.service._last_error = str(close_exc)
+        finally:
+            self.service.flush()
+
+    def graph_config(self, base_config: dict[str, Any], trace_metadata: TraceMetadata | None = None) -> dict[str, Any]:
+        return self.service.build_graph_config(
+            base_config,
+            self.trace_context,
+            trace_metadata or self.trace_metadata,
+            include_callbacks=False,
+        )
+
+    def emit_child_observation(self, payload: dict[str, Any]) -> None:
+        self.add_timeline_event(payload)
 
 
 class NoopObservabilityService(ObservabilityService):

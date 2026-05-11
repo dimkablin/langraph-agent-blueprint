@@ -34,6 +34,7 @@ from .nodes.tool_executor import tool_executor_node
 from .nodes.tool_router import tool_router_node
 from .routing import (
     route_after_command,
+    route_after_compact_context,
     route_after_compact_decision,
     route_after_permission,
     route_after_plugin_policy,
@@ -89,7 +90,7 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
     graph.add_conditional_edges("plugin_policy", route_after_plugin_policy, {"skill_graph": "skill_graph", "context_builder": "resolve_context"})
     graph.add_edge("skill_graph", "resolve_context")
     graph.add_edge("resolve_context", "context_builder")
-    graph.add_edge("context_builder", "model_call")
+    graph.add_edge("context_builder", "compact_decision")
     graph.add_edge("model_call", "tool_router")
     graph.add_conditional_edges(
         "tool_router",
@@ -98,7 +99,7 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
             "no_tools": "hook_runner",
             "execute": "tool_executor",
             "needs_permission": "permission_gate",
-            "rejected": "model_call",
+            "rejected": "compact_decision",
             "skill_tool": "skill_graph",
             "agent_tool": "agent_graph",
             "mcp_tool": "mcp_graph",
@@ -108,14 +109,22 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
     graph.add_conditional_edges(
         "permission_gate",
         route_after_permission,
-        {"execute": "tool_executor", "mcp_tool": "mcp_graph", "rejected": "model_call"},
+        {"execute": "tool_executor", "mcp_tool": "mcp_graph", "rejected": "compact_decision"},
     )
-    graph.add_conditional_edges("tool_executor", route_after_tool_execution, {"model_call": "model_call", "error_recovery": "error_recovery"})
-    graph.add_edge("agent_graph", "model_call")
-    graph.add_edge("mcp_graph", "model_call")
-    graph.add_edge("hook_runner", "compact_decision")
-    graph.add_conditional_edges("compact_decision", route_after_compact_decision, {"compact_context": "compact_context", "persist_session": "persist_session"})
-    graph.add_edge("compact_context", "persist_session")
+    graph.add_conditional_edges(
+        "tool_executor",
+        route_after_tool_execution,
+        {"compact_decision": "compact_decision", "error_recovery": "error_recovery"},
+    )
+    graph.add_edge("agent_graph", "compact_decision")
+    graph.add_edge("mcp_graph", "compact_decision")
+    graph.add_edge("hook_runner", "persist_session")
+    graph.add_conditional_edges(
+        "compact_decision",
+        route_after_compact_decision,
+        {"compact_context": "compact_context", "persist_session": "persist_session", "model_call": "model_call"},
+    )
+    graph.add_conditional_edges("compact_context", route_after_compact_context, {"persist_session": "persist_session", "model_call": "model_call"})
     graph.add_edge("error_recovery", "persist_session")
     graph.add_edge("persist_session", "finalize_response")
     graph.add_edge("finalize_response", END)
@@ -181,6 +190,7 @@ class AssistantGraphRuntime:
             trace.record_runtime_events(result.get("ui_events", []) if isinstance(result, dict) else [], result_context)
             if isinstance(result, dict):
                 trace.set_output(result.get("final_response"))
+                self._drop_completed_checkpoint(result.get("thread_id") or state["thread_id"], result)
         return result
 
     def resume(self, thread_id: str, decision: dict[str, Any], session_id: str | None = None) -> dict[str, Any]:
@@ -206,6 +216,7 @@ class AssistantGraphRuntime:
             trace.record_runtime_events(result.get("ui_events", []) if isinstance(result, dict) else [], result_context)
             if isinstance(result, dict):
                 trace.set_output(result.get("final_response"))
+                self._drop_completed_checkpoint(result.get("thread_id") or thread_id, result)
         return result
 
     def stream(
@@ -222,7 +233,6 @@ class AssistantGraphRuntime:
         """Yield newly appended UI events from LangGraph value-stream state updates."""
 
         def generator() -> Iterable[dict[str, Any]]:
-            previous_count = 0
             state = create_initial_state(
                 input_text,
                 project_root=project_root or self.dependencies.config.project_root or Path.cwd(),
@@ -239,33 +249,47 @@ class AssistantGraphRuntime:
                 state["metadata"] = {**state.get("metadata", {}), "model_intelligence": model_intelligence}
             if turn_index is not None:
                 state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
+            state["metadata"] = {**state.get("metadata", {}), "streaming_enabled": True}
             final_chunk: dict[str, Any] | None = None
+            previous_count: int | None = None
             trace_context = self._trace_context(state)
-            with self.dependencies.observability_service.trace_turn(
+            stream_context = trace_context
+            with self.dependencies.observability_service.stream_trace_turn(
                 trace_context,
                 self._trace_metadata(state),
                 input_data={"input_text": input_text, "input_kind": input_kind},
                 name="lg-agent chat turn",
             ) as trace:
                 config = trace.graph_config({"configurable": {"thread_id": state["thread_id"]}}, self._trace_metadata(state))
-                for chunk in self.app.stream(
+                for raw_chunk in self.app.stream(
                     state,
                     config,
-                    stream_mode="values",
+                    stream_mode=["custom", "values"],
                 ):
+                    mode, chunk = raw_chunk if isinstance(raw_chunk, tuple) and len(raw_chunk) == 2 else ("values", raw_chunk)
+                    if mode == "custom":
+                        if isinstance(chunk, dict) and "type" in chunk and "data" in chunk:
+                            trace.record_runtime_event(chunk, stream_context)
+                            yield chunk
+                        continue
                     if isinstance(chunk, dict):
                         final_chunk = chunk
                         context = self._trace_context(chunk)
+                        stream_context = context
                         events = chunk.get("ui_events", [])
                     else:
                         context = trace_context
                         events = []
+                    if previous_count is None:
+                        previous_count = len(events)
+                        continue
                     for item in events[previous_count:]:
                         trace.record_runtime_event(item, context)
                         yield item
                     previous_count = len(events)
                 if final_chunk is not None:
                     trace.set_output(final_chunk.get("final_response"))
+                    self._drop_completed_checkpoint(final_chunk.get("thread_id") or state["thread_id"], final_chunk)
 
         return generator()
 
@@ -295,6 +319,7 @@ class AssistantGraphRuntime:
             "active_skill_name",
             "skill_invocation",
             "context_resolved",
+            "streaming_enabled",
         ]:
             metadata.pop(key, None)
         state["metadata"] = metadata
@@ -317,6 +342,13 @@ class AssistantGraphRuntime:
             result.get("ui_events", []),
             self._trace_context(result),
         )
+
+    def _drop_completed_checkpoint(self, thread_id: str, result: dict[str, Any]) -> None:
+        """Discard completed-turn checkpoints so persisted sessions are not hydrated twice."""
+
+        if "__interrupt__" in result:
+            return
+        self.checkpointer.delete_thread(thread_id)
 
     def _trace_context(self, state: dict[str, Any]) -> TraceContext:
         config = self.dependencies.config

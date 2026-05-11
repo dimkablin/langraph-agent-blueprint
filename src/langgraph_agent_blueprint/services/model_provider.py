@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 import re
 import time
+from collections.abc import Iterable
 from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from langchain_core.messages.utils import message_chunk_to_message
 
 from langgraph_agent_blueprint.config import AppConfig
-from langgraph_agent_blueprint.models import ModelRequest, ModelResponse, ToolCall, Usage, dump_model, normalize_provider_tool_calls
+from langgraph_agent_blueprint.models import ModelRequest, ModelResponse, ModelStreamEvent, ToolCall, Usage, dump_model, normalize_provider_tool_calls
 from langgraph_agent_blueprint.utils.ids import new_id
 
 
@@ -36,6 +38,30 @@ class ModelProviderService:
             response = self._langchain_generate(request, "anthropic")
         else:
             raise ValueError(f"Unsupported provider: {self.config.llm_provider}")
+        return self._with_usage_metadata(response, start)
+
+    def stream_generate(self, request: ModelRequest) -> Iterable[ModelStreamEvent]:
+        """Dispatch a provider request and yield content deltas before the final response."""
+
+        start = time.perf_counter()
+        if self.config.llm_provider == "fake":
+            yield from self._fake_stream_generate(request, start)
+            return
+        if self.config.llm_provider == "ollama":
+            yield from self._langchain_stream_generate(request, "ollama", start)
+            return
+        if self.config.llm_provider == "openai":
+            yield from self._langchain_stream_generate(request, "openai", start)
+            return
+        if self.config.llm_provider == "openai_compatible":
+            yield from self._langchain_stream_generate(request, "openai_compatible", start)
+            return
+        if self.config.llm_provider == "anthropic":
+            yield from self._langchain_stream_generate(request, "anthropic", start)
+            return
+        raise ValueError(f"Unsupported provider: {self.config.llm_provider}")
+
+    def _with_usage_metadata(self, response: ModelResponse, start: float) -> ModelResponse:
         response.usage.duration_ms = (time.perf_counter() - start) * 1000
         response.usage.provider = self.config.llm_provider
         response.usage.model = self.config.effective_model()
@@ -59,6 +85,12 @@ class ModelProviderService:
             return ModelResponse(content=content, tool_calls=[dump_model(call)], raw=message, usage=self._usage(text))
         response_text = f"Fake response: {text}"
         return ModelResponse(content=response_text, raw=AIMessage(content=response_text), usage=self._usage(text))
+
+    def _fake_stream_generate(self, request: ModelRequest, start: float) -> Iterable[ModelStreamEvent]:
+        response = self._fake_generate(request)
+        for token in self._split_preserving_spaces(response.content):
+            yield ModelStreamEvent(type="token", token=token)
+        yield ModelStreamEvent(type="response", response=self._with_usage_metadata(response, start))
 
     def _parse_fake_tool_call(self, text: str) -> dict[str, Any] | None:
         """Parse `tool:<name> ...` fake prompts into normalized tool-call dictionaries."""
@@ -104,18 +136,53 @@ class ModelProviderService:
     def _langchain_generate(self, request: ModelRequest, provider: str) -> ModelResponse:
         """Invoke a LangChain chat model with system context and bound tool schemas."""
 
-        model = self._build_chat_model(provider)
-        messages = self._messages_with_system(request)
-        tools = self._langchain_tool_schemas(request.tools)
-        bound_model = model
-        if tools and hasattr(model, "bind_tools"):
-            bound_model = model.bind_tools(tools)
+        bound_model, messages = self._bound_langchain_model(request, provider)
         response = bound_model.invoke(messages)
-        content = str(getattr(response, "content", ""))
+        content = self._content_to_text(getattr(response, "content", ""))
         tool_calls = [dump_model(call) for call in normalize_provider_tool_calls(list(getattr(response, "tool_calls", []) or []), provider)]
         if not tool_calls:
             tool_calls = self._parse_json_tool_calls(content, provider)
         return ModelResponse(content=content, tool_calls=tool_calls, raw=response, usage=self._usage(content))
+
+    def _langchain_stream_generate(self, request: ModelRequest, provider: str, start: float) -> Iterable[ModelStreamEvent]:
+        """Stream LangChain message chunks while retaining the normalized final response."""
+
+        bound_model, messages = self._bound_langchain_model(request, provider)
+        if not hasattr(bound_model, "stream"):
+            response = self._with_usage_metadata(self._langchain_generate(request, provider), start)
+            for token in self._split_preserving_spaces(response.content):
+                yield ModelStreamEvent(type="token", token=token)
+            yield ModelStreamEvent(type="response", response=response)
+            return
+
+        aggregate: Any | None = None
+        for chunk in bound_model.stream(messages):
+            token = self._content_to_text(getattr(chunk, "content", ""))
+            if token:
+                yield ModelStreamEvent(type="token", token=token)
+            aggregate = chunk if aggregate is None else aggregate + chunk
+
+        if aggregate is None:
+            response = ModelResponse(usage=self._usage(""))
+        else:
+            message = message_chunk_to_message(aggregate)
+            content = self._content_to_text(getattr(message, "content", ""))
+            tool_calls = [
+                dump_model(call)
+                for call in normalize_provider_tool_calls(list(getattr(message, "tool_calls", []) or []), provider)
+            ]
+            if not tool_calls:
+                tool_calls = self._parse_json_tool_calls(content, provider)
+            response = ModelResponse(content=content, tool_calls=tool_calls, raw=message, usage=self._usage(content))
+        yield ModelStreamEvent(type="response", response=self._with_usage_metadata(response, start))
+
+    def _bound_langchain_model(self, request: ModelRequest, provider: str) -> tuple[Any, list[BaseMessage]]:
+        model = self._build_chat_model(provider)
+        messages = self._messages_with_system(request)
+        tools = self._langchain_tool_schemas(request.tools)
+        if tools and hasattr(model, "bind_tools"):
+            return model.bind_tools(tools), messages
+        return model, messages
 
     @staticmethod
     def _messages_with_system(request: ModelRequest) -> list[BaseMessage]:
@@ -206,6 +273,32 @@ class ModelProviderService:
                 raise RuntimeError("langchain-anthropic is not installed") from exc
             return ChatAnthropic(model=self.config.anthropic_model or self.config.model_name, api_key=self.config.anthropic_api_key)
         raise ValueError(provider)
+
+    @staticmethod
+    def _content_to_text(content: Any) -> str:
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    text = item.get("text") or item.get("content")
+                    if isinstance(text, str):
+                        parts.append(text)
+                else:
+                    parts.append(str(item))
+            return "".join(parts)
+        return str(content)
+
+    @staticmethod
+    def _split_preserving_spaces(text: str) -> Iterable[str]:
+        if not text:
+            return []
+        return [part if index == 0 else f" {part}" for index, part in enumerate(text.split(" "))]
 
     @staticmethod
     def _last_human_text(messages: list[Any]) -> str:

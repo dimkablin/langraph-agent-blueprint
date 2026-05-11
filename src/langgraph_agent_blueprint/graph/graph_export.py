@@ -13,10 +13,12 @@ def mermaid_graph() -> str:
     normalize_input --> command_router
     command_router -->|local command| persist_session
     command_router -->|prompt/model| context_builder
+    command_router -->|manual compact| compact_decision
     command_router -->|skill| skill_graph
-    context_builder --> model_call
+    context_builder --> compact_decision
+    compact_decision -->|skip pre-model| model_call
     model_call --> tool_router
-    tool_router -->|no tools| compact_decision
+    tool_router -->|no tools| hook_runner
     tool_router -->|skill tool| skill_graph
     tool_router -->|agent tool| agent_graph
     tool_router -->|mcp tool| mcp_graph
@@ -24,14 +26,16 @@ def mermaid_graph() -> str:
     tool_router -->|execute| tool_executor
     permission_gate -->|interrupt| HUMAN
     HUMAN -->|resume approve| tool_executor
-    HUMAN -->|resume reject| model_call
-    tool_executor --> model_call
-    skill_graph --> model_call
-    agent_graph --> model_call
-    mcp_graph --> model_call
+    HUMAN -->|resume reject| compact_decision
+    tool_executor --> compact_decision
+    skill_graph --> context_builder
+    agent_graph --> compact_decision
+    mcp_graph --> compact_decision
+    hook_runner --> persist_session
     compact_decision -->|compact| compact_context
-    compact_decision -->|skip| persist_session
-    compact_context --> persist_session
+    compact_decision -->|skip manual| persist_session
+    compact_context -->|manual| persist_session
+    compact_context -->|pre-model| model_call
     persist_session --> finalize_response
     finalize_response --> END"""
 

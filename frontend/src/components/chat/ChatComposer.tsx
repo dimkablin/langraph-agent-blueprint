@@ -27,6 +27,7 @@ export function ChatComposer({
   intelligenceLevel,
   isStreaming,
   onIntelligenceChange,
+  onOpenContextWindow,
   onSubmit,
   onStop,
   variant = "dock",
@@ -38,6 +39,7 @@ export function ChatComposer({
   intelligenceLevel: ModelIntelligenceLevel;
   isStreaming: boolean;
   onIntelligenceChange: (level: ModelIntelligenceLevel) => void;
+  onOpenContextWindow?: () => void;
   onSubmit: (value: string) => void;
   onStop: () => void;
   variant?: "dock" | "welcome";
@@ -105,7 +107,7 @@ export function ChatComposer({
               <ComposerActionMenu />
             </div>
             <div className="composer-footer-right">
-              <ComposerContextMeter context={context} configuredMaxTokens={contextMaxTokens} />
+              <ComposerContextMeter context={context} configuredMaxTokens={contextMaxTokens} onOpenContextWindow={onOpenContextWindow} />
               <ComposerIntelligencePicker
                 level={intelligenceLevel}
                 open={intelligenceOpen}

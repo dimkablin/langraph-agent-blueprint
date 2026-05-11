@@ -61,8 +61,11 @@ def test_manual_compact_surfaces_compact_event_not_fake_response(tmp_path):
     result = runtime.invoke("/compact", input_kind="headless", project_root=tmp_path)
     event_types = [event["type"] for event in result["ui_events"]]
 
+    assert "compact_started" in event_types
     assert "compact_finished" in event_types
-    assert not result["final_response"].startswith("Fake response:")
+    assert event_types.index("compact_started") < event_types.index("compact_finished")
+    assert "final_response" not in event_types
+    assert not result["final_response"]
 
 
 def test_help_command_events_survive_to_final_state(tmp_path):

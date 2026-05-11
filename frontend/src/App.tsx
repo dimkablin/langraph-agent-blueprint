@@ -3,6 +3,8 @@ import { useState, type CSSProperties } from "react";
 import { ChatComposer } from "./components/chat/ChatComposer.tsx";
 import { MessageList } from "./components/chat/MessageList.tsx";
 import { WelcomePromptExamples, type WelcomePromptExample } from "./components/chat/WelcomePromptExamples.tsx";
+import { LiquidGlassFilterDefs } from "./components/common/LiquidGlassFilterDefs.tsx";
+import { ContextWindowOverlay } from "./components/context/ContextWindowOverlay.tsx";
 import { RuntimeDrawer } from "./components/layout/RuntimeDrawer.tsx";
 import { RuntimeSidebar } from "./components/layout/RuntimeSidebar.tsx";
 import { StatusHeader } from "./components/layout/StatusHeader.tsx";
@@ -14,6 +16,7 @@ import { useRuntimeRegistries } from "./hooks/useRuntimeRegistries.ts";
 import { useRuntimeSessions } from "./hooks/useRuntimeSessions.ts";
 import { useRuntimeStatus } from "./hooks/useRuntimeStatus.ts";
 import { useUIPreferences } from "./hooks/useUIPreferences.ts";
+import { effectiveModelName } from "./runtime/modelConfig.ts";
 import { DEFAULT_SETTINGS_TAB, type SettingsTab } from "./runtime/settingsPage.ts";
 import { themeConfigForPreferences, themeCSSVariables } from "./runtime/uiPreferences.ts";
 
@@ -43,8 +46,10 @@ export default function App() {
   const [appView, setAppView] = useState<AppView>("chat");
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>(DEFAULT_SETTINGS_TAB);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [contextWindowOpen, setContextWindowOpen] = useState(false);
 
   const contextMaxTokens = numericConfigValue(runtimeStatus?.config?.values.context_max_tokens);
+  const modelName = effectiveModelName(runtimeStatus?.config);
   const isNewChat = runtimeState.messages.length === 0 && !runtimeState.pendingPermission && !runtimeState.error;
   const sidebarIsTranslucent = !themeConfigForPreferences(preferences).opaqueWindows;
   const shellBaseClassName = sidebarOpen ? "app-shell app-shell-sidebar-open" : "app-shell";
@@ -61,9 +66,11 @@ export default function App() {
   const openChatView = () => setAppView("chat");
   const handleNewChat = () => {
     startNewChat();
+    setContextWindowOpen(false);
     openChatView();
   };
   const handleSelectSession = (sessionId: string) => {
+    setContextWindowOpen(false);
     openChatView();
     void selectSession(sessionId);
   };
@@ -75,6 +82,7 @@ export default function App() {
 
   return (
     <main className={shellClassName} style={shellStyle}>
+      <LiquidGlassFilterDefs />
       <RuntimeSidebar
         open={sidebarOpen}
         mode={appView}
@@ -122,6 +130,7 @@ export default function App() {
                     intelligenceLevel={modelIntelligenceLevel}
                     isStreaming={runtimeState.isStreaming || busy}
                     onIntelligenceChange={setModelIntelligenceLevel}
+                    onOpenContextWindow={() => setContextWindowOpen(true)}
                     onSubmit={(value) => void submitMessage(value)}
                     onStop={stopStream}
                     variant="welcome"
@@ -135,7 +144,12 @@ export default function App() {
               ) : (
                 <>
                   <div className="chat-scroll">
-                    <MessageList messages={runtimeState.messages} isStreaming={runtimeState.isStreaming || busy} autoScroll={preferences.autoScroll} />
+                    <MessageList
+                      messages={runtimeState.messages}
+                      items={runtimeState.timeline}
+                      isStreaming={runtimeState.isStreaming || busy}
+                      autoScroll={preferences.autoScroll}
+                    />
                   </div>
                   {runtimeState.error ? <div className="error-banner">{runtimeState.error}</div> : null}
                   <PermissionPanel
@@ -152,6 +166,7 @@ export default function App() {
                     intelligenceLevel={modelIntelligenceLevel}
                     isStreaming={runtimeState.isStreaming || busy}
                     onIntelligenceChange={setModelIntelligenceLevel}
+                    onOpenContextWindow={() => setContextWindowOpen(true)}
                     onSubmit={(value) => void submitMessage(value)}
                     onStop={stopStream}
                   />
@@ -164,6 +179,13 @@ export default function App() {
       <RuntimeDrawer side="right" title="Commands / Skills / Tools" open={activeDrawer === "help"} onClose={() => setActiveDrawer(null)}>
         <RegistryPanel commands={commands} skills={skills} tools={tools} error={registryError} />
       </RuntimeDrawer>
+      <ContextWindowOverlay
+        open={contextWindowOpen}
+        context={runtimeState.context}
+        modelName={modelName}
+        configuredMaxTokens={contextMaxTokens}
+        onClose={() => setContextWindowOpen(false)}
+      />
     </main>
   );
 }

@@ -1,6 +1,6 @@
-import type { ConfigShowDTO } from "../../api/schemas.ts";
 import type { RuntimeStatus } from "../../api/status.ts";
 import type { ModelIntelligenceLevel } from "../../runtime/modelIntelligence.ts";
+import { effectiveModelName } from "../../runtime/modelConfig.ts";
 import { MODEL_INTELLIGENCE_OPTIONS } from "../../runtime/modelIntelligence.ts";
 import { SettingsRows, SettingsSection, StatusBadge } from "./SettingsSection.tsx";
 
@@ -26,7 +26,7 @@ export function GeneralSettingsTab({
           <SettingsRows
             rows={[
               { label: "Provider", value: stringValue(values.llm_provider, "unknown"), locked: true, note: "config file only" },
-              { label: "Model", value: effectiveModel(config), locked: true, note: "config file only" },
+              { label: "Model", value: effectiveModelName(config), locked: true, note: "config file only" },
               { label: "Run intelligence", value: selectedIntelligence?.label ?? modelIntelligenceLevel, note: "set from chat composer" },
             ]}
           />
@@ -61,16 +61,6 @@ export function GeneralSettingsTab({
       </div>
     </div>
   );
-}
-
-function effectiveModel(config: ConfigShowDTO | null): string {
-  const values = config?.values ?? {};
-  const provider = stringValue(values.llm_provider);
-  if (provider === "openai") return stringValue(values.openai_model, stringValue(values.model_name, "unknown"));
-  if (provider === "anthropic") return stringValue(values.anthropic_model, stringValue(values.model_name, "unknown"));
-  if (provider === "ollama") return stringValue(values.ollama_model, stringValue(values.model_name, "unknown"));
-  if (provider === "openai_compatible") return stringValue(values.openai_compatible_model, stringValue(values.model_name, "unknown"));
-  return stringValue(values.model_name, "unknown");
 }
 
 function stringValue(value: unknown, fallback = ""): string {

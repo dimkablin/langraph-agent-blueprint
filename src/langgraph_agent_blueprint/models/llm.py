@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.messages import BaseMessage
 from pydantic import BaseModel, Field
@@ -26,6 +26,14 @@ class ModelResponse(BaseModel):
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     usage: Usage = Field(default_factory=Usage)
     raw: Any | None = None
+
+
+class ModelStreamEvent(BaseModel):
+    """One provider-agnostic model stream item."""
+
+    type: Literal["token", "response"]
+    token: str = ""
+    response: ModelResponse | None = None
 
 
 def message_text(messages: list[BaseMessage]) -> str:

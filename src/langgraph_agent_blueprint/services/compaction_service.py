@@ -2,25 +2,57 @@
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 from langchain_core.messages import BaseMessage, SystemMessage
+
+
+CompactionReason = Literal["manual", "token_threshold", "message_threshold"]
+
+
+@dataclass(frozen=True)
+class CompactionDecision:
+    """Typed result of evaluating whether a state should be compacted."""
+
+    should_compact: bool
+    reason: CompactionReason | None
+    message_count: int
+    estimated_tokens: int
 
 
 class CompactionService:
     """Context accounting and compaction preserving active work."""
 
-    def __init__(self, max_messages_before_compact: int = 30, keep_recent: int = 6) -> None:
-        self.max_messages_before_compact = max_messages_before_compact
+    def __init__(
+        self,
+        max_tokens_before_compact: int = 12_000,
+        keep_recent: int = 6,
+        max_messages_before_compact: int | None = None,
+    ) -> None:
+        self.max_tokens_before_compact = max_tokens_before_compact
         self.keep_recent = keep_recent
+        self.max_messages_before_compact = max_messages_before_compact
 
     def estimate_tokens(self, messages: list[BaseMessage]) -> int:
         return sum(max(1, len(str(getattr(message, "content", ""))) // 4) for message in messages)
 
-    def should_compact(self, state: dict[str, Any]) -> bool:
+    def compaction_decision(self, state: dict[str, Any]) -> CompactionDecision:
+        """Return a typed compaction decision for the current runtime state."""
+
+        messages = list(state.get("messages", []))
+        message_count = len(messages)
+        estimated_tokens = self.estimate_tokens(messages)
         if state.get("metadata", {}).get("compact_requested"):
-            return True
-        return len(state.get("messages", [])) > self.max_messages_before_compact
+            return CompactionDecision(True, "manual", message_count, estimated_tokens)
+        if estimated_tokens > self.max_tokens_before_compact:
+            return CompactionDecision(True, "token_threshold", message_count, estimated_tokens)
+        if self.max_messages_before_compact is not None and message_count > self.max_messages_before_compact:
+            return CompactionDecision(True, "message_threshold", message_count, estimated_tokens)
+        return CompactionDecision(False, None, message_count, estimated_tokens)
+
+    def should_compact(self, state: dict[str, Any]) -> bool:
+        return self.compaction_decision(state).should_compact
 
     def compact_state(self, state: dict[str, Any]) -> dict[str, Any]:
         """Summarize older messages and return a state update preserving recent work and todos."""

@@ -36,8 +36,15 @@ def route_after_permission(state: dict[str, Any]) -> str:
 def route_after_tool_execution(state: dict[str, Any]) -> str:
     if state.get("errors"):
         return "error_recovery"
-    return "model_call"
+    return "compact_decision"
 
 
 def route_after_compact_decision(state: dict[str, Any]) -> str:
-    return "compact_context" if state.get("metadata", {}).get("compact_route") == "compact" else "persist_session"
+    metadata = state.get("metadata", {})
+    if metadata.get("compact_route") == "compact":
+        return "compact_context"
+    return str(metadata.get("compact_after_route") or "model_call")
+
+
+def route_after_compact_context(state: dict[str, Any]) -> str:
+    return str(state.get("metadata", {}).get("compact_after_route") or "model_call")

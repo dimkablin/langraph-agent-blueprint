@@ -23,5 +23,7 @@ def finalize_response_node(state: dict, deps: AppDependencies) -> dict:
                 break
     final = final or ""
     metadata = {**state.get("metadata", {}), "graph_finished": True}
+    if metadata.get("compact_route") == "compact" and not final:
+        return {"final_response": final, "metadata": metadata, "ui_events": []}
     return {"final_response": final, "metadata": metadata, "ui_events": [event("final_response", content=final)]}
 

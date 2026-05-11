@@ -14,7 +14,7 @@ from .context import (
 from .evals import EvalExpectations, EvalReport, EvalRunResult, EvalScenario, EvalStep
 from .events import RuntimeEvent, make_event
 from .hooks import HookContext, HookContribution, HookInvocation, HookPoint, HookResult, HookRunSummary, HookRuntimeMetadata
-from .llm import ModelRequest, ModelResponse
+from .llm import ModelRequest, ModelResponse, ModelStreamEvent
 from .mcp import (
     MCPConnectionState,
     MCPHttpConfig,
@@ -91,6 +91,7 @@ __all__ = [
     "MCPToolContribution",
     "ModelRequest",
     "ModelResponse",
+    "ModelStreamEvent",
     "ObservabilityEvent",
     "ParsedCommand",
     "PermissionCheck",

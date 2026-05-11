@@ -71,6 +71,7 @@ export function RuntimeSidebar({
           />
         )}
       </div>
+      <div className="runtime-sidebar-gap" aria-hidden="true" />
     </aside>
   );
 }

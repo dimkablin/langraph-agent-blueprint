@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from langchain_core.messages import AIMessage
+from langgraph.config import get_stream_writer
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
-from langgraph_agent_blueprint.models import ModelRequest, ToolCall, dump_model, event, validate_list
+from langgraph_agent_blueprint.models import ModelRequest, ModelResponse, ToolCall, dump_model, event, validate_list
 
 
 def model_call_node(state: dict, deps: AppDependencies) -> dict:
@@ -35,14 +36,12 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
             "model_intelligence": current.get("metadata", {}).get("model_intelligence"),
         },
     )
-    response = deps.model_provider.generate(request)
+    response = _generate_model_response(current, deps, request)
     tool_calls = validate_list(ToolCall, response.tool_calls)
     usage = deps.usage_service.merge(current.get("usage", {}), response.usage.model_dump(mode="json"))
     events = [event("node_started", node="model_call")]
     if response.content:
         events.append(event("model_message", content=response.content))
-    for token in response.content.split():
-        events.append(event("model_token", token=token))
     message = AIMessage(
         content=response.content,
         tool_calls=[{"id": call.id, "name": call.name, "args": call.args} for call in tool_calls],
@@ -56,3 +55,17 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
     }
     post_update = run_hook_point(deps, state_with_update(current, update), "post_model")
     return merge_updates(pre_update, update, post_update)
+
+
+def _generate_model_response(state: dict, deps: AppDependencies, request: ModelRequest) -> ModelResponse:
+    if not state.get("metadata", {}).get("streaming_enabled"):
+        return deps.model_provider.generate(request)
+
+    writer = get_stream_writer()
+    response: ModelResponse | None = None
+    for stream_event in deps.model_provider.stream_generate(request):
+        if stream_event.type == "token" and stream_event.token:
+            writer(event("model_token", session_id=state["session_id"], node="model_call", token=stream_event.token))
+        elif stream_event.type == "response" and stream_event.response is not None:
+            response = stream_event.response
+    return response or deps.model_provider.generate(request)

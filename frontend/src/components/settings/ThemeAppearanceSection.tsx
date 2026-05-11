@@ -1,5 +1,7 @@
 import { IconMonitor, IconMoon, IconSun } from "../../icons.ts";
 import {
+  UI_BLOCK_RADIUS_MAX,
+  UI_BLOCK_RADIUS_MIN,
   activeThemeVariant,
   applyThemePreset,
   type ThemeConfig,
@@ -114,6 +116,14 @@ export function ThemeAppearanceSection({
         <ThemeRangeRow label="Контраст" value={activeTheme.contrast} min={0} max={100} onChange={(contrast) => updateActiveTheme({ contrast })} />
         <ThemeNumberRow label="Размер шрифта интерфейса" value={activeTheme.uiFontSize} onChange={(uiFontSize) => updateActiveTheme({ uiFontSize })} />
         <ThemeNumberRow label="Размер шрифта кода" value={activeTheme.codeFontSize} onChange={(codeFontSize) => updateActiveTheme({ codeFontSize })} />
+        <ThemeRangeRow
+          label="Радиус блоков"
+          value={preferences.blockRadius}
+          min={UI_BLOCK_RADIUS_MIN}
+          max={UI_BLOCK_RADIUS_MAX}
+          suffix="px"
+          onChange={(blockRadius) => onChange({ blockRadius })}
+        />
       </div>
     </SettingsSection>
   );
@@ -222,12 +232,14 @@ function ThemeRangeRow({
   value,
   min,
   max,
+  suffix,
   onChange,
 }: {
   label: string;
   value: number;
   min: number;
   max: number;
+  suffix?: string;
   onChange: (value: number) => void;
 }) {
   return (
@@ -235,7 +247,7 @@ function ThemeRangeRow({
       <span>{label}</span>
       <span className="theme-range-field">
         <input type="range" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} aria-label={label} />
-        <strong>{value}</strong>
+        <strong>{suffix ? `${value}${suffix}` : value}</strong>
       </span>
     </label>
   );

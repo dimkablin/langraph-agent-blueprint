@@ -37,6 +37,10 @@ function nonNoneBoxShadowValues(css) {
     .filter((value) => value !== "none");
 }
 
+function withoutLiquidGlassSidebarRules(css) {
+  return css.replace(/\.app-shell-sidebar-glass \.runtime-sidebar-panel(?:\:\:before|\:\:after)?\s*\{[^}]*\}/g, "");
+}
+
 test("TypeScript runtime frontend entrypoint is active", () => {
   const index = readFileSync(join(root, "frontend", "index.html"), "utf8");
   const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
@@ -187,14 +191,16 @@ test("header action buttons are borderless icon-only controls", () => {
   assert.doesNotMatch(styles, /brand-lockup|brand-mark/);
 });
 
-test("scrollbars are thin and match the chat background", () => {
+test("scrollbars are thin with transparent tracks and seventy-percent transparent thumbs", () => {
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
 
-  assert.match(styles, /--scrollbar-track:\s*var\(--background\)/);
+  assert.match(styles, /--scrollbar-track:\s*transparent/);
+  assert.match(styles, /--scrollbar-thumb:\s*color-mix\(in oklab,\s*var\(--foreground\) 30%,\s*transparent\)/);
   assert.match(styles, /scrollbar-width:\s*thin/);
   assert.match(styles, /\*::-webkit-scrollbar\s*\{[^}]*width:\s*6px/);
   assert.match(styles, /\*::-webkit-scrollbar\s*\{[^}]*height:\s*6px/);
   assert.match(styles, /\*::-webkit-scrollbar-track\s*\{[^}]*background:\s*var\(--scrollbar-track\)/);
+  assert.match(styles, /\*::-webkit-scrollbar-thumb\s*\{[^}]*background:\s*var\(--scrollbar-thumb\)/);
 });
 
 test("message metadata renders outside the message block and appears on hover", () => {
@@ -213,6 +219,33 @@ test("message metadata renders outside the message block and appears on hover", 
   assert.match(styles, /\.message-copy-button/);
 });
 
+test("context compaction renders as a non-copyable timeline separator", () => {
+  const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
+  const reducer = readFileSync(join(srcRoot, "runtime", "reducer.ts"), "utf8");
+  const messageList = readFileSync(join(srcRoot, "components", "chat", "MessageList.tsx"), "utf8");
+  const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
+
+  assert.match(reducer, /compact_finished/);
+  assert.match(reducer, /compact_started/);
+  assert.match(reducer, /appendTimelineSeparator/);
+  assert.match(reducer, /completeTimelineSeparator/);
+  assert.match(reducer, /isCompactionStatusResponse/);
+  assert.match(reducer, /isVisibleMessageDto/);
+  assert.match(reducer, /Compacted prior context:/);
+  assert.match(reducer, /detail\.messages\.filter\(isVisibleMessageDto\)/);
+  assert.match(app, /items=\{runtimeState\.timeline\}/);
+  assert.match(messageList, /ChatTimelineItem/);
+  assert.match(messageList, /item\.kind === "separator"/);
+  assert.match(messageList, /message-separator-running/);
+  assert.match(messageList, /message-separator/);
+  assert.doesNotMatch(messageList, /MessageSeparator[\s\S]*MessageMeta/);
+  assert.match(styles, /\.message-separator\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto\s*minmax\(0,\s*1fr\)/);
+  assert.match(styles, /@keyframes compact-separator-blink/);
+  assert.match(styles, /\.message-separator-running \.message-separator-label\s*\{[^}]*animation:\s*compact-separator-blink/);
+  assert.match(styles, /\.message-separator::before,/);
+  assert.match(styles, /\.message-separator-label/);
+});
+
 test("technical payloads render as terminal-like message cards", () => {
   const bubble = readFileSync(join(srcRoot, "components", "chat", "MessageBubble.tsx"), "utf8");
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
@@ -223,7 +256,24 @@ test("technical payloads render as terminal-like message cards", () => {
   assert.match(styles, /\.message-card-technical\s*\{[^}]*font-family:\s*var\(--font-mono\)/);
   assert.match(styles, /\.message-card-technical\s*\{[^}]*background:\s*var\(--surface-terminal\)/);
   assert.match(styles, /\.message-card-technical\s*\{[^}]*color:\s*var\(--terminal-foreground\)/);
-  assert.match(styles, /\.message-card-technical\s*\{[^}]*border:\s*1px solid var\(--terminal-border\)/);
+  assert.match(styles, /\.message-card-technical\s*\{[^}]*border:\s*0/);
+});
+
+test("assistant messages render markdown through a safe AST renderer", () => {
+  const markdownBlock = readFileSync(join(srcRoot, "components", "common", "MarkdownBlock.tsx"), "utf8");
+  const markdownParser = readFileSync(join(srcRoot, "components", "common", "markdown.ts"), "utf8");
+  const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
+
+  assert.match(markdownBlock, /parseMarkdown/);
+  assert.match(markdownBlock, /renderBlock/);
+  assert.match(markdownBlock, /renderInline/);
+  assert.match(markdownBlock, /target="_blank"/);
+  assert.match(markdownParser, /isSafeLinkHref/);
+  assert.doesNotMatch(markdownBlock, /dangerouslySetInnerHTML/);
+  assert.match(styles, /\.markdown-block h1,/);
+  assert.match(styles, /\.markdown-block ul,/);
+  assert.match(styles, /\.markdown-block pre\s*\{[^}]*overflow-x:\s*auto/);
+  assert.match(styles, /\.markdown-block a\s*\{[^}]*color:\s*var\(--primary\)/);
 });
 
 test("main page keeps only chat while registries live behind the help drawer", () => {
@@ -280,11 +330,19 @@ test("runtime sidebar is a persistent layout block toggled by the header button"
   const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
   const header = readFileSync(join(srcRoot, "components", "layout", "StatusHeader.tsx"), "utf8");
   const sidebar = readFileSync(join(srcRoot, "components", "layout", "RuntimeSidebar.tsx"), "utf8");
+  const liquidGlassFilters = readFileSync(join(srcRoot, "components", "common", "LiquidGlassFilterDefs.tsx"), "utf8");
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
 
   assert.match(app, /sidebarOpen/);
   assert.match(app, /app-shell app-shell-sidebar-open/);
   assert.match(app, /themeConfigForPreferences/);
+  assert.match(app, /LiquidGlassFilterDefs/);
+  assert.match(liquidGlassFilters, /id="lg-sidebar-distortion"/);
+  assert.match(liquidGlassFilters, /feTurbulence/);
+  assert.match(liquidGlassFilters, /type="fractalNoise"/);
+  assert.match(liquidGlassFilters, /feGaussianBlur/);
+  assert.match(liquidGlassFilters, /feDisplacementMap/);
+  assert.match(liquidGlassFilters, /scale=\{18\}/);
   assert.match(app, /app-shell-sidebar-glass/);
   assert.match(app, /<RuntimeSidebar[\s\S]*<div className="app-main">[\s\S]*<StatusHeader/);
   assert.match(app, /<RuntimeSidebar/);
@@ -296,6 +354,7 @@ test("runtime sidebar is a persistent layout block toggled by the header button"
   assert.doesNotMatch(sidebar, /runtime-sidebar-backdrop/);
   assert.doesNotMatch(sidebar, /sidebar-close-button/);
   assert.match(sidebar, /runtime-sidebar-panel/);
+  assert.match(sidebar, /runtime-sidebar-gap/);
   assert.match(sidebar, /Новый чат/);
   assert.match(sidebar, /Поиск/);
   assert.match(sidebar, /Плагины/);
@@ -320,16 +379,52 @@ test("runtime sidebar is a persistent layout block toggled by the header button"
   assert.match(styles, /\.runtime-sidebar\s*\{[^}]*flex:\s*0 0 280px/);
   assert.match(styles, /\.runtime-sidebar\s*\{[^}]*height:\s*100vh/);
   assert.match(styles, /\.runtime-sidebar\s*\{[^}]*overflow:\s*hidden/);
+  assert.match(styles, /\.runtime-sidebar\s*\{[^}]*position:\s*relative/);
   assert.match(styles, /\.runtime-sidebar\s*\{[^}]*background:\s*var\(--background\)/);
   assert.match(styles, /\.runtime-sidebar\s*\{[^}]*padding:\s*0/);
+  assert.doesNotMatch(styles, /\.app-shell-sidebar-glass \.runtime-sidebar::before/);
+  assert.doesNotMatch(styles, /\.app-shell-sidebar-glass \.runtime-sidebar::after/);
   assert.match(styles, /\.runtime-sidebar-panel\s*\{[^}]*width:\s*calc\(100% - 8px\)/);
   assert.match(styles, /\.runtime-sidebar-panel\s*\{[^}]*height:\s*100%/);
   assert.match(styles, /\.runtime-sidebar-panel\s*\{[^}]*min-height:\s*0/);
+  assert.match(styles, /\.runtime-sidebar-panel\s*\{[^}]*position:\s*relative/);
+  assert.match(styles, /\.runtime-sidebar-panel\s*\{[^}]*isolation:\s*isolate/);
+  assert.match(styles, /\.runtime-sidebar-panel\s*\{[^}]*border-right:\s*0/);
   assert.match(styles, /\.runtime-sidebar-panel\s*\{[^}]*border-radius:\s*0 var\(--control-radius\) var\(--control-radius\) 0/);
-  assert.match(styles, /\.runtime-sidebar-panel\s*\{[^}]*margin-right:\s*8px/);
-  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*backdrop-filter:\s*blur\(22px\) saturate\(1\.18\)/);
-  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*-webkit-backdrop-filter:\s*blur\(22px\) saturate\(1\.18\)/);
+  assert.match(styles, /\.runtime-sidebar-panel\s*\{[^}]*margin-right:\s*0/);
+  assert.match(styles, /\.runtime-sidebar-gap\s*\{[^}]*flex:\s*0 0 8px/);
+  assert.match(styles, /\.runtime-sidebar-gap\s*\{[^}]*background:\s*var\(--background\)/);
+  assert.match(styles, /\.runtime-sidebar-gap\s*\{[^}]*z-index:\s*2/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*--liquid-wallpaper-accent:\s*var\(--primary\)/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*--liquid-wallpaper-secondary:\s*var\(--skill\)/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*var\(--liquid-wallpaper-accent\) 34%/);
+  assert.doesNotMatch(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*var\(--liquid-wallpaper-accent\) 72%/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*var\(--liquid-wallpaper-secondary\) 28%/);
+  assert.doesNotMatch(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*var\(--liquid-wallpaper-secondary\) 62%/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*radial-gradient\(\s*ellipse at 14% 8%/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*radial-gradient\(\s*ellipse at 92% 30%/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*linear-gradient\(\s*118deg/);
+  assert.doesNotMatch(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*repeating-radial-gradient/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*radial-gradient\(\s*ellipse at 96% 10%/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*linear-gradient\(\s*180deg/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*box-shadow:\s*[^;]*inset -18px 0 34px/);
+  assert.doesNotMatch(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*border-top:\s*1px/);
+  assert.doesNotMatch(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*border-right-color/);
+  assert.doesNotMatch(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*inset 1px 0 0/);
+  assert.doesNotMatch(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*inset -1px 0 0/);
+  assert.doesNotMatch(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*18px 0 42px/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*backdrop-filter:\s*blur\(34px\) saturate\(1\.24\) contrast\(1\.02\)/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*backdrop-filter:\s*url\("#lg-sidebar-distortion"\) blur\(34px\) saturate\(1\.24\) contrast\(1\.02\)/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*-webkit-backdrop-filter:\s*blur\(34px\) saturate\(1\.24\) contrast\(1\.02\)/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel\s*\{[^}]*-webkit-backdrop-filter:\s*url\("#lg-sidebar-distortion"\) blur\(34px\) saturate\(1\.24\) contrast\(1\.02\)/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel::before,\s*\.app-shell-sidebar-glass \.runtime-sidebar-panel::after\s*\{[^}]*content:\s*""/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel::before\s*\{[^}]*linear-gradient\(\s*90deg/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel::after\s*\{[^}]*radial-gradient\(\s*ellipse at 100% 16%/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel::after\s*\{[^}]*opacity:\s*0\.28/);
+  assert.match(styles, /\.app-shell-sidebar-glass \.runtime-sidebar-panel > \*\s*\{[^}]*z-index:\s*1/);
   assert.match(styles, /\.runtime-sidebar-chat-list\s*\{[^}]*flex:\s*1/);
+  assert.match(styles, /\.runtime-sidebar-chat-list\s*\{[^}]*--sidebar-chat-scrollbar-track:\s*transparent/);
+  assert.match(styles, /\.runtime-sidebar-chat-list\s*\{[^}]*--sidebar-chat-scrollbar-thumb:\s*color-mix\(in oklab,\s*var\(--foreground\) 30%,\s*transparent\)/);
   assert.match(styles, /\.runtime-sidebar-chat-list\s*\{[^}]*overflow:\s*auto/);
   assert.match(styles, /\.runtime-sidebar-chat-list\s*\{[^}]*scrollbar-width:\s*thin/);
   assert.match(styles, /\.runtime-sidebar-chat-list\s*\{[^}]*scrollbar-color:\s*var\(--sidebar-chat-scrollbar-thumb\) var\(--sidebar-chat-scrollbar-track\)/);
@@ -361,11 +456,14 @@ test("codex theme v1 is applied to dark, light, and system themes", () => {
   assert.match(styles, /\.app-theme-dark\s*\{[^}]*--codex-contrast:\s*50/);
   assert.match(styles, /\.app-theme-dark\s*\{[^}]*--codex-ink:\s*#e6edf3/);
   assert.match(styles, /\.app-theme-dark\s*\{[^}]*--codex-surface:\s*#0d1117/);
+  assert.match(styles, /\.app-theme-dark\s*\{[^}]*--codex-background-surface:\s*color-mix\(in oklab,\s*var\(--codex-surface\) var\(--theme-sidebar-mix\),\s*var\(--codex-ink\)\)/);
+  assert.match(styles, /\.app-theme-dark\s*\{[^}]*--codex-sidebar-surface:\s*color-mix\(in oklab,\s*var\(--codex-surface\) 72%,\s*#000000\)/);
   assert.match(styles, /\.app-theme-dark\s*\{[^}]*--codex-opaque-windows:\s*1/);
   assert.match(styles, /\.app-theme-dark\s*\{[^}]*--codex-diff-added:\s*#3fb950/);
   assert.match(styles, /\.app-theme-dark\s*\{[^}]*--codex-diff-removed:\s*#f85149/);
   assert.match(styles, /\.app-theme-dark\s*\{[^}]*--codex-skill:\s*#bc8cff/);
-  assert.match(styles, /--background:\s*var\(--codex-surface\)/);
+  assert.match(styles, /--background:\s*var\(--codex-background-surface\)/);
+  assert.match(styles, /--surface-sidebar:\s*var\(--codex-sidebar-surface\)/);
   assert.match(styles, /--foreground:\s*var\(--codex-ink\)/);
   assert.match(styles, /--primary:\s*var\(--codex-accent\)/);
   assert.match(styles, /--success:\s*var\(--codex-diff-added\)/);
@@ -384,7 +482,7 @@ test("codex theme v1 is applied to dark, light, and system themes", () => {
   assert.match(styles, /--shadow-hairline:\s*none/);
   assert.match(styles, /--focus-ring:\s*none/);
   assert.match(styles, /--focus-outline:\s*color-mix\(in oklab,\s*var\(--border-strong\) 86%,\s*var\(--foreground\)\)/);
-  assert.deepEqual(nonNoneBoxShadowValues(`${styles}\n${settingsStyles}`), []);
+  assert.deepEqual(nonNoneBoxShadowValues(withoutLiquidGlassSidebarRules(`${styles}\n${settingsStyles}`)), []);
   assert.doesNotMatch(`${styles}\n${settingsStyles}`, /drop-shadow\(/);
   assert.doesNotMatch(`${styles}\n${settingsStyles}`, /inset 0 1px/);
   assert.doesNotMatch(`${styles}\n${settingsStyles}`, /--primary:\s*#8b93ff|--primary:\s*#4f5fc8|--figma-admin-green:\s*#00b473/);
@@ -437,6 +535,7 @@ test("chat presentation borrows widget width, message blocks, and floating compo
   assert.match(styles, /\.message-row\s*\{[^}]*width:\s*100%/);
   assert.match(styles, /\.message-card\s*\{[^}]*width:\s*100%/);
   assert.match(styles, /\.message-card-user\s*\{[^}]*max-width:\s*min\(720px,\s*88%\)/);
+  assert.match(styles, /\.message-card-user\s*\{[^}]*border:\s*0/);
   assert.match(styles, /\.message-card-user\s*\{[^}]*border-radius:\s*var\(--surface-radius\)/);
   assert.match(styles, /\.message-card-user\s*\{[^}]*background:\s*color-mix\(in oklab,\s*var\(--card-elevated\)/);
   assert.doesNotMatch(styles, /\.message-card-user\s*\{[^}]*background:\s*var\(--primary\)/);
@@ -497,6 +596,7 @@ test("context budget is rendered inside the chat composer", () => {
   const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
   const composer = readFileSync(join(srcRoot, "components", "chat", "ChatComposer.tsx"), "utf8");
   const meter = readFileSync(join(srcRoot, "components", "chat", "ComposerContextMeter.tsx"), "utf8");
+  const contextWindow = readFileSync(join(srcRoot, "runtime", "contextWindow.ts"), "utf8");
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
 
   assert.doesNotMatch(app, /ContextPanel/);
@@ -504,14 +604,73 @@ test("context budget is rendered inside the chat composer", () => {
   assert.match(composer, /className="composer-footer"/);
   assert.match(meter, /composer-context-icon/);
   assert.match(meter, /composer-context-popover/);
+  assert.match(meter, /buildContextWindowView/);
+  assert.match(meter, /formatContextTokenCount/);
   assert.doesNotMatch(meter, /CONTEXT_MAX_TOKENS/);
-  assert.match(meter, /used_tokens/);
-  assert.match(meter, /max_tokens/);
-  assert.match(meter, /}к`/);
+  assert.match(contextWindow, /used_tokens/);
+  assert.match(contextWindow, /max_tokens/);
+  assert.match(contextWindow, /remaining_tokens/);
+  assert.match(contextWindow, /}к`/);
   assert.doesNotMatch(styles, /34,\s*197,\s*94|#86efac|#b7f7cb/i);
   assert.match(styles, /stroke: var\(--primary\)/);
   assert.match(styles, /\.composer-context-popover\s*\{[^}]*left:\s*50%/);
   assert.match(styles, /\.composer-context-popover\s*\{[^}]*transform:\s*translateX\(-50%\)/);
+});
+
+test("composer context button opens a detailed context window overlay", () => {
+  const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
+  const composer = readFileSync(join(srcRoot, "components", "chat", "ChatComposer.tsx"), "utf8");
+  const meter = readFileSync(join(srcRoot, "components", "chat", "ComposerContextMeter.tsx"), "utf8");
+  const overlay = readFileSync(join(srcRoot, "components", "context", "ContextWindowOverlay.tsx"), "utf8");
+  const contextWindow = readFileSync(join(srcRoot, "runtime", "contextWindow.ts"), "utf8");
+  const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
+
+  assert.match(app, /ContextWindowOverlay/);
+  assert.match(app, /contextWindowOpen/);
+  assert.match(app, /effectiveModelName/);
+  assert.match(app, /const modelName = effectiveModelName\(runtimeStatus\?\.config\)/);
+  assert.match(app, /modelName=\{modelName\}/);
+  assert.match(app, /onOpenContextWindow=\{\(\) => setContextWindowOpen\(true\)\}/);
+  assert.match(composer, /onOpenContextWindow\?: \(\) => void/);
+  assert.match(composer, /ComposerContextMeter[\s\S]*onOpenContextWindow=\{onOpenContextWindow\}/);
+  assert.match(meter, /onOpenContextWindow/);
+  assert.match(meter, /type="button"/);
+  assert.match(meter, /onClick=\{onOpenContextWindow\}/);
+  assert.match(overlay, /RuntimeContextState/);
+  assert.match(overlay, /modelName: string/);
+  assert.match(overlay, /buildContextWindowView/);
+  assert.match(overlay, /formatContextBudgetLine/);
+  assert.match(overlay, /formatContextBudgetLine\(budget, modelName\)/);
+  assert.match(overlay, /contextRecordPreview/);
+  assert.match(overlay, /isExpandableContextRecord/);
+  assert.match(overlay, /useState<Set<string>>/);
+  assert.match(overlay, /context-window-budget-line/);
+  assert.doesNotMatch(overlay, /Текущее состояние контекста/);
+  assert.match(overlay, /Развернуть/);
+  assert.match(overlay, /Свернуть/);
+  assert.match(overlay, /aria-expanded=\{expanded\}/);
+  assert.doesNotMatch(overlay, /function ContextStat|<ContextStat/);
+  assert.match(contextWindow, /RuntimeContextState/);
+  assert.match(contextWindow, /formatContextBudgetLine\(budget: ContextBudgetView, modelName = "unknown"\)/);
+  assert.match(contextWindow, /`Контекст \$\{modelName\}: /);
+  assert.doesNotMatch(contextWindow, /Контекст модели/);
+  assert.match(overlay, /role="dialog"/);
+  assert.match(overlay, /context-window-overlay/);
+  assert.match(contextWindow, /context\.fragments/);
+  assert.match(contextWindow, /context\.references/);
+  assert.match(contextWindow, /context\.attachments/);
+  assert.match(contextWindow, /context\.errors/);
+  assert.match(contextWindow, /context\.budget/);
+  assert.doesNotMatch(overlay, /fetch\(|requestJson|\/sessions|apiUrl\("\/context|requestJson<.*>\("\/context/);
+  assert.match(styles, /\.context-window-overlay\s*\{[^}]*position:\s*fixed/);
+  assert.match(styles, /\.context-window-overlay\s*\{[^}]*padding:\s*0/);
+  assert.match(styles, /\.context-window-overlay\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(styles, /\.context-window-page\s*\{[^}]*width:\s*100%/);
+  assert.match(styles, /\.context-window-page\s*\{[^}]*height:\s*100%/);
+  assert.doesNotMatch(styles, /\.context-window-page\s*\{[^}]*max-height:\s*min/);
+  assert.match(styles, /\.context-window-progress span\s*\{[^}]*background:\s*var\(--success\)/);
+  assert.match(styles, /\.context-window-expand-button/);
+  assert.match(styles, /\.context-window-fragment/);
 });
 
 test("composer action menu opens from a left aligned plus button", () => {
@@ -710,7 +869,11 @@ test("settings preference dropdowns use app-styled popovers instead of native se
   assert.match(runtimePreferences, /--font-size-heading/);
   assert.match(runtimePreferences, /--font-size-code/);
   assert.match(runtimePreferences, /--app-interactive-cursor/);
+  assert.match(runtimePreferences, /blockRadius/);
+  assert.match(runtimePreferences, /--ui-element-radius/);
+  assert.match(themeAppearance, /codeFontSize[\s\S]*Радиус блоков[\s\S]*blockRadius/);
   assert.match(uiPreferences, /SettingsSelect/);
+  assert.doesNotMatch(uiPreferences, /blockRadius/);
   assert.doesNotMatch(uiPreferences, /<select|<option/);
   assert.match(settingsSelect, /role="listbox"/);
   assert.match(settingsSelect, /role="option"/);
