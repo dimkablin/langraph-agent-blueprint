@@ -19,6 +19,7 @@ export function MessageList({
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
   const timelineItems: ChatTimelineItem[] = items ?? messages.map((message) => ({ kind: "message", message }));
+  const activeMessageId = isStreaming ? latestAssistantMessageId(timelineItems) : undefined;
 
   useEffect(() => {
     if (autoScroll) {
@@ -32,20 +33,23 @@ export function MessageList({
 
   return (
     <div className="message-list">
-      {timelineItems.map((item) =>
-        item.kind === "separator" ? (
-          <MessageSeparator key={item.id} item={item} />
-        ) : item.kind === "activity" ? (
-          <EventTimeline
-            key={item.id}
-            activities={item.activities}
-            variant="inline"
-            compactCommands={Boolean(item.messageId) || !isStreaming}
-          />
-        ) : (
-          <MessageBubble key={item.message.id} message={item.message} />
-        ),
-      )}
+      {timelineItems.map((item) => {
+        if (item.kind === "separator") {
+          return <MessageSeparator key={item.id} item={item} />;
+        }
+        if (item.kind === "activity") {
+          const activeActivity = isStreaming && (!item.messageId || item.messageId === activeMessageId);
+          return (
+            <EventTimeline
+              key={item.id}
+              activities={item.activities}
+              variant="inline"
+              compactCommands={!activeActivity}
+            />
+          );
+        }
+        return <MessageBubble key={item.message.id} hideMeta={isStreaming} message={item.message} />;
+      })}
       {isStreaming ? (
         <div className="streaming-row">
           <Spinner />
@@ -55,6 +59,16 @@ export function MessageList({
       <div ref={endRef} aria-hidden="true" />
     </div>
   );
+}
+
+function latestAssistantMessageId(items: ChatTimelineItem[]): string | undefined {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item.kind === "message" && item.message.role === "assistant") {
+      return item.message.id;
+    }
+  }
+  return undefined;
 }
 
 function MessageSeparator({ item }: { item: Extract<ChatTimelineItem, { kind: "separator" }> }) {

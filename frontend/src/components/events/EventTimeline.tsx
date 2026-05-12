@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 
-import { IconChevronRight } from "../../icons.ts";
+import { IconCheck, IconChevronRight, IconCopy } from "../../icons.ts";
 import { buildActivityEntries, formatTerminalBlock, type ActivityTimelineEntry } from "../../runtime/activityTimeline.ts";
 import { safeJson } from "../../runtime/events.ts";
 import type { ActivityItem } from "../../runtime/reducer.ts";
+
+const SHELL_ACTIVITY_LABEL = "Shell";
 
 export function EventTimeline({
   activities,
@@ -19,7 +21,7 @@ export function EventTimeline({
   const visible = variant === "inline" ? entries.slice(-24) : entries.slice(-80).reverse();
 
   useEffect(() => {
-    if (compactCommands) setOpen(false);
+    setOpen(!compactCommands);
   }, [compactCommands]);
 
   if (visible.length === 0) {
@@ -59,7 +61,6 @@ function ActivityEntryRow({ compactCommands, entry }: { compactCommands: boolean
           aria-expanded={expanded}
           onClick={() => setExpandedOverride((value) => !(value ?? (!entry.isCommand && entry.expandedByDefault)))}
         >
-          {!isCompactCommand ? <span className="activity-kind">{entry.category}</span> : null}
           <span className="activity-title-cell">
             <span className="activity-title-text">
               <strong className="activity-title-lead">{entry.titleLead}</strong>
@@ -70,10 +71,8 @@ function ActivityEntryRow({ compactCommands, entry }: { compactCommands: boolean
             </span>
           </span>
         </button>
-        {entry.summary && !entry.isCommand ? <p className="activity-summary">{truncateActivityText(entry.summary)}</p> : null}
-        {expanded ? <div className="activity-debug-details">
-          {entry.summary && entry.isCommand ? <p className="activity-summary">{truncateActivityText(entry.summary)}</p> : null}
-          {entry.terminal ? <pre className="activity-terminal"><code>{formatTerminalBlock(entry)}</code></pre> : null}
+        {expanded && entry.terminal ? <CommandActivityDetails entry={entry} /> : null}
+        {expanded && !entry.terminal ? <div className="activity-debug-details">
           <pre>{truncateActivityText(safeJson(entry.debugPayload), 3600)}</pre>
           <div className="activity-detail-footer">
             <span className="activity-status-detail">{entry.detailStatusLabel}</span>
@@ -82,6 +81,57 @@ function ActivityEntryRow({ compactCommands, entry }: { compactCommands: boolean
       </div>
     </article>
   );
+}
+
+function CommandActivityDetails({ entry }: { entry: ActivityTimelineEntry }) {
+  const [copied, setCopied] = useState(false);
+  const terminalText = formatTerminalBlock(entry);
+
+  async function copyTerminalOutput() {
+    if (!terminalText.trim() || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(terminalText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="activity-debug-details activity-command-details">
+      <div className="activity-command-panel">
+        <div className="activity-command-header">
+          <span className="activity-command-label">{SHELL_ACTIVITY_LABEL}</span>
+          <button
+            type="button"
+            className="activity-command-copy"
+            aria-label="Copy command output"
+            onClick={() => void copyTerminalOutput()}
+            disabled={!terminalText.trim()}
+          >
+            {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+          </button>
+        </div>
+        <pre className="activity-terminal activity-command-output"><code>{terminalText}</code></pre>
+        <div className="activity-command-footer">
+          <span className={`activity-command-status activity-command-status-${entry.status}`}>
+            {entry.status === "success" || entry.status === "ok" ? <IconCheck size={14} /> : null}
+            {activityCommandStatusLabel(entry.status)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function activityCommandStatusLabel(status: ActivityTimelineEntry["status"]): string {
+  if (status === "success" || status === "ok") return "Успех";
+  if (status === "error") return "Ошибка";
+  if (status === "blocked") return "Заблокировано";
+  if (status === "warning") return "Предупреждение";
+  if (status === "pending" || status === "running") return "Выполняется";
+  return "Инфо";
 }
 
 function truncateActivityText(value: string, limit = 280): string {

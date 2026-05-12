@@ -4,7 +4,7 @@ import { MarkdownBlock } from "../common/MarkdownBlock.tsx";
 import { IconCheck, IconCopy } from "../../icons.ts";
 import type { ChatMessage } from "../../runtime/reducer.ts";
 
-export function MessageBubble({ message }: { message: ChatMessage }) {
+export function MessageBubble({ hideMeta = false, message }: { hideMeta?: boolean; message: ChatMessage }) {
   const isUser = message.role === "user";
   const isTechnical = isTechnicalMessage(message);
   const messageClass = isUser ? "message-card message-card-user" : isTechnical ? "message-card message-card-technical" : "message-card";
@@ -13,7 +13,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
       <div className={messageClass}>
         <MarkdownBlock content={message.content} inverted={isUser} />
       </div>
-      <MessageMeta align={isUser ? "user" : "assistant"} content={message.content} timestamp={message.timestamp} />
+      {!hideMeta ? <MessageMeta align={isUser ? "user" : "assistant"} content={message.content} timestamp={message.timestamp} /> : null}
     </article>
   );
 }

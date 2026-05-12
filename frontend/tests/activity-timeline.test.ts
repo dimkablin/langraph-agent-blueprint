@@ -129,7 +129,8 @@ test("shell activity entries render terminal text without JSON syntax", () => {
   const terminalText = formatTerminalBlock(entry);
   assert.match(terminalText, /^\$ git status --short/);
   assert.match(terminalText, /M frontend\/src\/App\.tsx/);
-  assert.match(terminalText, /Exit code: 0/);
+  assert.equal(entry.terminal?.exitCode, 0);
+  assert.doesNotMatch(terminalText, /Exit code: 0/);
   assert.doesNotMatch(terminalText, /"command"/);
 });
 

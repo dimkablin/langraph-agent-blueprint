@@ -63,9 +63,6 @@ export function formatTerminalBlock(entry: ActivityTimelineEntry): string {
   if (entry.terminal.output) {
     lines.push(entry.terminal.output);
   }
-  if (typeof entry.terminal.exitCode === "number") {
-    lines.push(`Exit code: ${entry.terminal.exitCode}`);
-  }
   if (entry.terminal.truncated) {
     lines.push("...<truncated>");
   }

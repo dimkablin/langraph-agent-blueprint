@@ -603,6 +603,10 @@ pre {
   --activity-reference-text: var(--foreground);
   --activity-reference-muted: var(--muted);
   --activity-reference-hover: color-mix(in oklab, var(--foreground) 82%, var(--muted));
+  --activity-command-surface: var(--surface-terminal);
+  --activity-command-border: var(--terminal-border);
+  --activity-command-text: var(--terminal-foreground);
+  --activity-command-muted: var(--muted);
 
   width: min(var(--chat-column-width), calc(100% - 24px));
   max-height: 220px;
@@ -622,6 +626,10 @@ pre {
   --activity-reference-text: #8d88a8;
   --activity-reference-muted: #756f90;
   --activity-reference-hover: #a9a3c0;
+  --activity-command-surface: #3a3a50;
+  --activity-command-border: #45455f;
+  --activity-command-text: #c4bfd6;
+  --activity-command-muted: #9a94b1;
 
   width: 100%;
   max-height: none;
@@ -2384,7 +2392,7 @@ pre {
   width: 100%;
   min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 6px;
 }
@@ -2480,12 +2488,6 @@ pre {
   overflow-wrap: anywhere;
 }
 
-.activity-kind {
-  color: var(--activity-reference-muted);
-  font-size: var(--font-size-caption);
-  text-transform: lowercase;
-}
-
 .activity-status {
   color: var(--activity-reference-muted);
   font-size: var(--font-size-caption);
@@ -2507,6 +2509,95 @@ pre {
 .activity-debug-details pre {
   margin: 6px 0 0;
   white-space: pre-wrap;
+}
+
+.activity-command-details {
+  margin-top: 4px;
+}
+
+.activity-command-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--activity-command-border);
+  border-radius: var(--radius-md);
+  background: var(--activity-command-surface);
+  color: var(--activity-command-text);
+  padding: 8px 10px 8px;
+  overflow: hidden;
+}
+
+.activity-command-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.activity-command-label {
+  min-width: 0;
+  color: var(--activity-command-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 500;
+}
+
+.activity-command-copy {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--activity-command-muted);
+  padding: 0;
+}
+
+.activity-command-copy:hover,
+.activity-command-copy:focus-visible {
+  background: transparent;
+  color: var(--activity-command-text);
+}
+
+.activity-command-copy:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.activity-command-output {
+  max-height: 180px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--activity-command-text);
+  padding: 0 2px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.activity-command-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.activity-command-status {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  color: var(--activity-command-muted);
+  font-size: var(--font-size-caption);
+}
+
+.activity-command-status-error,
+.activity-command-status-blocked {
+  color: color-mix(in oklab, var(--danger) 74%, var(--foreground));
 }
 
 .activity-detail-footer {

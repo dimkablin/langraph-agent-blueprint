@@ -222,13 +222,17 @@ test("scrollbars are thin with transparent tracks and seventy-percent transparen
 
 test("message metadata renders outside the message block and appears on hover", () => {
   const bubble = readFileSync(join(srcRoot, "components", "chat", "MessageBubble.tsx"), "utf8");
+  const messageList = readFileSync(join(srcRoot, "components", "chat", "MessageList.tsx"), "utf8");
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
 
   assert.match(bubble, /MessageMeta/);
+  assert.match(bubble, /hideMeta\?: boolean/);
   assert.match(bubble, /Copy message/);
   assert.match(bubble, /navigator\.clipboard\.writeText/);
   assert.match(bubble, /const messageClass = isUser/);
-  assert.match(bubble, /<div className=\{messageClass\}>[\s\S]*<\/div>\s*<MessageMeta/);
+  assert.match(bubble, /!hideMeta \? <MessageMeta/);
+  assert.match(messageList, /hideMeta=\{isStreaming\}/);
+  assert.match(messageList, /latestAssistantMessageId/);
   assert.doesNotMatch(styles, /\.message-card time/);
   assert.match(styles, /\.message-meta\s*\{[^}]*opacity:\s*0/);
   assert.match(styles, /\.message-meta\s*\{[^}]*pointer-events:\s*none/);
@@ -339,24 +343,38 @@ test("completed command activity rows render compactly without inline success ch
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
 
   assert.match(eventTimeline, /import \{ useEffect, useState \} from "react"/);
-  assert.match(messageList, /compactCommands=\{Boolean\(item\.messageId\) \|\| !isStreaming\}/);
+  assert.match(eventTimeline, /IconCheck, IconChevronRight, IconCopy/);
+  assert.match(messageList, /const activeMessageId = isStreaming \? latestAssistantMessageId\(timelineItems\) : undefined/);
+  assert.match(messageList, /const activeActivity = isStreaming && \(!item\.messageId \|\| item\.messageId === activeMessageId\)/);
+  assert.match(messageList, /compactCommands=\{!activeActivity\}/);
   assert.match(eventTimeline, /compactCommands\?: boolean/);
   assert.match(eventTimeline, /useState\(\(\) => !compactCommands\)/);
-  assert.match(eventTimeline, /if \(compactCommands\) setOpen\(false\)/);
+  assert.match(eventTimeline, /setOpen\(!compactCommands\)/);
   assert.match(eventTimeline, /const isCompactCommand = compactCommands && entry\.isCommand/);
   assert.match(eventTimeline, /const expanded = expandedOverride \?\? \(!entry\.isCommand && entry\.expandedByDefault\)/);
   assert.match(eventTimeline, /<h2>\{title\}<\/h2>\s*<IconChevronRight size=\{16\}/);
   assert.match(eventTimeline, /className=\{isCompactCommand \? "activity-line activity-line-compact activity-line-toggle" : "activity-line activity-line-toggle"\}/);
   assert.match(eventTimeline, /onClick=\{\(\) => setExpandedOverride\(\(value\) => !\(value \?\? \(!entry\.isCommand && entry\.expandedByDefault\)\)\)\}/);
-  assert.match(eventTimeline, /!isCompactCommand \? <span className="activity-kind">\{entry\.category\}<\/span> : null/);
+  assert.doesNotMatch(eventTimeline, /activity-kind/);
+  assert.doesNotMatch(eventTimeline, /activityKindLabel/);
+  assert.doesNotMatch(eventTimeline, /activityTitleLead/);
+  assert.doesNotMatch(eventTimeline, /activityTitleRest/);
+  assert.match(eventTimeline, /<strong className="activity-title-lead">\{entry\.titleLead\}<\/strong>/);
+  assert.match(eventTimeline, /entry\.titleRest \? <span className="activity-title-rest">\{entry\.titleRest\}<\/span> : null/);
   assert.match(eventTimeline, /<span className="activity-detail-toggle" aria-hidden="true">/);
   assert.match(eventTimeline, /activity-title-cell/);
   assert.match(eventTimeline, /activity-title-lead/);
   assert.match(eventTimeline, /activity-title-rest/);
+  assert.match(eventTimeline, /CommandActivityDetails/);
+  assert.match(eventTimeline, /activity-command-panel/);
+  assert.match(eventTimeline, /SHELL_ACTIVITY_LABEL = "Shell"/);
+  assert.match(eventTimeline, /copyTerminalOutput/);
+  assert.match(eventTimeline, /activityCommandStatusLabel\(entry\.status\)/);
   assert.match(eventTimeline, /activity-detail-footer/);
   assert.match(eventTimeline, /activity-status-detail/);
-  assert.match(eventTimeline, /entry\.summary && !entry\.isCommand \? <p className="activity-summary">/);
-  assert.match(eventTimeline, /entry\.summary && entry\.isCommand \? <p className="activity-summary">/);
+  assert.doesNotMatch(eventTimeline, /entry\.summary && !entry\.isCommand \? <p className="activity-summary">/);
+  assert.doesNotMatch(eventTimeline, /entry\.summary && entry\.isCommand \? <p className="activity-summary">/);
+  assert.doesNotMatch(eventTimeline, /entry\.terminal \? <pre className="activity-terminal"/);
   assert.doesNotMatch(eventTimeline, /entry\.terminal && !isCompactCommand \?/);
   assert.match(eventTimeline, /variant !== "inline" \? <span>\{entries\.length\}<\/span> : null/);
   assert.doesNotMatch(eventTimeline, /<span className="activity-status">\{statusLabel\}<\/span>/);
@@ -382,6 +400,7 @@ test("completed command activity rows render compactly without inline success ch
   assert.match(styles, /\.activity-heading \.activity-group-toggle:hover h2,/);
   assert.match(styles, /\.activity-heading \.activity-group-toggle:focus-visible h2\s*\{[^}]*color:\s*var\(--activity-reference-hover\)/);
   assert.match(styles, /\.activity-group-toggle:hover svg,[\s\S]*\.activity-group-toggle:focus-visible svg\s*\{[^}]*opacity:\s*1/);
+  assert.match(styles, /\.activity-line\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
   assert.match(styles, /\.activity-line-compact\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
   assert.match(styles, /\.activity-line-toggle\s*\{[^}]*background:\s*transparent/);
   assert.match(styles, /\.activity-line-toggle\s*\{[^}]*font:\s*inherit/);
@@ -394,6 +413,11 @@ test("completed command activity rows render compactly without inline success ch
   assert.match(styles, /\.activity-title-rest\s*\{[^}]*color:\s*var\(--activity-reference-muted\)/);
   assert.match(styles, /\.activity-title-rest\s*\{[^}]*font-size:\s*inherit/);
   assert.match(styles, /\.activity-title-rest\s*\{[^}]*font-weight:\s*400/);
+  assert.doesNotMatch(styles, /\.activity-kind\s*\{/);
+  assert.match(styles, /\.activity-command-panel\s*\{[^}]*background:\s*var\(--activity-command-surface\)/);
+  assert.match(styles, /\.activity-command-output\s*\{[^}]*background:\s*transparent/);
+  assert.match(styles, /\.activity-command-copy\s*\{[^}]*background:\s*transparent/);
+  assert.match(styles, /\.activity-command-status\s*\{[^}]*justify-content:\s*flex-end/);
   assert.match(styles, /\.activity-detail-toggle\s*\{[^}]*opacity:\s*0/);
   assert.match(styles, /\.activity-row:hover \.activity-detail-toggle,/);
   assert.match(styles, /\.activity-error \.activity-title-lead\s*\{[^}]*color:\s*color-mix\(in oklab,\s*var\(--danger\)/);
@@ -604,6 +628,8 @@ test("technical runtime surfaces read like developer-tool panels", () => {
 
   assert.match(styles, /\.permission-command-description code,[\s\S]*\.activity-terminal,[\s\S]*\.activity-debug-details pre\s*\{[^}]*background:\s*var\(--surface-terminal\)/);
   assert.match(styles, /\.permission-command-description code,[\s\S]*\.activity-terminal,[\s\S]*\.activity-debug-details pre\s*\{[^}]*color:\s*var\(--terminal-foreground\)/);
+  assert.match(styles, /\.activity-command-panel\s*\{[^}]*border:\s*1px solid var\(--activity-command-border\)/);
+  assert.match(styles, /\.activity-command-output\s*\{[^}]*font-family:\s*var\(--font-mono\)/);
   assert.doesNotMatch(styles, /activity-rail-dot/);
   assert.match(styles, /\.activity-detail-toggle\s*\{[^}]*background:\s*transparent/);
   assert.match(styles, /\.status-good\s*\{[^}]*color:\s*var\(--success\)/);
