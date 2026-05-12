@@ -5,7 +5,6 @@ import { MessageList } from "./components/chat/MessageList.tsx";
 import { WelcomePromptExamples, type WelcomePromptExample } from "./components/chat/WelcomePromptExamples.tsx";
 import { LiquidGlassFilterDefs } from "./components/common/LiquidGlassFilterDefs.tsx";
 import { ContextWindowOverlay } from "./components/context/ContextWindowOverlay.tsx";
-import { EventTimeline } from "./components/events/EventTimeline.tsx";
 import { RuntimeDrawer } from "./components/layout/RuntimeDrawer.tsx";
 import { RuntimeSidebar } from "./components/layout/RuntimeSidebar.tsx";
 import { StatusHeader } from "./components/layout/StatusHeader.tsx";
@@ -20,7 +19,7 @@ import { useUIPreferences } from "./hooks/useUIPreferences.ts";
 import { useWorkspaces } from "./hooks/useWorkspaces.ts";
 import { effectiveModelName } from "./runtime/modelConfig.ts";
 import { DEFAULT_SETTINGS_TAB, type SettingsTab } from "./runtime/settingsPage.ts";
-import { themeConfigForPreferences, themeCSSVariables } from "./runtime/uiPreferences.ts";
+import { filterTimelineByPreferences, themeConfigForPreferences, themeCSSVariables } from "./runtime/uiPreferences.ts";
 
 type AppView = "chat" | "settings";
 
@@ -66,6 +65,7 @@ export default function App() {
     .filter(Boolean)
     .join(" ");
   const shellStyle = themeCSSVariables(preferences) as CSSProperties;
+  const visibleTimeline = filterTimelineByPreferences(runtimeState.timeline, preferences);
 
   const openChatView = () => setAppView("chat");
   const handleNewChat = () => {
@@ -159,37 +159,38 @@ export default function App() {
                   <div className="chat-scroll">
                     <MessageList
                       messages={runtimeState.messages}
-                      items={runtimeState.timeline}
+                      items={visibleTimeline}
                       isStreaming={runtimeState.isStreaming || busy}
                       autoScroll={preferences.autoScroll}
                     />
                   </div>
-                  <EventTimeline activities={runtimeState.activities} />
                   {runtimeState.error ? <div className="error-banner">{runtimeState.error}</div> : null}
-                  <PermissionPanel
-                    request={runtimeState.pendingPermission}
-                    busy={busy}
-                    onApprove={() => void resolvePermission("approved")}
-                    onReject={() => void resolvePermission("rejected")}
-                  />
-                  <ChatComposer
-                    commands={commands}
-                    context={runtimeState.context}
-                    contextMaxTokens={contextMaxTokens}
-                    disabled={busy && !runtimeState.isStreaming}
-                    intelligenceLevel={modelIntelligenceLevel}
-                    isStreaming={runtimeState.isStreaming || busy}
-                    workspace={activeWorkspace}
-                    workspaces={workspaces}
-                    workspaceError={workspaceError}
-                    onIntelligenceChange={setModelIntelligenceLevel}
-                    onAddWorkspace={handleAddWorkspace}
-                    onSelectWorkspace={(projectId) => void setActiveProject(projectId)}
-                    onCheckoutBranch={(branch) => void checkoutBranch(branch)}
-                    onOpenContextWindow={() => setContextWindowOpen(true)}
-                    onSubmit={(value) => void submitMessage(value)}
-                    onStop={stopStream}
-                  />
+                  <div className="chat-input-stack">
+                    <PermissionPanel
+                      request={runtimeState.pendingPermission}
+                      busy={busy}
+                      onApprove={() => void resolvePermission("approved")}
+                      onReject={() => void resolvePermission("rejected")}
+                    />
+                    <ChatComposer
+                      commands={commands}
+                      context={runtimeState.context}
+                      contextMaxTokens={contextMaxTokens}
+                      disabled={busy && !runtimeState.isStreaming}
+                      intelligenceLevel={modelIntelligenceLevel}
+                      isStreaming={runtimeState.isStreaming || busy}
+                      workspace={activeWorkspace}
+                      workspaces={workspaces}
+                      workspaceError={workspaceError}
+                      onIntelligenceChange={setModelIntelligenceLevel}
+                      onAddWorkspace={handleAddWorkspace}
+                      onSelectWorkspace={(projectId) => void setActiveProject(projectId)}
+                      onCheckoutBranch={(branch) => void checkoutBranch(branch)}
+                      onOpenContextWindow={() => setContextWindowOpen(true)}
+                      onSubmit={(value) => void submitMessage(value)}
+                      onStop={stopStream}
+                    />
+                  </div>
                 </>
               )}
             </section>

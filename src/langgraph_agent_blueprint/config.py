@@ -359,6 +359,7 @@ def _normalize_env_layer(raw: Mapping[str, Any], source: str, diagnostics: list[
     _set_if_present(values, "context_max_file_bytes", _parse_int(first("CONTEXT_MAX_FILE_BYTES"), "context_max_file_bytes", source, diagnostics))
     _set_if_present(values, "context_max_directory_files", _parse_int(first("CONTEXT_MAX_DIRECTORY_FILES"), "context_max_directory_files", source, diagnostics))
     _set_if_present(values, "context_max_glob_files", _parse_int(first("CONTEXT_MAX_GLOB_FILES"), "context_max_glob_files", source, diagnostics))
+    _set_if_present(values, "tool_output_limit", _parse_int(first("TOOL_OUTPUT_LIMIT", "LG_AGENT_TOOL_OUTPUT_LIMIT"), "tool_output_limit", source, diagnostics))
     _set_if_present(values, "anthropic_api_key", first("ANTHROPIC_API_KEY"))
     _set_if_present(values, "anthropic_model", first("ANTHROPIC_MODEL"))
     _set_if_present(values, "openai_api_key", first("OPENAI_API_KEY"))
@@ -457,7 +458,14 @@ def _normalize_toml_layer(raw: dict[str, Any], source: str, diagnostics: list[Co
 
 def _validate_toml_value_types(values: dict[str, Any], source: str, diagnostics: list[ConfigDiagnostic]) -> dict[str, Any]:
     bool_keys = {"network_enabled", "web_fetch_allow_private_hosts"}
-    int_keys = {"web_fetch_max_bytes", "context_max_tokens", "context_max_file_bytes", "context_max_directory_files", "context_max_glob_files"}
+    int_keys = {
+        "web_fetch_max_bytes",
+        "context_max_tokens",
+        "context_max_file_bytes",
+        "context_max_directory_files",
+        "context_max_glob_files",
+        "tool_output_limit",
+    }
     float_keys = {"plugin_git_timeout_seconds", "shell_timeout_seconds"}
     path_list_keys = {"skills_paths", "plugin_paths"}
     clean: dict[str, Any] = {}

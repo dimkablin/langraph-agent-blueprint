@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { Spinner } from "../common/Spinner.tsx";
+import { EventTimeline } from "../events/EventTimeline.tsx";
 import { IconFileText } from "../../icons.ts";
 import { MessageBubble } from "./MessageBubble.tsx";
 import type { ChatMessage, ChatTimelineItem } from "../../runtime/reducer.ts";
@@ -34,6 +35,13 @@ export function MessageList({
       {timelineItems.map((item) =>
         item.kind === "separator" ? (
           <MessageSeparator key={item.id} item={item} />
+        ) : item.kind === "activity" ? (
+          <EventTimeline
+            key={item.id}
+            activities={item.activities}
+            variant="inline"
+            compactCommands={Boolean(item.messageId) || !isStreaming}
+          />
         ) : (
           <MessageBubble key={item.message.id} message={item.message} />
         ),

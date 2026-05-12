@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { sendApproval } from "../api/approval.ts";
 import { fetchSessionContext, fetchSessionDetail } from "../api/sessions.ts";
 import { streamChat } from "../api/stream.ts";
+import { clearActiveSessionId, loadActiveSessionId, saveActiveSessionId } from "../runtime/activeSession.ts";
 import { DEFAULT_MODEL_INTELLIGENCE_LEVEL, type ModelIntelligenceLevel } from "../runtime/modelIntelligence.ts";
 import {
   appendUserMessage,
@@ -28,12 +29,43 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
   const [modelIntelligenceLevel, setModelIntelligenceLevel] = useState<ModelIntelligenceLevel>(DEFAULT_MODEL_INTELLIGENCE_LEVEL);
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const sessionLoadVersionRef = useRef(0);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const refreshSessions = useCallback(async () => {
     await onSessionsChanged?.();
   }, [onSessionsChanged]);
+
+  const loadSession = useCallback(
+    async (sessionId: string) => {
+      const loadVersion = ++sessionLoadVersionRef.current;
+      try {
+        const detail = await fetchSessionDetail(sessionId);
+        const context = await fetchSessionContext(sessionId);
+        if (sessionLoadVersionRef.current !== loadVersion) return;
+        setRuntimeState((state) => applyContextState(applySessionDetail(state, detail), context));
+        clearSessionError?.();
+      } catch (error) {
+        if (sessionLoadVersionRef.current === loadVersion) {
+          onSessionError?.(error);
+        }
+      }
+    },
+    [clearSessionError, onSessionError],
+  );
+
+  useEffect(() => {
+    const restoredSessionId = loadActiveSessionId();
+    if (!restoredSessionId) return;
+    void loadSession(restoredSessionId);
+  }, [loadSession]);
+
+  useEffect(() => {
+    if (runtimeState.sessionId) {
+      saveActiveSessionId(runtimeState.sessionId);
+    }
+  }, [runtimeState.sessionId]);
 
   const submitMessage = useCallback(
     async (message: string) => {
@@ -83,9 +115,11 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
   }, []);
 
   const startNewChat = useCallback(() => {
+    sessionLoadVersionRef.current += 1;
     abortRef.current?.abort();
     setBusy(false);
     clearSessionError?.();
+    clearActiveSessionId();
     setRuntimeState(createInitialRuntimeState());
   }, [clearSessionError]);
 
@@ -124,19 +158,7 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
     [refreshSessions, runtimeState.pendingPermission, runtimeState.sessionId, runtimeState.threadId],
   );
 
-  const selectSession = useCallback(
-    async (sessionId: string) => {
-      try {
-        const detail = await fetchSessionDetail(sessionId);
-        const context = await fetchSessionContext(sessionId);
-        setRuntimeState((state) => applyContextState(applySessionDetail(state, detail), context));
-        clearSessionError?.();
-      } catch (error) {
-        onSessionError?.(error);
-      }
-    },
-    [clearSessionError, onSessionError],
-  );
+  const selectSession = useCallback((sessionId: string) => loadSession(sessionId), [loadSession]);
 
   return {
     runtimeState,

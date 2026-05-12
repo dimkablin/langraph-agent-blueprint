@@ -7,12 +7,14 @@ import {
   DEFAULT_THEME_PREFERENCES,
   DEFAULT_UI_PREFERENCES,
   filterEventsByPreferences,
+  filterTimelineByPreferences,
   loadUIPreferences,
   saveUIPreferences,
   themeCSSVariables,
   themePresetOptionsForVariant,
   updateThemeConfig,
 } from "../src/runtime/uiPreferences.ts";
+import type { ActivityItem, ChatTimelineItem } from "../src/runtime/reducer.ts";
 
 class MemoryStorage {
   private values = new Map<string, string>();
@@ -37,6 +39,20 @@ function event(type: string, severity: RuntimeEvent["severity"] = "info"): Runti
     timestamp: "2026-05-09T00:00:00Z",
     session_id: "session_1",
     severity,
+    data: {},
+  };
+}
+
+function activity(eventType: string, label: string, kind: ActivityItem["kind"]): ActivityItem {
+  return {
+    id: `activity-${eventType}`,
+    kind,
+    label,
+    summary: "",
+    status: "success",
+    timestamp: "2026-05-09T00:00:00Z",
+    eventType,
+    category: kind,
     data: {},
   };
 }
@@ -183,4 +199,52 @@ test("event verbosity filters debug events without removing errors", () => {
     debug.map((item) => item.type),
     ["final_response", "hook_event", "mcp_tools_discovered", "error"],
   );
+});
+
+test("activity timeline hides low signal activity unless debug events are enabled", () => {
+  const timeline: ChatTimelineItem[] = [
+    {
+      kind: "activity",
+      id: "activity-group",
+      timestamp: "2026-05-09T00:00:00Z",
+      activities: [
+        activity("runtime.run.started", "Run started", "runtime"),
+        activity("workspace.selected", "Workspace selected", "workspace"),
+        activity("skill.python_backend.discovered", "Skill discovered", "skill"),
+        activity("tool.bash.started", "Run Bash command", "verification"),
+      ],
+    },
+    {
+      kind: "activity",
+      id: "low-signal-only",
+      timestamp: "2026-05-09T00:00:01Z",
+      activities: [activity("runtime.run.started", "Run started", "runtime")],
+    },
+  ];
+
+  const normal = filterTimelineByPreferences(timeline, {
+    ...DEFAULT_UI_PREFERENCES,
+    showDebugEvents: false,
+  });
+  const debug = filterTimelineByPreferences(timeline, {
+    ...DEFAULT_UI_PREFERENCES,
+    showDebugEvents: true,
+  });
+
+  assert.equal(normal.length, 1);
+  assert.equal(normal[0].kind, "activity");
+  if (normal[0].kind === "activity") {
+    assert.deepEqual(
+      normal[0].activities.map((item) => item.eventType),
+      ["tool.bash.started"],
+    );
+  }
+  assert.equal(debug.length, 2);
+  assert.equal(debug[0].kind, "activity");
+  if (debug[0].kind === "activity") {
+    assert.deepEqual(
+      debug[0].activities.map((item) => item.eventType),
+      ["runtime.run.started", "workspace.selected", "skill.python_backend.discovered", "tool.bash.started"],
+    );
+  }
 });

@@ -6,6 +6,7 @@ import type {
   SessionDetailDTO,
   StreamFrame,
 } from "../api/schemas.ts";
+import { groupActivitiesForTimeline, mergeActivityForTimeline } from "./activityTimeline.ts";
 import { eventSummary, eventTitle, firstString } from "./events.ts";
 
 export type ChatMessage = {
@@ -19,6 +20,13 @@ export type ChatTimelineItem =
   | {
       kind: "message";
       message: ChatMessage;
+    }
+  | {
+      kind: "activity";
+      id: string;
+      timestamp: string;
+      activities: ActivityItem[];
+      messageId?: string;
     }
   | {
       kind: "separator";
@@ -54,6 +62,7 @@ export type ActivityItem = {
   eventType: string;
   category?: string;
   data: Record<string, unknown>;
+  relatedActivities?: ActivityItem[];
 };
 
 export type RuntimeContextState = {
@@ -139,10 +148,7 @@ export function applyStreamFrame(state: RuntimeState, frame: StreamFrame): Runti
     };
   }
   return {
-    ...state,
-    error: frame.error,
-    isStreaming: false,
-    activities: [...state.activities, errorActivity(frame.error)],
+    ...appendActivityItem({ ...state, error: frame.error, isStreaming: false }, errorActivity(frame.error)),
   };
 }
 
@@ -254,13 +260,14 @@ export function applyChatResponse(state: RuntimeState, response: {
 export function applySessionDetail(state: RuntimeState, detail: SessionDetailDTO): RuntimeState {
   const visibleMessages = detail.messages.filter(isVisibleMessageDto);
   const messages = visibleMessages.map(messageFromDto);
+  const activities = uniqueActivities(detail.events.map(runtimeEventToActivity));
   return {
     ...state,
     sessionId: detail.session_id,
     threadId: stringOrNull(detail.metadata.thread_id) || state.threadId,
     messages,
-    timeline: messages.map(messageTimelineItem),
-    activities: uniqueActivities(detail.events.map(runtimeEventToActivity)),
+    timeline: timelineFromMessagesAndActivities(messages, activities),
+    activities,
     context: contextFromDto(detail.context),
     finalResponse: lastAssistantMessage(visibleMessages),
     pendingPermission: null,
@@ -300,12 +307,18 @@ export function runtimeEventToActivity(event: RuntimeEvent): ActivityItem {
 
 function appendActivity(state: RuntimeState, event: RuntimeEvent): RuntimeState {
   const activity = runtimeEventToActivity(event);
+  return appendActivityItem(state, activity, isChatVisibleActivity(event, activity));
+}
+
+function appendActivityItem(state: RuntimeState, activity: ActivityItem, showInTimeline = true): RuntimeState {
   if (state.activities.some((item) => item.id === activity.id)) {
     return state;
   }
+  const activities = [...state.activities, activity];
   return {
     ...state,
-    activities: [...state.activities, activity],
+    activities,
+    timeline: showInTimeline ? upsertActivityTimelineItem(state.timeline, activity) : state.timeline,
   };
 }
 
@@ -334,10 +347,11 @@ function appendAssistantMessage(state: RuntimeState, content: string, timestamp:
     content,
     timestamp,
   };
+  const timeline = bindLatestActivityGroupToMessage([...state.timeline, messageTimelineItem(message)], message);
   return {
     ...state,
     messages: [...state.messages, message],
-    timeline: [...state.timeline, messageTimelineItem(message)],
+    timeline,
   };
 }
 
@@ -369,16 +383,19 @@ function isStreamingDraft(message: ChatMessage): boolean {
 
 function replaceLastMessage(state: RuntimeState, message: ChatMessage): RuntimeState {
   const timeline = [...state.timeline];
+  let previousMessageId: string | null = null;
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
     if (timeline[index].kind === "message") {
+      previousMessageId = timeline[index].message.id;
       timeline[index] = messageTimelineItem(message);
       break;
     }
   }
+  const rebound = previousMessageId ? rebindActivityGroups(timeline, previousMessageId, message.id) : timeline;
   return {
     ...state,
     messages: [...state.messages.slice(0, -1), message],
-    timeline,
+    timeline: rebound,
   };
 }
 
@@ -438,6 +455,103 @@ function isCompactionStatusResponse(finalResponse: string, state: RuntimeState):
     finalResponse.trim() === "Context compacted." &&
     state.timeline.some((item) => item.kind === "separator" && item.eventType === "compact_finished")
   );
+}
+
+function upsertActivityTimelineItem(timeline: ChatTimelineItem[], activity: ActivityItem): ChatTimelineItem[] {
+  const groupId = currentActivityGroupId(timeline);
+  const groupIndex = timeline.findIndex((item) => item.kind === "activity" && item.id === groupId);
+  const existing =
+    groupIndex >= 0 && timeline[groupIndex].kind === "activity"
+      ? timeline[groupIndex]
+      : { kind: "activity" as const, id: groupId, timestamp: activity.timestamp, activities: [] };
+  if (existing.activities.some((item) => item.id === activity.id)) {
+    return timeline;
+  }
+  const withoutExisting = groupIndex >= 0 ? [...timeline.slice(0, groupIndex), ...timeline.slice(groupIndex + 1)] : [...timeline];
+  const insertion = activityGroupInsertion(withoutExisting);
+  const updated = {
+    ...existing,
+    timestamp: activity.timestamp,
+    activities: mergeActivityForTimeline(existing.activities, activity),
+    messageId: insertion.messageId || existing.messageId,
+  };
+  return [...withoutExisting.slice(0, insertion.index), updated, ...withoutExisting.slice(insertion.index)];
+}
+
+function bindLatestActivityGroupToMessage(timeline: ChatTimelineItem[], message: ChatMessage): ChatTimelineItem[] {
+  if (message.role !== "assistant") return timeline;
+  const messageIndex = timeline.findIndex((item) => item.kind === "message" && item.message.id === message.id);
+  if (messageIndex <= 0) return timeline;
+  for (let index = messageIndex - 1; index >= 0; index -= 1) {
+    const item = timeline[index];
+    if (item.kind === "message" && item.message.role === "user") break;
+    if (item.kind === "activity" && !item.messageId) {
+      const next = [...timeline];
+      next[index] = { ...item, messageId: message.id };
+      return next;
+    }
+  }
+  return timeline;
+}
+
+function rebindActivityGroups(timeline: ChatTimelineItem[], oldMessageId: string, newMessageId: string): ChatTimelineItem[] {
+  return timeline.map((item) => (item.kind === "activity" && item.messageId === oldMessageId ? { ...item, messageId: newMessageId } : item));
+}
+
+function timelineFromMessagesAndActivities(messages: ChatMessage[], activities: ActivityItem[]): ChatTimelineItem[] {
+  const timeline = messages.map(messageTimelineItem);
+  const visibleActivities = groupActivitiesForTimeline(activities.filter((activity) => shouldShowActivityItemInTimeline(activity)));
+  if (!visibleActivities.length) {
+    return timeline;
+  }
+  const assistantIndex = findLastTimelineMessageIndex(timeline, "assistant");
+  const messageId = assistantIndex >= 0 && timeline[assistantIndex].kind === "message" ? timeline[assistantIndex].message.id : undefined;
+  const item: ChatTimelineItem = {
+    kind: "activity",
+    id: messageId ? `activity-group:${messageId}` : "activity-group:session",
+    timestamp: visibleActivities.at(-1)?.timestamp || new Date().toISOString(),
+    activities: visibleActivities,
+    messageId,
+  };
+  const index = assistantIndex >= 0 ? assistantIndex : timeline.length;
+  return [...timeline.slice(0, index), item, ...timeline.slice(index)];
+}
+
+function currentActivityGroupId(timeline: ChatTimelineItem[]): string {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const item = timeline[index];
+    if (item.kind === "message" && item.message.role === "user") {
+      return `activity-group:${item.message.id}`;
+    }
+  }
+  return "activity-group:session";
+}
+
+function activityGroupInsertion(timeline: ChatTimelineItem[]): { index: number; messageId?: string } {
+  const last = timeline.at(-1);
+  if (last?.kind === "message" && last.message.role === "assistant") {
+    return { index: timeline.length - 1, messageId: last.message.id };
+  }
+  return { index: timeline.length };
+}
+
+function findLastTimelineMessageIndex(timeline: ChatTimelineItem[], role: ChatMessage["role"]): number {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const item = timeline[index];
+    if (item.kind === "message" && item.message.role === role) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function isChatVisibleActivity(event: RuntimeEvent, activity: ActivityItem): boolean {
+  if (isRecord(event.data?.activity)) return true;
+  return shouldShowActivityItemInTimeline(activity);
+}
+
+function shouldShowActivityItemInTimeline(activity: ActivityItem): boolean {
+  return ["tool", "permission", "skill", "verification", "runtime", "workspace", "git", "error"].includes(activity.kind);
 }
 
 function permissionFromEvent(event: RuntimeEvent): PermissionRequest {

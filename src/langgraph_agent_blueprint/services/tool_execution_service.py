@@ -14,6 +14,7 @@ from langgraph_agent_blueprint.tools import ToolExecutionContext, ToolRegistry
 from langgraph_agent_blueprint.tools.base import freeze_context_value
 from langgraph_agent_blueprint.utils.ids import new_id
 from langgraph_agent_blueprint.utils.paths import resolve_under_root
+from langgraph_agent_blueprint.utils.truncation import truncate_text
 
 
 class ToolExecutionService:
@@ -111,27 +112,49 @@ class ToolExecutionService:
             active_skill=freeze_context_value(state.get("active_skill")) if isinstance(state.get("active_skill"), dict) else None,
         )
 
-    @staticmethod
-    def _record_for_output(call: ToolCall, tool: Any, output: Any) -> dict[str, Any]:
+    def _record_for_output(self, call: ToolCall, tool: Any, output: Any) -> dict[str, Any]:
+        raw_content = str(getattr(output, "content", "") or "")
+        content, truncated = truncate_text(raw_content, self.output_limit)
+        metadata = _metadata_for_output(output)
+        if truncated:
+            metadata = {
+                **metadata,
+                "content_truncated": True,
+                "original_content_chars": len(raw_content),
+                "content_limit_chars": self.output_limit,
+            }
+        output_payload = output.model_dump(mode="json")
+        if truncated and isinstance(output_payload, dict) and "content" in output_payload:
+            output_payload = {**output_payload, "content": content}
         return {
             "id": call.id,
             "name": tool.name,
             "status": "ok" if getattr(output, "ok", True) else "error",
-            "content": getattr(output, "content", ""),
-            "metadata": getattr(output, "metadata", {}) or {},
-            "output": output.model_dump(mode="json"),
+            "content": content,
+            "metadata": metadata,
+            "output": output_payload,
         }
 
-    @staticmethod
-    def _error_record(call: ToolCall, tool: Any, exc: BaseException) -> dict[str, Any]:
+    def _error_record(self, call: ToolCall, tool: Any, exc: BaseException) -> dict[str, Any]:
+        raw_content = str(exc)
+        content, truncated = truncate_text(raw_content, self.output_limit)
+        metadata: dict[str, Any] = {"error_type": exc.__class__.__name__}
+        if truncated:
+            metadata.update(
+                {
+                    "content_truncated": True,
+                    "original_content_chars": len(raw_content),
+                    "content_limit_chars": self.output_limit,
+                }
+            )
         return dump_model(
             ToolResult(
                 id=call.id,
                 name=tool.name,
                 status="error",
-                content=str(exc),
-                metadata={"error_type": exc.__class__.__name__},
-                error={"message": str(exc), "type": exc.__class__.__name__},
+                content=content,
+                metadata=metadata,
+                error={"message": content, "type": exc.__class__.__name__},
             )
         )
 
@@ -178,6 +201,13 @@ def _requires_file_snapshot(tool: Any, parsed: Any) -> bool:
         and getattr(permission, "action", None) in {"write", "edit"}
         and hasattr(parsed, "path")
     )
+
+
+def _metadata_for_output(output: Any) -> dict[str, Any]:
+    metadata = getattr(output, "metadata", {}) or {}
+    if isinstance(metadata, dict):
+        return dict(metadata)
+    return {}
 
 
 def apply_tool_state_effects(

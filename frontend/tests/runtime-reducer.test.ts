@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { applyRuntimeEvent, applySessionDetail, applyStreamFrame, createInitialRuntimeState, markStreamingStopped } from "../src/runtime/reducer.ts";
+import { buildActivityEntries } from "../src/runtime/activityTimeline.ts";
+import { appendUserMessage, applyRuntimeEvent, applySessionDetail, applyStreamFrame, createInitialRuntimeState, markStreamingStopped } from "../src/runtime/reducer.ts";
 import type { RuntimeEvent, StreamFrame } from "../src/api/schemas.ts";
 
 function event(type: string, data: Record<string, unknown> = {}, id = `event_${type}`): RuntimeEvent {
@@ -306,6 +307,150 @@ test("structured activity payloads take precedence over runtime event fallback",
   assert.deepEqual(state.activities[0].data, { phrase: "hello" });
 });
 
+test("tool lifecycle activities with the same tool_call_id update one visible timeline row", () => {
+  let state = applyRuntimeEvent(
+    createInitialRuntimeState(),
+    event("tool_call_started", {
+      activity: {
+        id: "activity_call_1_started",
+        type: "tool.glob.started",
+        source: { kind: "tool", name: "glob" },
+        category: "tool",
+        status: "running",
+        title: "Find files started",
+        summary: "Finding files matching `README*`.",
+        data: { tool_call_id: "call_1", tool_name: "glob", operation: "search.glob", pattern: "README*" },
+        refs: [],
+      },
+    }),
+  );
+  state = applyRuntimeEvent(
+    state,
+    event("tool_call_finished", {
+      activity: {
+        id: "activity_call_1_completed",
+        type: "tool.glob.completed",
+        source: { kind: "tool", name: "glob" },
+        category: "tool",
+        status: "success",
+        title: "Find files completed",
+        summary: "Found 1 file match(es).",
+        data: { tool_call_id: "call_1", tool_name: "glob", operation: "search.glob", pattern: "README*", result_count: 1 },
+        refs: [],
+      },
+    }),
+  );
+
+  assert.equal(state.activities.length, 2);
+  assert.equal(state.timeline.length, 1);
+  assert.equal(state.timeline[0].kind, "activity");
+  if (state.timeline[0].kind === "activity") {
+    assert.equal(state.timeline[0].activities.length, 1);
+    assert.equal(state.timeline[0].activities[0].id, "activity_call_1_started");
+    assert.equal(state.timeline[0].activities[0].eventType, "tool.glob.completed");
+    assert.equal(state.timeline[0].activities[0].status, "success");
+    assert.deepEqual(state.timeline[0].activities[0].data, {
+      tool_call_id: "call_1",
+      tool_name: "glob",
+      operation: "search.glob",
+      pattern: "README*",
+      result_count: 1,
+    });
+  }
+});
+
+test("permission and approved tool activity share one timeline row with debug history", () => {
+  let state = applyRuntimeEvent(
+    createInitialRuntimeState(),
+    event("permission_required", {
+      tool_call_id: "call_1",
+      tool_name: "bash",
+      action: "shell",
+      risk: "high",
+      reason: "Shell commands can modify the system.",
+      activity: {
+        id: "activity_call_1_requested",
+        type: "permission.tool.requested",
+        source: { kind: "permission", name: "bash" },
+        category: "permission",
+        status: "pending",
+        title: "Permission required",
+        summary: "Shell commands can modify the system.",
+        data: { tool_call_id: "call_1", tool_name: "bash", action: "shell", risk: "high" },
+        refs: [],
+      },
+    }),
+  );
+  state = applyRuntimeEvent(
+    state,
+    event("permission_resolved", {
+      tool_call_id: "call_1",
+      tool_name: "bash",
+      decision: "approved",
+      activity: {
+        id: "activity_call_1_approved",
+        type: "permission.tool.approved",
+        source: { kind: "permission", name: "bash" },
+        category: "permission",
+        status: "success",
+        title: "Permission approved",
+        summary: "Approved by user.",
+        data: { tool_call_id: "call_1", tool_name: "bash", decision: "approved" },
+        refs: [],
+      },
+    }),
+  );
+  state = applyRuntimeEvent(
+    state,
+    event("tool_call_started", {
+      activity: {
+        id: "activity_call_1_started",
+        type: "tool.bash.started",
+        source: { kind: "tool", name: "bash" },
+        category: "tool",
+        status: "running",
+        title: "Run Bash command",
+        summary: "Running `npm test`.",
+        data: { tool_call_id: "call_1", tool_name: "bash", operation: "shell.run", command: "npm test" },
+        refs: [],
+      },
+    }),
+  );
+  state = applyRuntimeEvent(
+    state,
+    event("tool_call_finished", {
+      activity: {
+        id: "activity_call_1_completed",
+        type: "tool.bash.completed",
+        source: { kind: "tool", name: "bash" },
+        category: "tool",
+        status: "success",
+        title: "Run Bash command completed",
+        summary: "Command exited with code 0.",
+        data: { tool_call_id: "call_1", tool_name: "bash", operation: "shell.run", command: "npm test", exit_code: 0 },
+        refs: [],
+      },
+    }),
+  );
+
+  assert.equal(state.activities.length, 4);
+  assert.equal(state.timeline.length, 1);
+  assert.equal(state.timeline[0].kind, "activity");
+  if (state.timeline[0].kind === "activity") {
+    assert.equal(state.timeline[0].activities.length, 1);
+    const [entry] = buildActivityEntries(state.timeline[0].activities);
+    assert.deepEqual(
+      entry.activities.map((item) => item.eventType),
+      ["permission.tool.requested", "permission.tool.approved", "tool.bash.started", "tool.bash.completed"],
+    );
+    assert.ok(Array.isArray(entry.debugPayload));
+    assert.deepEqual(
+      entry.debugPayload.map((item) => item.type),
+      ["permission.tool.requested", "permission.tool.approved", "tool.bash.started", "tool.bash.completed"],
+    );
+  }
+});
+
 test("unknown structured activity category renders as generic event activity", () => {
   const state = applyRuntimeEvent(
     createInitialRuntimeState(),
@@ -376,6 +521,107 @@ test("activity events do not replace final response chat messages", () => {
   assert.deepEqual(state.messages.map((message) => message.content), ["Final answer text"]);
   assert.equal(state.activities[0].eventType, "runtime.run.completed");
   assert.equal(state.finalResponse, "Final answer text");
+});
+
+test("structured activity is rendered in the chat timeline before the bound assistant message", () => {
+  let state = appendUserMessage(createInitialRuntimeState(), "Run checks");
+  state = applyRuntimeEvent(state, event("model_token", { token: "Thinking" }, "token_1"));
+  state = applyRuntimeEvent(
+    state,
+    event("tool_call_started", {
+      activity: {
+        id: "activity_shell",
+        type: "tool.bash.started",
+        source: { kind: "tool", name: "bash" },
+        category: "verification",
+        status: "running",
+        title: "Run Bash command",
+        summary: "Running `pytest -q`.",
+        data: { operation: "shell.run", command: "pytest -q" },
+        refs: [],
+      },
+    }),
+  );
+  state = applyRuntimeEvent(
+    state,
+    event(
+      "final_response",
+      {
+        content: "Tests passed.",
+        activity: {
+          id: "activity_run_completed",
+          type: "runtime.run.completed",
+          source: { kind: "runtime", component: "AssistantGraphRuntime" },
+          category: "runtime",
+          status: "success",
+          title: "Run completed",
+          data: {},
+          refs: [],
+        },
+      },
+      "final_1",
+    ),
+  );
+
+  assert.deepEqual(
+    state.timeline.map((item) => item.kind),
+    ["message", "message", "activity", "message"],
+  );
+  const activityItem = state.timeline[2];
+  assert.equal(activityItem.kind, "activity");
+  assert.equal(activityItem.messageId, "final_1");
+  assert.equal(activityItem.activities[0].eventType, "tool.bash.started");
+  assert.equal(state.timeline[3].kind, "message");
+  if (state.timeline[3].kind === "message") {
+    assert.equal(state.timeline[3].message.content, "Tests passed.");
+  }
+});
+
+test("session detail restores persisted activity above the final assistant message", () => {
+  const state = applySessionDetail(createInitialRuntimeState(), {
+    session_id: "session_1",
+    title: "activity session",
+    messages: [
+      { id: "human_1", role: "human", type: "HumanMessage", content: "Run checks", tool_calls: [] },
+      { id: "ai_1", role: "ai", type: "AIMessage", content: "Checks passed.", tool_calls: [] },
+    ],
+    events: [
+      event(
+        "tool_call_finished",
+        {
+          activity: {
+            id: "activity_check",
+            type: "tool.bash.completed",
+            source: { kind: "tool", name: "bash" },
+            category: "verification",
+            status: "success",
+            title: "Run Bash command completed",
+            summary: "Command exited with code 0.",
+            data: { command: "pytest -q", exit_code: 0 },
+            refs: [],
+          },
+        },
+        "event_check",
+      ),
+    ],
+    tool_calls: [],
+    todos: [],
+    memory: {},
+    usage: {},
+    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    child_runs: [],
+    metadata: {},
+  });
+
+  assert.deepEqual(
+    state.timeline.map((item) => item.kind),
+    ["message", "activity", "message"],
+  );
+  assert.equal(state.timeline[1].kind, "activity");
+  if (state.timeline[1].kind === "activity") {
+    assert.equal(state.timeline[1].messageId, "ai_1");
+    assert.equal(state.timeline[1].activities[0].eventType, "tool.bash.completed");
+  }
 });
 
 test("done stream frame updates active session and final response", () => {

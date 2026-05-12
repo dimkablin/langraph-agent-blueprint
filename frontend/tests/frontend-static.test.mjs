@@ -66,6 +66,23 @@ test("App composes hooks instead of owning runtime orchestration", () => {
   assert.doesNotMatch(app, /useEffect|useRef/);
 });
 
+test("runtime chat restores the active session after page reload", () => {
+  const chatHook = readFileSync(join(srcRoot, "hooks", "useRuntimeChat.ts"), "utf8");
+  const activeSession = readFileSync(join(srcRoot, "runtime", "activeSession.ts"), "utf8");
+
+  assert.match(activeSession, /ACTIVE_SESSION_STORAGE_KEY = "lg-agent-active-session"/);
+  assert.match(activeSession, /export function loadActiveSessionId/);
+  assert.match(activeSession, /export function saveActiveSessionId/);
+  assert.match(activeSession, /export function clearActiveSessionId/);
+  assert.match(chatHook, /loadActiveSessionId/);
+  assert.match(chatHook, /saveActiveSessionId/);
+  assert.match(chatHook, /clearActiveSessionId/);
+  assert.match(chatHook, /const restoredSessionId = loadActiveSessionId\(\)/);
+  assert.match(chatHook, /void loadSession\(restoredSessionId\)/);
+  assert.match(chatHook, /saveActiveSessionId\(runtimeState\.sessionId\)/);
+  assert.match(chatHook, /clearActiveSessionId\(\)/);
+});
+
 test("frontend uses graph-facing backend endpoints only", () => {
   const text = sourceText();
   const packageJson = readFileSync(join(root, "frontend", "package.json"), "utf8");
@@ -233,7 +250,8 @@ test("context compaction renders as a non-copyable timeline separator", () => {
   assert.match(reducer, /isVisibleMessageDto/);
   assert.match(reducer, /Compacted prior context:/);
   assert.match(reducer, /detail\.messages\.filter\(isVisibleMessageDto\)/);
-  assert.match(app, /items=\{runtimeState\.timeline\}/);
+  assert.match(app, /const visibleTimeline = filterTimelineByPreferences\(runtimeState\.timeline, preferences\)/);
+  assert.match(app, /items=\{visibleTimeline\}/);
   assert.match(messageList, /ChatTimelineItem/);
   assert.match(messageList, /item\.kind === "separator"/);
   assert.match(messageList, /message-separator-running/);
@@ -259,6 +277,20 @@ test("technical payloads render as terminal-like message cards", () => {
   assert.match(styles, /\.message-card-technical\s*\{[^}]*border:\s*0/);
 });
 
+test("permission approval prompt is composer-width and keeps actions below command details", () => {
+  const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
+  const panel = readFileSync(join(srcRoot, "components", "permissions", "PermissionPanel.tsx"), "utf8");
+  const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
+
+  assert.match(app, /<div className="chat-input-stack">[\s\S]*<PermissionPanel[\s\S]*<ChatComposer/);
+  assert.match(panel, /permission-command-description[\s\S]*permission-review-row/);
+  assert.match(panel, /permission-review-row[\s\S]*permission-actions/);
+  assert.match(styles, /\.chat-input-stack\s*\{[^}]*position:\s*sticky/);
+  assert.match(styles, /\.chat-input-stack \.composer\s*\{[^}]*position:\s*relative/);
+  assert.match(styles, /\.permission-panel\s*\{[^}]*width:\s*min\(var\(--chat-column-width\),\s*calc\(100% - 24px\)\)/);
+  assert.match(styles, /\.permission-review-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
+});
+
 test("assistant messages render markdown through a safe AST renderer", () => {
   const markdownBlock = readFileSync(join(srcRoot, "components", "common", "MarkdownBlock.tsx"), "utf8");
   const markdownParser = readFileSync(join(srcRoot, "components", "common", "markdown.ts"), "utf8");
@@ -278,16 +310,93 @@ test("assistant messages render markdown through a safe AST renderer", () => {
 
 test("main page keeps only chat while registries live behind the help drawer", () => {
   const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
+  const messageList = readFileSync(join(srcRoot, "components", "chat", "MessageList.tsx"), "utf8");
+  const eventTimeline = readFileSync(join(srcRoot, "components", "events", "EventTimeline.tsx"), "utf8");
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
 
-  assert.match(app, /EventTimeline/);
-  assert.match(app, /activities=\{runtimeState\.activities\}/);
+  assert.doesNotMatch(app, /EventTimeline/);
+  assert.match(app, /filterTimelineByPreferences/);
+  assert.match(messageList, /EventTimeline/);
+  assert.match(messageList, /item\.kind === "activity"/);
+  assert.match(eventTimeline, /buildActivityEntries/);
+  assert.match(eventTimeline, /formatTerminalBlock/);
+  assert.match(eventTimeline, /activity-detail-toggle/);
+  assert.match(eventTimeline, /aria-label="Toggle activity details"/);
+  assert.match(eventTimeline, /activity-debug-details/);
+  assert.doesNotMatch(eventTimeline, />Debug details</);
+  assert.doesNotMatch(eventTimeline, /safeJson\(activity\.data\)/);
   assert.doesNotMatch(app, /side-panel/);
   assert.match(app, /activeDrawer === "help"/);
   assert.doesNotMatch(app, /activeDrawer === "chats"/);
   assert.match(app, /<RegistryPanel commands=\{commands\} skills=\{skills\} tools=\{tools\}/);
   assert.doesNotMatch(styles, /side-panel/);
   assert.doesNotMatch(styles, /runtime-workspace/);
+});
+
+test("completed command activity rows render compactly without inline success chrome", () => {
+  const messageList = readFileSync(join(srcRoot, "components", "chat", "MessageList.tsx"), "utf8");
+  const eventTimeline = readFileSync(join(srcRoot, "components", "events", "EventTimeline.tsx"), "utf8");
+  const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
+
+  assert.match(eventTimeline, /import \{ useEffect, useState \} from "react"/);
+  assert.match(messageList, /compactCommands=\{Boolean\(item\.messageId\) \|\| !isStreaming\}/);
+  assert.match(eventTimeline, /compactCommands\?: boolean/);
+  assert.match(eventTimeline, /useState\(\(\) => !compactCommands\)/);
+  assert.match(eventTimeline, /if \(compactCommands\) setOpen\(false\)/);
+  assert.match(eventTimeline, /const isCompactCommand = compactCommands && entry\.isCommand/);
+  assert.match(eventTimeline, /const expanded = expandedOverride \?\? \(!entry\.isCommand && entry\.expandedByDefault\)/);
+  assert.match(eventTimeline, /<h2>\{title\}<\/h2>\s*<IconChevronRight size=\{16\}/);
+  assert.match(eventTimeline, /className=\{isCompactCommand \? "activity-line activity-line-compact activity-line-toggle" : "activity-line activity-line-toggle"\}/);
+  assert.match(eventTimeline, /onClick=\{\(\) => setExpandedOverride\(\(value\) => !\(value \?\? \(!entry\.isCommand && entry\.expandedByDefault\)\)\)\}/);
+  assert.match(eventTimeline, /!isCompactCommand \? <span className="activity-kind">\{entry\.category\}<\/span> : null/);
+  assert.match(eventTimeline, /<span className="activity-detail-toggle" aria-hidden="true">/);
+  assert.match(eventTimeline, /activity-title-cell/);
+  assert.match(eventTimeline, /activity-title-lead/);
+  assert.match(eventTimeline, /activity-title-rest/);
+  assert.match(eventTimeline, /activity-detail-footer/);
+  assert.match(eventTimeline, /activity-status-detail/);
+  assert.match(eventTimeline, /entry\.summary && !entry\.isCommand \? <p className="activity-summary">/);
+  assert.match(eventTimeline, /entry\.summary && entry\.isCommand \? <p className="activity-summary">/);
+  assert.doesNotMatch(eventTimeline, /entry\.terminal && !isCompactCommand \?/);
+  assert.match(eventTimeline, /variant !== "inline" \? <span>\{entries\.length\}<\/span> : null/);
+  assert.doesNotMatch(eventTimeline, /<span className="activity-status">\{statusLabel\}<\/span>/);
+  assert.doesNotMatch(eventTimeline, /activity-rail-dot/);
+  assert.doesNotMatch(styles, /\.activity-row::before/);
+  assert.doesNotMatch(styles, /activity-rail-dot/);
+  assert.match(styles, /\.activity-list\s*\{[^}]*gap:\s*2px/);
+  assert.match(styles, /\.activity-row\s*\{[^}]*padding:\s*1px 0/);
+  assert.match(styles, /\.activity-timeline-inline\s*\{[^}]*--activity-reference-text:\s*#8d88a8/i);
+  assert.match(styles, /\.activity-timeline-inline\s*\{[^}]*--activity-reference-muted:\s*#756f90/i);
+  assert.match(styles, /\.activity-timeline-inline\s*\{[^}]*--activity-reference-hover:\s*#a9a3c0/i);
+  assert.match(styles, /\.activity-timeline\s*\{[^}]*font-family:\s*var\(--font-sans\)/);
+  assert.match(styles, /\.activity-timeline\s*\{[^}]*font-size:\s*var\(--font-size-body\)/);
+  assert.match(styles, /\.activity-group-toggle\s*\{[^}]*font:\s*inherit/);
+  assert.match(styles, /\.activity-heading \.activity-group-toggle h2\s*\{[^}]*font-size:\s*inherit/);
+  assert.match(styles, /\.activity-heading \.activity-group-toggle h2\s*\{[^}]*font-family:\s*inherit/);
+  assert.match(styles, /\.activity-heading \.activity-group-toggle h2\s*\{[^}]*font-weight:\s*400/);
+  assert.match(styles, /\.activity-heading \.activity-group-toggle h2\s*\{[^}]*color:\s*var\(--activity-reference-text\)/);
+  assert.match(styles, /\.activity-heading \.activity-group-toggle h2\s*\{[^}]*letter-spacing:\s*0/);
+  assert.match(styles, /\.activity-heading \.activity-group-toggle h2\s*\{[^}]*text-transform:\s*none/);
+  assert.match(styles, /\.activity-group-toggle svg\s*\{[^}]*opacity:\s*0/);
+  assert.match(styles, /\.activity-group-toggle svg\s*\{[^}]*transition:\s*opacity/);
+  assert.match(styles, /\.activity-heading \.activity-group-toggle:hover h2,/);
+  assert.match(styles, /\.activity-heading \.activity-group-toggle:focus-visible h2\s*\{[^}]*color:\s*var\(--activity-reference-hover\)/);
+  assert.match(styles, /\.activity-group-toggle:hover svg,[\s\S]*\.activity-group-toggle:focus-visible svg\s*\{[^}]*opacity:\s*1/);
+  assert.match(styles, /\.activity-line-compact\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  assert.match(styles, /\.activity-line-toggle\s*\{[^}]*background:\s*transparent/);
+  assert.match(styles, /\.activity-line-toggle\s*\{[^}]*font:\s*inherit/);
+  assert.match(styles, /\.activity-line-toggle:hover \.activity-title-lead,/);
+  assert.match(styles, /\.activity-line-toggle:hover \.activity-title-rest,/);
+  assert.doesNotMatch(styles, /\.activity-detail-toggle:hover,[\s\S]*background:\s*var\(--hover-surface\)/);
+  assert.match(styles, /\.activity-title-lead\s*\{[^}]*color:\s*var\(--activity-reference-text\)/);
+  assert.match(styles, /\.activity-title-lead\s*\{[^}]*font-size:\s*inherit/);
+  assert.match(styles, /\.activity-title-lead\s*\{[^}]*font-weight:\s*600/);
+  assert.match(styles, /\.activity-title-rest\s*\{[^}]*color:\s*var\(--activity-reference-muted\)/);
+  assert.match(styles, /\.activity-title-rest\s*\{[^}]*font-size:\s*inherit/);
+  assert.match(styles, /\.activity-title-rest\s*\{[^}]*font-weight:\s*400/);
+  assert.match(styles, /\.activity-detail-toggle\s*\{[^}]*opacity:\s*0/);
+  assert.match(styles, /\.activity-row:hover \.activity-detail-toggle,/);
+  assert.match(styles, /\.activity-error \.activity-title-lead\s*\{[^}]*color:\s*color-mix\(in oklab,\s*var\(--danger\)/);
 });
 
 test("new chat starts with centered composer and task examples", () => {
@@ -493,9 +602,10 @@ test("technical runtime surfaces read like developer-tool panels", () => {
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
   const settingsStyles = readFileSync(join(srcRoot, "components", "settings", "settings.css"), "utf8");
 
-  assert.match(styles, /\.permission-copy code,[\s\S]*\.activity-row pre\s*\{[^}]*background:\s*var\(--surface-terminal\)/);
-  assert.match(styles, /\.permission-copy code,[\s\S]*\.activity-row pre\s*\{[^}]*color:\s*var\(--terminal-foreground\)/);
-  assert.match(styles, /\.activity-running\s*\{[^}]*border-color:\s*color-mix\(in oklab,\s*var\(--secondary-info\) 38%,\s*var\(--border\)\)/);
+  assert.match(styles, /\.permission-command-description code,[\s\S]*\.activity-terminal,[\s\S]*\.activity-debug-details pre\s*\{[^}]*background:\s*var\(--surface-terminal\)/);
+  assert.match(styles, /\.permission-command-description code,[\s\S]*\.activity-terminal,[\s\S]*\.activity-debug-details pre\s*\{[^}]*color:\s*var\(--terminal-foreground\)/);
+  assert.doesNotMatch(styles, /activity-rail-dot/);
+  assert.match(styles, /\.activity-detail-toggle\s*\{[^}]*background:\s*transparent/);
   assert.match(styles, /\.status-good\s*\{[^}]*color:\s*var\(--success\)/);
   assert.match(styles, /\.runtime-sidebar-action svg\s*\{[^}]*color:\s*var\(--muted\)/);
   assert.match(styles, /\.send-button\s*\{[^}]*background:\s*color-mix\(in oklab,\s*var\(--primary\) 82%,\s*var\(--foreground\)\)/);

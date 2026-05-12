@@ -1,4 +1,5 @@
 import type { RuntimeEvent } from "../api/schemas.ts";
+import type { ActivityItem, ChatTimelineItem } from "./reducer.ts";
 
 export type UITheme = "system" | "light" | "dark";
 export type ThemeVariant = "light" | "dark";
@@ -260,6 +261,12 @@ const DEBUG_EVENT_TYPES = new Set([
   "session_persisted",
 ]);
 
+const LOW_SIGNAL_ACTIVITY_TYPES = new Set([
+  "runtime.run.started",
+  "workspace.selected",
+  "git.context.loaded",
+]);
+
 const ESSENTIAL_EVENT_TYPES = new Set([
   "final_response",
   "error",
@@ -391,6 +398,19 @@ export function filterEventsByPreferences(events: RuntimeEvent[], preferences: U
   });
 }
 
+export function filterTimelineByPreferences(items: ChatTimelineItem[], preferences: UIPreferences): ChatTimelineItem[] {
+  if (preferences.showDebugEvents) {
+    return items;
+  }
+  return items.flatMap((item) => {
+    if (item.kind !== "activity") {
+      return [item];
+    }
+    const activities = item.activities.filter((activity) => !isLowSignalActivity(activity));
+    return activities.length ? [{ ...item, activities }] : [];
+  });
+}
+
 function normalizeUIPreferences(value: unknown): UIPreferences {
   if (!isRecord(value)) return DEFAULT_UI_PREFERENCES;
   return {
@@ -402,6 +422,13 @@ function normalizeUIPreferences(value: unknown): UIPreferences {
     autoScroll: typeof value.autoScroll === "boolean" ? value.autoScroll : DEFAULT_UI_PREFERENCES.autoScroll,
     showDebugEvents: typeof value.showDebugEvents === "boolean" ? value.showDebugEvents : DEFAULT_UI_PREFERENCES.showDebugEvents,
   };
+}
+
+function isLowSignalActivity(activity: ActivityItem): boolean {
+  if (LOW_SIGNAL_ACTIVITY_TYPES.has(activity.eventType)) {
+    return true;
+  }
+  return activity.eventType.startsWith("skill.") && activity.eventType.endsWith(".discovered");
 }
 
 function normalizeThemePreferences(value: unknown): ThemePreferences {
