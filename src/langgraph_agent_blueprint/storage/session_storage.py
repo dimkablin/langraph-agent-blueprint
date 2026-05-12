@@ -10,9 +10,18 @@ from typing import Any
 from langchain_core.messages import BaseMessage
 from pydantic import BaseModel, ValidationError
 
-from langgraph_agent_blueprint.models import ChildRunMetadata, RuntimeEvent, SessionMetadata, SubagentResult, ToolResult, dump_model
+from langgraph_agent_blueprint.models import (
+    ChildRunMetadata,
+    FileSnapshotRecord,
+    RollbackResult,
+    RuntimeEvent,
+    SessionMetadata,
+    SubagentResult,
+    ToolResult,
+    dump_model,
+)
 from langgraph_agent_blueprint.utils.ids import validate_runtime_id, validate_session_id
-from langgraph_agent_blueprint.utils.paths import ensure_dir
+from langgraph_agent_blueprint.utils.paths import ensure_dir, resolve_under_root
 from langgraph_agent_blueprint.utils.serialization import message_from_dict, message_to_dict
 
 from .paths import project_storage_dir
@@ -150,6 +159,93 @@ class SessionStorage:
         with (session_dir / "tool_calls.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
+    def save_file_snapshot(self, project_root: str | Path, session_id: str, snapshot: dict[str, Any]) -> dict[str, Any]:
+        """Persist a pre-edit file snapshot for later public rollback."""
+
+        session_dir = self.create_session(project_root, session_id, {})
+        payload = dump_model(FileSnapshotRecord.model_validate(snapshot))
+        snapshots = self.list_file_snapshots(project_root, session_id)
+        snapshots.append(payload)
+        self._write_file_snapshots(session_dir, snapshots)
+        return payload
+
+    def list_file_snapshots(self, project_root: str | Path, session_id: str) -> list[dict[str, Any]]:
+        """Load persisted file snapshots for one session."""
+
+        path = self._file_snapshots_path(project_root, session_id)
+        if not path.exists():
+            return []
+        try:
+            rows = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        if not isinstance(rows, list):
+            return []
+        snapshots = []
+        for item in rows:
+            try:
+                snapshots.append(dump_model(FileSnapshotRecord.model_validate(item)))
+            except (TypeError, ValueError, ValidationError):
+                continue
+        return snapshots
+
+    def load_file_snapshot(self, project_root: str | Path, session_id: str, snapshot_id: str) -> dict[str, Any]:
+        """Load a single persisted file snapshot by public snapshot id."""
+
+        safe_snapshot_id = validate_runtime_id(snapshot_id, kind="snapshot_id")
+        for snapshot in self.list_file_snapshots(project_root, session_id):
+            if snapshot.get("snapshot_id") == safe_snapshot_id:
+                return snapshot
+        raise FileNotFoundError(f"File snapshot not found: {safe_snapshot_id}")
+
+    def restore_file_snapshot(
+        self,
+        project_root: str | Path,
+        session_id: str,
+        snapshot_id: str | None = None,
+    ) -> RollbackResult:
+        """Restore the latest available snapshot, or a specific snapshot when requested."""
+
+        snapshots = self.list_file_snapshots(project_root, session_id)
+        selected = self._select_snapshot(snapshots, snapshot_id)
+        if selected is None:
+            return RollbackResult(status="not_available", message="No available file snapshot to rollback.")
+        try:
+            root = Path(project_root).resolve()
+            target = resolve_under_root(selected["path"], root)
+            if selected.get("existed"):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(str(selected.get("content") or ""), encoding=selected.get("encoding") or "utf-8")
+            elif target.exists():
+                if not target.is_file():
+                    return RollbackResult(
+                        status="error",
+                        message=f"Rollback target is not a file: {selected['path']}",
+                        snapshot_id=selected["snapshot_id"],
+                        path=selected["path"],
+                    )
+                target.unlink()
+        except (OSError, ValueError) as exc:
+            return RollbackResult(
+                status="error",
+                message=str(exc),
+                snapshot_id=selected.get("snapshot_id"),
+                path=selected.get("path"),
+            )
+        restored_at = datetime.now(timezone.utc).isoformat()
+        updated = []
+        for item in snapshots:
+            if item.get("snapshot_id") == selected["snapshot_id"]:
+                item = {**item, "restored_at": restored_at}
+            updated.append(item)
+        self._write_file_snapshots(self.session_dir(project_root, session_id), updated)
+        return RollbackResult(
+            status="restored",
+            message=f"Rollback restored {selected['path']} from snapshot {selected['snapshot_id']}.",
+            snapshot_id=selected["snapshot_id"],
+            path=selected["path"],
+        )
+
     def save_messages(self, project_root: str | Path, session_id: str, messages: list[BaseMessage]) -> None:
         session_dir = self.create_session(project_root, session_id, {})
         (session_dir / "messages.json").write_text(
@@ -229,3 +325,25 @@ class SessionStorage:
                 continue
             rows.append(payload)
         return rows
+
+    def _file_snapshots_path(self, project_root: str | Path, session_id: str) -> Path:
+        return self.session_dir(project_root, session_id) / "file_snapshots.json"
+
+    @staticmethod
+    def _write_file_snapshots(session_dir: Path, snapshots: list[dict[str, Any]]) -> None:
+        session_dir.mkdir(parents=True, exist_ok=True)
+        path = session_dir / "file_snapshots.json"
+        path.write_text(json.dumps(snapshots, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @staticmethod
+    def _select_snapshot(snapshots: list[dict[str, Any]], snapshot_id: str | None) -> dict[str, Any] | None:
+        if snapshot_id is not None:
+            safe_snapshot_id = validate_runtime_id(snapshot_id, kind="snapshot_id")
+            for snapshot in snapshots:
+                if snapshot.get("snapshot_id") == safe_snapshot_id and snapshot.get("restored_at") is None:
+                    return snapshot
+            return None
+        for snapshot in reversed(snapshots):
+            if snapshot.get("restored_at") is None:
+                return snapshot
+        return None

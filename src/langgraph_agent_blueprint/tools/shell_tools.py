@@ -18,6 +18,7 @@ class ShellInput(BaseModel):
 
 class ShellOutput(ToolOutput):
     """Pydantic output schema for the shell operation."""
+    command: str = ""
     stdout: str = ""
     stderr: str = ""
     exit_code: int = 0
@@ -41,11 +42,12 @@ class BashTool(BaseTool[ShellInput, ShellOutput]):
         return ShellOutput(
             ok=result["exit_code"] == 0,
             content=str(result["stdout"] or result["stderr"]),
+            command=data.command,
             stdout=str(result["stdout"]),
             stderr=str(result["stderr"]),
             exit_code=int(result["exit_code"]),
             truncated=bool(result["truncated"]),
-            metadata={"classification": result["classification"]},
+            metadata={"classification": result["classification"], "command": data.command},
         )
 
 
@@ -59,10 +61,11 @@ class PowerShellTool(BashTool):
         return ShellOutput(
             ok=result["exit_code"] == 0,
             content=str(result["stdout"] or result["stderr"]),
+            command=data.command,
             stdout=str(result["stdout"]),
             stderr=str(result["stderr"]),
             exit_code=int(result["exit_code"]),
             truncated=bool(result["truncated"]),
-            metadata={"classification": result["classification"]},
+            metadata={"classification": result["classification"], "command": data.command},
         )
 

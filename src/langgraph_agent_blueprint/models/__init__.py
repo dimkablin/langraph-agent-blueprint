@@ -46,6 +46,7 @@ from .plugins import (
     PluginToolContribution,
     PluginTrustPolicy,
 )
+from .runtime import AgentRunInput, AgentRunOutput, FileSnapshotInfo, FileSnapshotRecord, RollbackResult
 from .sessions import SessionMetadata
 from .subagents import ChildRunMetadata, ResultMergePolicy, SubagentRequest, SubagentResult
 from .tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata, ToolStateEffect
@@ -54,6 +55,8 @@ from .tools import ToolCall, ToolResult, normalize_provider_tool_calls, tool_res
 __all__ = [
     "AttachmentContent",
     "AttachmentRef",
+    "AgentRunInput",
+    "AgentRunOutput",
     "ChildRunMetadata",
     "CommandResult",
     "CommandType",
@@ -69,6 +72,8 @@ __all__ = [
     "EvalRunResult",
     "EvalScenario",
     "EvalStep",
+    "FileSnapshotInfo",
+    "FileSnapshotRecord",
     "FrozenRuntimeModel",
     "HookContext",
     "HookContribution",
@@ -112,6 +117,7 @@ __all__ = [
     "PluginTrustPolicy",
     "ResolvedContextItem",
     "ResultMergePolicy",
+    "RollbackResult",
     "RuntimeEvent",
     "RuntimeModel",
     "SessionMetadata",

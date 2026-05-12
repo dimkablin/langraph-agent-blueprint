@@ -10,8 +10,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models import AttachmentRef, TraceContext, TraceMetadata, dump_model
-from langgraph_agent_blueprint.utils.ids import validate_session_id, validate_thread_id
+from langgraph_agent_blueprint.models import AgentRunInput, AgentRunOutput, AttachmentRef, FileSnapshotRecord, TraceContext, TraceMetadata, dump_model
+from langgraph_agent_blueprint.utils.ids import new_id, validate_session_id, validate_thread_id
 
 from .checkpoints import default_checkpointer
 from .nodes.bootstrap_config import bootstrap_config_node
@@ -158,6 +158,7 @@ class AssistantGraphRuntime:
         turn_index: int | None = None,
         model_intelligence: str | None = None,
         attachments: list[dict[str, Any]] | None = None,
+        mode: str | None = None,
     ) -> dict[str, Any]:
         """Run one graph turn, hydrating persisted session state when a session id is supplied."""
 
@@ -171,6 +172,8 @@ class AssistantGraphRuntime:
         )
         if session_id:
             self._hydrate_session_state(state)
+        if mode == "plan":
+            state["plan_mode"] = {"enabled": True, "approved": False}
         if attachments:
             state["attachments"] = [dump_model(AttachmentRef.model_validate(item)) for item in attachments]
         if model_intelligence:
@@ -192,6 +195,59 @@ class AssistantGraphRuntime:
                 trace.set_output(result.get("final_response"))
                 self._drop_completed_checkpoint(result.get("thread_id") or state["thread_id"], result)
         return result
+
+    def run(self, request: AgentRunInput) -> AgentRunOutput:
+        """Invoke the public Pydantic runtime contract and validate the terminal result."""
+
+        if request.action == "rollback":
+            return self._run_rollback(request)
+        result = self.invoke(
+            request.message,
+            input_kind=request.input_kind,
+            session_id=request.session_id,
+            thread_id=request.thread_id,
+            project_root=request.project_root,
+            model_intelligence=request.model_intelligence,
+            attachments=request.attachments,
+            mode=request.mode,
+        )
+        return AgentRunOutput.from_graph_result(result)
+
+    def _run_rollback(self, request: AgentRunInput) -> AgentRunOutput:
+        project_root = Path(request.project_root or self.dependencies.config.project_root or Path.cwd()).resolve()
+        thread_id = request.thread_id or new_id("thread")
+        if request.session_id is None:
+            message = "Rollback failed: session_id is required."
+            return AgentRunOutput(
+                status="error",
+                final_response=message,
+                error_message=message,
+                session_id="",
+                thread_id=thread_id,
+            )
+        session_id = validate_session_id(request.session_id)
+        result = self.dependencies.session_storage.restore_file_snapshot(
+            project_root,
+            session_id,
+            request.rollback_snapshot_id,
+        )
+        snapshots = [
+            FileSnapshotRecord.model_validate(item).public_info()
+            for item in self.dependencies.session_storage.list_file_snapshots(project_root, session_id)
+        ]
+        status = "success" if result.status == "restored" else "error"
+        final_response = result.message if result.status == "restored" else f"Rollback failed: {result.message}"
+        return AgentRunOutput(
+            status=status,
+            final_response=final_response,
+            changed_files=[result.path] if result.status == "restored" and result.path else [],
+            error_message=None if result.status == "restored" else result.message,
+            session_id=session_id,
+            thread_id=thread_id,
+            snapshots=snapshots,
+            rollback_available=any(snapshot.restored_at is None for snapshot in snapshots),
+            rollback_result=result,
+        )
 
     def resume(self, thread_id: str, decision: dict[str, Any], session_id: str | None = None) -> dict[str, Any]:
         thread_id = validate_thread_id(thread_id)

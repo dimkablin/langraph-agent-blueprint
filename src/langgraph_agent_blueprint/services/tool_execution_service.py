@@ -2,22 +2,27 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
 
-from langgraph_agent_blueprint.models import ToolCall, ToolResult, ToolStateEffect, dump_model, event
+from langgraph_agent_blueprint.models import FileSnapshotRecord, ToolCall, ToolResult, ToolStateEffect, dump_model, event
+from langgraph_agent_blueprint.storage import SessionStorage
 from langgraph_agent_blueprint.tools import ToolExecutionContext, ToolRegistry
 from langgraph_agent_blueprint.tools.base import freeze_context_value
+from langgraph_agent_blueprint.utils.ids import new_id
+from langgraph_agent_blueprint.utils.paths import resolve_under_root
 
 
 class ToolExecutionService:
     """Validates, executes, persists, and formats tool results."""
 
-    def __init__(self, registry: ToolRegistry, output_limit: int = 12000) -> None:
+    def __init__(self, registry: ToolRegistry, output_limit: int = 12000, session_storage: SessionStorage | None = None) -> None:
         self.registry = registry
         self.output_limit = output_limit
+        self.session_storage = session_storage
 
     def execute(self, tool_call: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
         """Validate one tool call, run the tool, and format a graph/persistence record."""
@@ -35,6 +40,7 @@ class ToolExecutionService:
         )
         try:
             parsed = tool.parse_input(call.args)
+            snapshot = self._capture_file_snapshot(tool, parsed, call, context)
             output = tool.run(parsed, context)
             record: dict[str, Any] = {
                 "id": call.id,
@@ -44,6 +50,8 @@ class ToolExecutionService:
                 "metadata": getattr(output, "metadata", {}) or {},
                 "output": output.model_dump(mode="json"),
             }
+            if snapshot is not None:
+                record["metadata"] = {**record["metadata"], "snapshot": snapshot.public_info().model_dump(mode="json")}
             result = ToolResult.model_validate(record)
             if result.status == "ok":
                 effects = tool.state_effects(tool_call=call, result=result, output=output, state=state)
@@ -63,6 +71,25 @@ class ToolExecutionService:
                 )
             )
 
+    def _capture_file_snapshot(self, tool: Any, parsed: Any, call: ToolCall, context: ToolExecutionContext) -> FileSnapshotRecord | None:
+        if self.session_storage is None or not _requires_file_snapshot(tool, parsed):
+            return None
+        target = resolve_under_root(getattr(parsed, "path"), context.project_root)
+        existed = target.exists() and target.is_file()
+        content = target.read_text(encoding="utf-8") if existed else None
+        snapshot = FileSnapshotRecord(
+            snapshot_id=new_id("snapshot"),
+            session_id=context.session_id,
+            path=target.relative_to(context.project_root).as_posix(),
+            existed=existed,
+            content=content,
+            tool_call_id=call.id,
+            tool_name=tool.name,
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+        payload = self.session_storage.save_file_snapshot(context.project_root, context.session_id, snapshot.model_dump(mode="json"))
+        return FileSnapshotRecord.model_validate(payload)
+
     @staticmethod
     def started_event(tool_call: dict[str, Any]) -> dict[str, Any]:
         call = ToolCall.model_validate(tool_call)
@@ -73,6 +100,16 @@ class ToolExecutionService:
         result = ToolResult.model_validate(record)
         event_type = "tool_call_error" if result.status == "error" else "tool_call_finished"
         return event(event_type, id=result.id, name=result.name, status=result.status)
+
+
+def _requires_file_snapshot(tool: Any, parsed: Any) -> bool:
+    runtime = getattr(tool, "runtime", None)
+    permission = getattr(tool, "permission", None)
+    return (
+        getattr(runtime, "kind", None) == "file"
+        and getattr(permission, "action", None) in {"write", "edit"}
+        and hasattr(parsed, "path")
+    )
 
 
 def apply_tool_state_effects(
