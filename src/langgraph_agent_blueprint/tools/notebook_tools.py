@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from langgraph_agent_blueprint.models import ToolPermissionMetadata, ToolRuntimeMetadata
-from langgraph_agent_blueprint.services import NotebookService
+from langgraph_agent_blueprint.services import FileService, NotebookService
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput
 
@@ -33,7 +33,7 @@ class NotebookReadTool(BaseTool[NotebookReadInput, NotebookReadOutput]):
         self.notebook_service = notebook_service
 
     def run(self, data: NotebookReadInput, context: ToolExecutionContext) -> NotebookReadOutput:
-        result = self.notebook_service.read(data.path)
+        result = _notebook_service_for_context(self.notebook_service, context).read(data.path)
         return NotebookReadOutput(content=f"Read notebook {result['path']}", cells=result["cells"], metadata=result)
 
 
@@ -63,6 +63,10 @@ class NotebookEditTool(BaseTool[NotebookEditInput, NotebookEditOutput]):
         self.notebook_service = notebook_service
 
     def run(self, data: NotebookEditInput, context: ToolExecutionContext) -> NotebookEditOutput:
-        result = self.notebook_service.edit_cell(data.path, data.index, data.source)
+        result = _notebook_service_for_context(self.notebook_service, context).edit_cell(data.path, data.index, data.source)
         return NotebookEditOutput(path=result["path"], index=result["index"], content=f"Edited notebook cell {data.index}")
+
+
+def _notebook_service_for_context(service: NotebookService, context: ToolExecutionContext) -> NotebookService:
+    return NotebookService(FileService(context.project_root)) if service.file_service.project_root != context.project_root else service
 

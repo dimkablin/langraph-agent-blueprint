@@ -15,6 +15,7 @@ from langgraph_agent_blueprint.services import (
     CompactionService,
     DiagnosticsService,
     ExportService,
+    FolderPickerService,
     HookService,
     MCPService,
     MemoryService,
@@ -27,6 +28,7 @@ from langgraph_agent_blueprint.services import (
     TaskService,
     UsageService,
     WebService,
+    WorkspaceService,
 )
 from langgraph_agent_blueprint.services.tool_execution_service import ToolExecutionService
 from langgraph_agent_blueprint.skills import SkillRegistry, build_builtin_skill_registry
@@ -63,6 +65,8 @@ class AppDependencies:
     observability_service: ObservabilityService
     context_provider_service: ContextProviderService
     context_budget_service: ContextBudgetService
+    workspace_service: WorkspaceService
+    folder_picker_service: FolderPickerService
 
 
 def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
@@ -129,6 +133,8 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
     command_registry = build_builtin_command_registry()
     command_registry.register_plugin_contributions(plugin_contributions)
     session_storage = SessionStorage(config.storage_dir)
+    workspace_service = WorkspaceService(config.storage_dir)
+    folder_picker_service = FolderPickerService()
     return AppDependencies(
         config=config,
         model_provider=ModelProviderService(config),
@@ -158,6 +164,8 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         observability_service=ObservabilityService(config.langfuse),
         context_provider_service=context_provider_service,
         context_budget_service=ContextBudgetService(config.context_max_tokens),
+        workspace_service=workspace_service,
+        folder_picker_service=folder_picker_service,
     )
 
 

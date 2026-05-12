@@ -17,12 +17,13 @@ import {
 } from "../runtime/reducer.ts";
 
 type UseRuntimeChatOptions = {
+  projectId?: string | null;
   onSessionsChanged?: () => Promise<void> | void;
   onSessionError?: (error: unknown) => void;
   clearSessionError?: () => void;
 };
 
-export function useRuntimeChat({ onSessionsChanged, onSessionError, clearSessionError }: UseRuntimeChatOptions = {}) {
+export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, clearSessionError }: UseRuntimeChatOptions = {}) {
   const [runtimeState, setRuntimeState] = useState(createInitialRuntimeState);
   const [modelIntelligenceLevel, setModelIntelligenceLevel] = useState<ModelIntelligenceLevel>(DEFAULT_MODEL_INTELLIGENCE_LEVEL);
   const [busy, setBusy] = useState(false);
@@ -45,6 +46,7 @@ export function useRuntimeChat({ onSessionsChanged, onSessionError, clearSession
         await streamChat(
           {
             message,
+            project_id: projectId,
             session_id: runtimeState.sessionId,
             thread_id: threadId,
             model_intelligence: modelIntelligenceLevel,
@@ -71,7 +73,7 @@ export function useRuntimeChat({ onSessionsChanged, onSessionError, clearSession
         setBusy(false);
       }
     },
-    [modelIntelligenceLevel, refreshSessions, runtimeState.sessionId, runtimeState.threadId],
+    [modelIntelligenceLevel, projectId, refreshSessions, runtimeState.sessionId, runtimeState.threadId],
   );
 
   const stopStream = useCallback(() => {

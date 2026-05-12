@@ -52,6 +52,8 @@ class AgentService:
         child_state = create_initial_state(
             request.prompt,
             project_root=parent_state.get("project_root"),
+            project_id=parent_state.get("project_id"),
+            workspace=copy.deepcopy(parent_state.get("workspace", {})),
             cwd=parent_state.get("cwd") or parent_state.get("project_root"),
             input_kind="headless",
             session_id=metadata.child_session_id,

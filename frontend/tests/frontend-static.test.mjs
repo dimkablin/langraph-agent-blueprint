@@ -280,7 +280,8 @@ test("main page keeps only chat while registries live behind the help drawer", (
   const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
 
-  assert.doesNotMatch(app, /EventTimeline/);
+  assert.match(app, /EventTimeline/);
+  assert.match(app, /activities=\{runtimeState\.activities\}/);
   assert.doesNotMatch(app, /side-panel/);
   assert.match(app, /activeDrawer === "help"/);
   assert.doesNotMatch(app, /activeDrawer === "chats"/);

@@ -5,6 +5,7 @@ import { MessageList } from "./components/chat/MessageList.tsx";
 import { WelcomePromptExamples, type WelcomePromptExample } from "./components/chat/WelcomePromptExamples.tsx";
 import { LiquidGlassFilterDefs } from "./components/common/LiquidGlassFilterDefs.tsx";
 import { ContextWindowOverlay } from "./components/context/ContextWindowOverlay.tsx";
+import { EventTimeline } from "./components/events/EventTimeline.tsx";
 import { RuntimeDrawer } from "./components/layout/RuntimeDrawer.tsx";
 import { RuntimeSidebar } from "./components/layout/RuntimeSidebar.tsx";
 import { StatusHeader } from "./components/layout/StatusHeader.tsx";
@@ -16,6 +17,7 @@ import { useRuntimeRegistries } from "./hooks/useRuntimeRegistries.ts";
 import { useRuntimeSessions } from "./hooks/useRuntimeSessions.ts";
 import { useRuntimeStatus } from "./hooks/useRuntimeStatus.ts";
 import { useUIPreferences } from "./hooks/useUIPreferences.ts";
+import { useWorkspaces } from "./hooks/useWorkspaces.ts";
 import { effectiveModelName } from "./runtime/modelConfig.ts";
 import { DEFAULT_SETTINGS_TAB, type SettingsTab } from "./runtime/settingsPage.ts";
 import { themeConfigForPreferences, themeCSSVariables } from "./runtime/uiPreferences.ts";
@@ -26,6 +28,7 @@ export default function App() {
   const { commands, skills, tools, registryError } = useRuntimeRegistries();
   const { sessions, sessionError, refreshSessions, reportSessionError, clearSessionError } = useRuntimeSessions();
   const { runtimeStatus } = useRuntimeStatus();
+  const { workspaces, activeWorkspace, workspaceError, pickLocalWorkspace, setActiveProject, checkoutBranch } = useWorkspaces();
   const { preferences, updatePreferences } = useUIPreferences();
   const {
     runtimeState,
@@ -38,6 +41,7 @@ export default function App() {
     resolvePermission,
     selectSession,
   } = useRuntimeChat({
+    projectId: activeWorkspace?.project_id,
     onSessionsChanged: refreshSessions,
     onSessionError: reportSessionError,
     clearSessionError,
@@ -78,6 +82,9 @@ export default function App() {
     setActiveDrawer(null);
     setSidebarOpen(true);
     setAppView("settings");
+  };
+  const handleAddWorkspace = () => {
+    void pickLocalWorkspace();
   };
 
   return (
@@ -129,7 +136,13 @@ export default function App() {
                     disabled={busy && !runtimeState.isStreaming}
                     intelligenceLevel={modelIntelligenceLevel}
                     isStreaming={runtimeState.isStreaming || busy}
+                    workspace={activeWorkspace}
+                    workspaces={workspaces}
+                    workspaceError={workspaceError}
                     onIntelligenceChange={setModelIntelligenceLevel}
+                    onAddWorkspace={handleAddWorkspace}
+                    onSelectWorkspace={(projectId) => void setActiveProject(projectId)}
+                    onCheckoutBranch={(branch) => void checkoutBranch(branch)}
                     onOpenContextWindow={() => setContextWindowOpen(true)}
                     onSubmit={(value) => void submitMessage(value)}
                     onStop={stopStream}
@@ -151,6 +164,7 @@ export default function App() {
                       autoScroll={preferences.autoScroll}
                     />
                   </div>
+                  <EventTimeline activities={runtimeState.activities} />
                   {runtimeState.error ? <div className="error-banner">{runtimeState.error}</div> : null}
                   <PermissionPanel
                     request={runtimeState.pendingPermission}
@@ -165,7 +179,13 @@ export default function App() {
                     disabled={busy && !runtimeState.isStreaming}
                     intelligenceLevel={modelIntelligenceLevel}
                     isStreaming={runtimeState.isStreaming || busy}
+                    workspace={activeWorkspace}
+                    workspaces={workspaces}
+                    workspaceError={workspaceError}
                     onIntelligenceChange={setModelIntelligenceLevel}
+                    onAddWorkspace={handleAddWorkspace}
+                    onSelectWorkspace={(projectId) => void setActiveProject(projectId)}
+                    onCheckoutBranch={(branch) => void checkoutBranch(branch)}
                     onOpenContextWindow={() => setContextWindowOpen(true)}
                     onSubmit={(value) => void submitMessage(value)}
                     onStop={stopStream}

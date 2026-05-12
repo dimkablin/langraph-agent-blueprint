@@ -29,6 +29,9 @@ from .schemas import (
 
 
 MAX_FRONTEND_TEXT_CHARS = 20_000
+INTERNAL_COMPACTION_PREFIX = "Compacted prior context:"
+ASSISTANT_MESSAGE_ROLE = "ai"
+TOOL_MESSAGE_ROLE = "tool"
 
 
 def runtime_event_dto(event: dict[str, Any] | RuntimeEvent, *, redactor: Any | None = None) -> RuntimeEventDTO:
@@ -82,7 +85,7 @@ def message_dtos(messages: list[Any]) -> list[MessageDTO]:
     normalized: list[MessageDTO] = []
     for index, message in enumerate(messages):
         payload = _message_payload(message)
-        if _is_internal_compaction_message(payload):
+        if _is_internal_session_message(payload):
             continue
         normalized.append(
             MessageDTO(
@@ -310,7 +313,32 @@ def _bounded_text(value: Any) -> str:
 
 
 def _is_internal_compaction_message(payload: dict[str, Any]) -> bool:
-    return str(payload.get("role") or "") == "system" and str(payload.get("content") or "").startswith("Compacted prior context:")
+    return str(payload.get("role") or "") == "system" and str(payload.get("content") or "").startswith(
+        INTERNAL_COMPACTION_PREFIX
+    )
+
+
+def _is_internal_session_message(payload: dict[str, Any]) -> bool:
+    return (
+        _is_internal_compaction_message(payload)
+        or _is_tool_result_message(payload)
+        or _is_empty_tool_call_message(payload)
+    )
+
+
+def _is_tool_result_message(payload: dict[str, Any]) -> bool:
+    return str(payload.get("role") or "") == TOOL_MESSAGE_ROLE
+
+
+def _is_empty_tool_call_message(payload: dict[str, Any]) -> bool:
+    role = str(payload.get("role") or "")
+    content = str(payload.get("content") or "").strip()
+    return (
+        role == ASSISTANT_MESSAGE_ROLE
+        and not content
+        and isinstance(payload.get("tool_calls"), list)
+        and bool(payload["tool_calls"])
+    )
 
 
 def _as_list(value: Any) -> list[dict[str, Any]]:

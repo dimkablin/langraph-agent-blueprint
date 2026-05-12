@@ -4,7 +4,8 @@ import { ComposerActionMenu } from "./ComposerActionMenu.tsx";
 import { ComposerContextMeter } from "./ComposerContextMeter.tsx";
 import { ComposerIntelligencePicker } from "./ComposerIntelligencePicker.tsx";
 import { ComposerSuggestions } from "./ComposerSuggestions.tsx";
-import type { RegistryMap } from "../../api/schemas.ts";
+import { WorkspaceControl } from "../workspaces/WorkspaceControl.tsx";
+import type { RegistryMap, WorkspaceInfo } from "../../api/schemas.ts";
 import { IconArrowUp } from "../../icons.ts";
 import {
   applyComposerSuggestion,
@@ -26,7 +27,13 @@ export function ChatComposer({
   disabled,
   intelligenceLevel,
   isStreaming,
+  workspace,
+  workspaces,
+  workspaceError,
   onIntelligenceChange,
+  onAddWorkspace,
+  onSelectWorkspace,
+  onCheckoutBranch,
   onOpenContextWindow,
   onSubmit,
   onStop,
@@ -38,7 +45,13 @@ export function ChatComposer({
   disabled?: boolean;
   intelligenceLevel: ModelIntelligenceLevel;
   isStreaming: boolean;
+  workspace: WorkspaceInfo | null;
+  workspaces: WorkspaceInfo[];
+  workspaceError: string | null;
   onIntelligenceChange: (level: ModelIntelligenceLevel) => void;
+  onAddWorkspace: () => void;
+  onSelectWorkspace: (projectId: string) => void;
+  onCheckoutBranch: (branch: string) => void;
   onOpenContextWindow?: () => void;
   onSubmit: (value: string) => void;
   onStop: () => void;
@@ -144,6 +157,16 @@ export function ChatComposer({
             </div>
           </div>
         </div>
+      </div>
+      <div className="composer-workspace-row">
+        <WorkspaceControl
+          workspace={workspace}
+          workspaces={workspaces}
+          workspaceError={workspaceError}
+          onAddWorkspace={onAddWorkspace}
+          onSelectWorkspace={onSelectWorkspace}
+          onCheckoutBranch={onCheckoutBranch}
+        />
       </div>
     </section>
   );

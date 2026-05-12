@@ -5,7 +5,7 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models import event
+from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, event
 
 
 def finalize_response_node(state: dict, deps: AppDependencies) -> dict:
@@ -25,5 +25,12 @@ def finalize_response_node(state: dict, deps: AppDependencies) -> dict:
     metadata = {**state.get("metadata", {}), "graph_finished": True}
     if metadata.get("compact_route") == "compact" and not final:
         return {"final_response": final, "metadata": metadata, "ui_events": []}
-    return {"final_response": final, "metadata": metadata, "ui_events": [event("final_response", content=final)]}
+    activity = AgentActivityEvent(
+        type="runtime.run.completed",
+        source=AgentActivitySource(kind="runtime", component="AssistantGraphRuntime"),
+        category="runtime",
+        status="success",
+        title="Run completed",
+    )
+    return {"final_response": final, "metadata": metadata, "ui_events": [event("final_response", content=final, activity=activity.model_dump(mode="json"))]}
 

@@ -56,6 +56,7 @@ class AgentRunInput(RuntimeModel):
 
     message: str
     action: AgentRunAction = "run"
+    project_id: str | None = None
     project_root: str | None = None
     input_kind: Literal["interactive", "headless", "command"] = "headless"
     mode: AgentRunMode = "default"
@@ -82,6 +83,10 @@ class AgentRunOutput(RuntimeModel):
     status: AgentRunStatus
     final_response: str = ""
     changed_files: list[str] = Field(default_factory=list)
+    project_id: str | None = None
+    project_root: str | None = None
+    git_branch: str | None = None
+    git_dirty: bool = False
     verification_commands: list[str] = Field(default_factory=list)
     verification_status: VerificationStatus = "not run"
     error_message: str | None = None
@@ -108,6 +113,10 @@ class AgentRunOutput(RuntimeModel):
             status=status,
             final_response=str(result.get("final_response") or ""),
             changed_files=_changed_files(tool_results, result.get("project_root")),
+            project_id=str(result.get("project_id") or "") or None,
+            project_root=str(result.get("project_root") or "") or None,
+            git_branch=_git_branch(result),
+            git_dirty=_git_dirty(result),
             verification_commands=verification_commands,
             verification_status=_verification_status(tool_results, verification_commands),
             error_message=_error_message(result, tool_results, errors),
@@ -149,6 +158,17 @@ def _changed_files(tool_results: list[dict[str, Any]], project_root: Any) -> lis
             continue
         paths.append(_display_path(path, root))
     return _unique(paths)
+
+
+def _git_branch(result: dict[str, Any]) -> str | None:
+    workspace = result.get("workspace") if isinstance(result.get("workspace"), dict) else {}
+    branch = workspace.get("current_branch")
+    return str(branch) if branch else None
+
+
+def _git_dirty(result: dict[str, Any]) -> bool:
+    workspace = result.get("workspace") if isinstance(result.get("workspace"), dict) else {}
+    return bool(workspace.get("dirty"))
 
 
 def _verification_commands(tool_results: list[dict[str, Any]]) -> list[str]:

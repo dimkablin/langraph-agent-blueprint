@@ -17,6 +17,7 @@ from .routes_sessions import router as sessions_router
 from .routes_skills import router as skills_router
 from .routes_status import router as status_router
 from .routes_tools import router as tools_router
+from .routes_workspaces import router as workspaces_router
 from .serializers import runtime_event_dtos
 
 
@@ -45,6 +46,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         result = runtime.invoke(
             request.message,
             input_kind="headless",
+            project_id=request.project_id,
             session_id=request.session_id,
             thread_id=request.thread_id,
             model_intelligence=request.model_intelligence,
@@ -85,4 +87,5 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     api.include_router(commands_router)
     api.include_router(mcp_router)
     api.include_router(status_router)
+    api.include_router(workspaces_router)
     return api

@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from langgraph_agent_blueprint.models import FileSnapshotRecord, ToolCall, ToolResult, ToolStateEffect, dump_model, event
+from langgraph_agent_blueprint.models import AgentActivityEvent, FileSnapshotRecord, ToolCall, ToolResult, ToolStateEffect, dump_model, event
 from langgraph_agent_blueprint.storage import SessionStorage
 from langgraph_agent_blueprint.tools import ToolExecutionContext, ToolRegistry
 from langgraph_agent_blueprint.tools.base import freeze_context_value
@@ -29,27 +29,12 @@ class ToolExecutionService:
 
         call = ToolCall.model_validate(tool_call)
         tool = self.registry.get(call.name)
-        context = ToolExecutionContext(
-            project_root=Path(state["project_root"]),
-            cwd=Path(state["cwd"]),
-            session_id=str(state.get("session_id", "")),
-            thread_id=str(state["thread_id"]) if state.get("thread_id") else None,
-            read_files=tuple(str(item) for item in state.get("metadata", {}).get("read_files", [])),
-            metadata=freeze_context_value(state.get("metadata", {})),
-            active_skill=freeze_context_value(state.get("active_skill")) if isinstance(state.get("active_skill"), dict) else None,
-        )
+        context = self._context_for_state(state)
         try:
             parsed = tool.parse_input(call.args)
             snapshot = self._capture_file_snapshot(tool, parsed, call, context)
             output = tool.run(parsed, context)
-            record: dict[str, Any] = {
-                "id": call.id,
-                "name": tool.name,
-                "status": "ok" if getattr(output, "ok", True) else "error",
-                "content": getattr(output, "content", ""),
-                "metadata": getattr(output, "metadata", {}) or {},
-                "output": output.model_dump(mode="json"),
-            }
+            record = self._record_for_output(call, tool, output)
             if snapshot is not None:
                 record["metadata"] = {**record["metadata"], "snapshot": snapshot.public_info().model_dump(mode="json")}
             result = ToolResult.model_validate(record)
@@ -60,16 +45,95 @@ class ToolExecutionService:
                     record["state_update"] = state_update
             return dump_model(ToolResult.model_validate(record))
         except (ValidationError, Exception) as exc:
-            return dump_model(
-                ToolResult(
+            return self._error_record(call, tool, exc)
+
+    def execute_with_activity(self, tool_call: dict[str, Any], state: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """Execute one tool call and return its regular record plus public activity events."""
+
+        call = ToolCall.model_validate(tool_call)
+        tool = self.registry.get(call.name)
+        context = self._context_for_state(state)
+        parsed: Any | None = None
+        events: list[dict[str, Any]] = []
+        try:
+            parsed = tool.parse_input(call.args)
+            events.append(
+                _runtime_event_with_activity(
+                    "tool_call_started",
+                    tool.build_activity_started_event(tool_call=call, data=parsed, context=context),
                     id=call.id,
-                    name=tool.name,
-                    status="error",
-                    content=str(exc),
-                    metadata={"error_type": exc.__class__.__name__},
-                    error={"message": str(exc), "type": exc.__class__.__name__},
+                    name=call.name,
                 )
             )
+            snapshot = self._capture_file_snapshot(tool, parsed, call, context)
+            output = tool.run(parsed, context)
+            record = self._record_for_output(call, tool, output)
+            if snapshot is not None:
+                record["metadata"] = {**record["metadata"], "snapshot": snapshot.public_info().model_dump(mode="json")}
+            result = ToolResult.model_validate(record)
+            if result.status == "ok":
+                effects = tool.state_effects(tool_call=call, result=result, output=output, state=state)
+                state_update = apply_tool_state_effects(effects, state, context)
+                if state_update:
+                    record["state_update"] = state_update
+            event_type = "tool_call_error" if result.status == "error" else "tool_call_finished"
+            events.append(
+                _runtime_event_with_activity(
+                    event_type,
+                    tool.build_activity_completed_event(tool_call=call, data=parsed, output=output, context=context),
+                    id=result.id,
+                    name=result.name,
+                    status=result.status,
+                )
+            )
+            return dump_model(ToolResult.model_validate(record)), events
+        except (ValidationError, Exception) as exc:
+            record = self._error_record(call, tool, exc)
+            events.append(
+                _runtime_event_with_activity(
+                    "tool_call_error",
+                    tool.build_activity_failed_event(tool_call=call, data=parsed, error=exc, context=context),
+                    id=call.id,
+                    name=call.name,
+                    status="error",
+                )
+            )
+            return record, events
+
+    def _context_for_state(self, state: dict[str, Any]) -> ToolExecutionContext:
+        return ToolExecutionContext(
+            project_root=Path(state["project_root"]),
+            cwd=Path(state["cwd"]),
+            session_id=str(state.get("session_id", "")),
+            thread_id=str(state["thread_id"]) if state.get("thread_id") else None,
+            read_files=tuple(str(item) for item in state.get("metadata", {}).get("read_files", [])),
+            metadata=freeze_context_value(state.get("metadata", {})),
+            active_skill=freeze_context_value(state.get("active_skill")) if isinstance(state.get("active_skill"), dict) else None,
+        )
+
+    @staticmethod
+    def _record_for_output(call: ToolCall, tool: Any, output: Any) -> dict[str, Any]:
+        return {
+            "id": call.id,
+            "name": tool.name,
+            "status": "ok" if getattr(output, "ok", True) else "error",
+            "content": getattr(output, "content", ""),
+            "metadata": getattr(output, "metadata", {}) or {},
+            "output": output.model_dump(mode="json"),
+        }
+
+    @staticmethod
+    def _error_record(call: ToolCall, tool: Any, exc: BaseException) -> dict[str, Any]:
+        return dump_model(
+            ToolResult(
+                id=call.id,
+                name=tool.name,
+                status="error",
+                content=str(exc),
+                metadata={"error_type": exc.__class__.__name__},
+                error={"message": str(exc), "type": exc.__class__.__name__},
+            )
+        )
 
     def _capture_file_snapshot(self, tool: Any, parsed: Any, call: ToolCall, context: ToolExecutionContext) -> FileSnapshotRecord | None:
         if self.session_storage is None or not _requires_file_snapshot(tool, parsed):
@@ -100,6 +164,10 @@ class ToolExecutionService:
         result = ToolResult.model_validate(record)
         event_type = "tool_call_error" if result.status == "error" else "tool_call_finished"
         return event(event_type, id=result.id, name=result.name, status=result.status)
+
+
+def _runtime_event_with_activity(event_type: str, activity: AgentActivityEvent, **data: Any) -> dict[str, Any]:
+    return event(event_type, **data, activity=activity.model_dump(mode="json"))
 
 
 def _requires_file_snapshot(tool: Any, parsed: Any) -> bool:

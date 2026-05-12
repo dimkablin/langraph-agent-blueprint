@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
-from langgraph_agent_blueprint.models import event
+from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, event
 from langgraph_agent_blueprint.tools import MCPToolAdapter
+from langgraph_agent_blueprint.utils.activity import normalize_activity_namespace, safe_activity_data
 
 
 def load_registries_node(state: dict, deps: AppDependencies) -> dict:
@@ -17,7 +18,13 @@ def load_registries_node(state: dict, deps: AppDependencies) -> dict:
     for plugin in plugin_state.get("plugins", []):
         events.append(event("plugin_loaded", name=plugin.get("name"), skills_count=plugin.get("skills_count", 0)))
     for skill_name in plugin_state.get("skills", []):
-        events.append(event("plugin_skill_registered", name=skill_name))
+        events.append(
+            event(
+                "plugin_skill_registered",
+                name=skill_name,
+                activity=_skill_discovered_activity(skill_name).model_dump(mode="json"),
+            )
+        )
     metadata = dict(state.get("metadata", {}))
     run_session_start = not metadata.get("session_start_hooks_ran")
     if run_session_start:
@@ -59,3 +66,15 @@ def _register_mcp_tools(deps: AppDependencies, mcp_state: dict) -> None:
             deps.tool_registry.get(adapter.name)
         except KeyError:
             deps.tool_registry.register(adapter)
+
+
+def _skill_discovered_activity(skill_name: str) -> AgentActivityEvent:
+    return AgentActivityEvent(
+        type=f"skill.{normalize_activity_namespace(skill_name)}.discovered",
+        source=AgentActivitySource(kind="skill", name=skill_name, component="SkillRegistry"),
+        category="skill",
+        status="success",
+        title="Skill discovered",
+        summary=f"Discovered skill {skill_name}.",
+        data=safe_activity_data({"name": skill_name, "source_type": "plugin"}),
+    )

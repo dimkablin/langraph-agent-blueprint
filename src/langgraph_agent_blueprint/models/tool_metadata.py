@@ -60,6 +60,18 @@ class ToolRuntimeMetadata(FrozenRuntimeModel):
     can_run_in_headless: bool = True
 
 
+class ToolActivitySpec(FrozenRuntimeModel):
+    """Producer-owned activity metadata exposed by model-callable tools."""
+
+    category: str = "tool"
+    display_name: str
+    started_type: str
+    completed_type: str
+    failed_type: str
+    blocked_type: str | None = None
+    icon: str | None = None
+
+
 class ToolStateEffect(FrozenRuntimeModel):
     """Typed state effect returned by a tool after successful execution."""
 

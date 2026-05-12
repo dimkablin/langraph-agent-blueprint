@@ -47,6 +47,7 @@ class ChatRequest(BaseModel):
     """API request payload for starting or continuing a graph-backed chat turn."""
 
     message: str
+    project_id: str | None = None
     session_id: str | None = None
     thread_id: str | None = None
     model_intelligence: ModelIntelligenceLevel | None = None
@@ -71,6 +72,25 @@ class ChatResponse(BaseModel):
     final_response: str | None = None
     events: list[RuntimeEventDTO]
     permission_required: PermissionRequest | None = None
+
+
+class WorkspaceAddRequest(BaseModel):
+    """Request to register and select a validated local workspace root."""
+
+    root_path: str
+
+
+class WorkspaceSelectRequest(BaseModel):
+    """Request to make an existing workspace the active workspace."""
+
+    project_id: str
+
+
+class WorkspaceCheckoutRequest(BaseModel):
+    """Request to checkout an existing local branch in a workspace."""
+
+    branch: str
+    confirm_dirty: bool = False
 
 
 class PermissionDecisionDTO(BaseModel):

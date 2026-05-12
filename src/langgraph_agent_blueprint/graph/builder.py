@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models import AgentRunInput, AgentRunOutput, AttachmentRef, FileSnapshotRecord, TraceContext, TraceMetadata, dump_model
+from langgraph_agent_blueprint.models import AgentRunInput, AgentRunOutput, AttachmentRef, FileSnapshotRecord, TraceContext, TraceMetadata, WorkspaceInfo, dump_model
 from langgraph_agent_blueprint.utils.ids import new_id, validate_session_id, validate_thread_id
 
 from .checkpoints import default_checkpointer
@@ -155,6 +155,7 @@ class AssistantGraphRuntime:
         session_id: str | None = None,
         thread_id: str | None = None,
         project_root: str | Path | None = None,
+        project_id: str | None = None,
         turn_index: int | None = None,
         model_intelligence: str | None = None,
         attachments: list[dict[str, Any]] | None = None,
@@ -162,10 +163,13 @@ class AssistantGraphRuntime:
     ) -> dict[str, Any]:
         """Run one graph turn, hydrating persisted session state when a session id is supplied."""
 
+        workspace = self._workspace_context(project_id=project_id, project_root=project_root)
         state = create_initial_state(
             input_text,
-            project_root=project_root or self.dependencies.config.project_root or Path.cwd(),
-            cwd=self.dependencies.config.cwd or project_root or self.dependencies.config.project_root or Path.cwd(),
+            project_root=workspace.root_path,
+            project_id=workspace.project_id,
+            workspace=workspace.model_dump(mode="json"),
+            cwd=workspace.root_path,
             input_kind=input_kind,
             session_id=session_id,
             thread_id=thread_id,
@@ -207,6 +211,7 @@ class AssistantGraphRuntime:
             session_id=request.session_id,
             thread_id=request.thread_id,
             project_root=request.project_root,
+            project_id=request.project_id,
             model_intelligence=request.model_intelligence,
             attachments=request.attachments,
             mode=request.mode,
@@ -214,7 +219,8 @@ class AssistantGraphRuntime:
         return AgentRunOutput.from_graph_result(result)
 
     def _run_rollback(self, request: AgentRunInput) -> AgentRunOutput:
-        project_root = Path(request.project_root or self.dependencies.config.project_root or Path.cwd()).resolve()
+        workspace = self._workspace_context(project_id=request.project_id, project_root=request.project_root)
+        project_root = Path(workspace.root_path).resolve()
         thread_id = request.thread_id or new_id("thread")
         if request.session_id is None:
             message = "Rollback failed: session_id is required."
@@ -282,6 +288,7 @@ class AssistantGraphRuntime:
         session_id: str | None = None,
         thread_id: str | None = None,
         project_root: str | Path | None = None,
+        project_id: str | None = None,
         turn_index: int | None = None,
         model_intelligence: str | None = None,
         attachments: list[dict[str, Any]] | None = None,
@@ -289,10 +296,13 @@ class AssistantGraphRuntime:
         """Yield newly appended UI events from LangGraph value-stream state updates."""
 
         def generator() -> Iterable[dict[str, Any]]:
+            workspace = self._workspace_context(project_id=project_id, project_root=project_root)
             state = create_initial_state(
                 input_text,
-                project_root=project_root or self.dependencies.config.project_root or Path.cwd(),
-                cwd=self.dependencies.config.cwd or project_root or self.dependencies.config.project_root or Path.cwd(),
+                project_root=workspace.root_path,
+                project_id=workspace.project_id,
+                workspace=workspace.model_dump(mode="json"),
+                cwd=workspace.root_path,
                 input_kind=input_kind,
                 session_id=session_id,
                 thread_id=thread_id,
@@ -379,6 +389,35 @@ class AssistantGraphRuntime:
         ]:
             metadata.pop(key, None)
         state["metadata"] = metadata
+
+    def _workspace_context(self, *, project_id: str | None = None, project_root: str | Path | None = None) -> WorkspaceInfo:
+        workspace_service = self.dependencies.workspace_service
+        if project_id:
+            return workspace_service.get_workspace(project_id)
+        if project_root is not None:
+            root = workspace_service.validate_root_path(project_root)
+            return self._workspace_info_for_root(root)
+        active = workspace_service.get_active_workspace()
+        if active is not None:
+            return active
+        root = workspace_service.validate_root_path(self.dependencies.config.project_root or Path.cwd())
+        return self._workspace_info_for_root(root)
+
+    def _workspace_info_for_root(self, root: Path) -> WorkspaceInfo:
+        workspace_service = self.dependencies.workspace_service
+        is_git_repo = workspace_service.git_service.is_git_repo(root)
+        git_status = workspace_service.git_service.status_summary(root) if is_git_repo else None
+        workspace_id = workspace_service.project_id_for_root(root)
+        return WorkspaceInfo(
+            project_id=workspace_id,
+            display_name=root.name or str(root),
+            root_path=str(root),
+            is_git_repo=is_git_repo,
+            current_branch=workspace_service.git_service.current_branch(root) if is_git_repo else None,
+            branches=workspace_service.git_service.list_branches(root) if is_git_repo else [],
+            git_status=git_status,
+            dirty=bool(git_status and git_status.dirty),
+        )
 
     def _graph_config(self, state: dict[str, Any]) -> dict[str, Any]:
         """Build LangGraph invocation config with observability callbacks and metadata."""

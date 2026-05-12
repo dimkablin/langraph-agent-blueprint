@@ -52,6 +52,7 @@ EventType = Literal[
     "subagent_cancelled",
     "subagent_timeout",
     "subagent_event",
+    "agent_activity",
     "hook_started",
     "hook_finished",
     "hook_blocked",

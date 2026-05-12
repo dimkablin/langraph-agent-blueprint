@@ -262,6 +262,209 @@ pre {
   gap: 8px;
 }
 
+.workspace-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.workspace-menu-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.workspace-local-button,
+.workspace-branch-button {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: var(--control-radius);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  padding: 0 9px;
+}
+
+.workspace-local-button:hover,
+.workspace-local-button:focus-visible,
+.workspace-local-button[aria-expanded="true"],
+.workspace-branch-button:hover,
+.workspace-branch-button:focus-visible,
+.workspace-branch-button[aria-expanded="true"] {
+  background: var(--hover-surface);
+  color: var(--foreground);
+}
+
+.workspace-branch-button:not(:disabled) {
+  color: var(--foreground);
+}
+
+.workspace-branch-button span:not(.workspace-dirty-dot),
+.workspace-local-button span {
+  min-width: 0;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-chevron-open {
+  transform: rotate(180deg);
+}
+
+.workspace-popover {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 28;
+  width: min(320px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card-elevated);
+  color: var(--foreground);
+  padding: 9px 10px 8px;
+}
+
+.workspace-project-popover {
+  width: min(262px, calc(100vw - 32px));
+}
+
+.workspace-branch-popover {
+  width: min(306px, calc(100vw - 32px));
+}
+
+.workspace-search {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.workspace-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+}
+
+.workspace-search input::placeholder {
+  color: var(--muted);
+}
+
+.workspace-menu-title {
+  color: var(--muted);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  padding: 8px 2px 5px;
+}
+
+.workspace-menu-list {
+  max-height: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: auto;
+  padding: 3px 0;
+}
+
+.workspace-menu-row,
+.workspace-branch-row {
+  width: 100%;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: calc(var(--control-radius) - 2px);
+  background: transparent;
+  color: var(--foreground);
+  padding: 6px 5px;
+  text-align: left;
+  font-size: var(--font-size-small);
+  font-weight: 650;
+}
+
+.workspace-menu-row:hover,
+.workspace-menu-row:focus-visible,
+.workspace-branch-row:hover,
+.workspace-branch-row:focus-visible,
+.workspace-menu-row-selected {
+  background: var(--hover-surface);
+}
+
+.workspace-menu-row svg,
+.workspace-branch-row svg {
+  color: var(--muted);
+}
+
+.workspace-menu-row span,
+.workspace-branch-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-branch-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.workspace-branch-row strong,
+.workspace-branch-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-branch-row strong {
+  font: inherit;
+}
+
+.workspace-branch-row small,
+.workspace-menu-empty {
+  color: var(--muted);
+  font-size: var(--font-size-caption);
+  font-weight: 650;
+}
+
+.workspace-menu-empty {
+  margin: 0;
+  padding: 8px 6px;
+}
+
+.workspace-menu-add {
+  margin-top: 6px;
+  border-radius: calc(var(--control-radius) - 2px);
+  padding-top: 6px;
+}
+
+.workspace-dirty-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--warning);
+}
+
+.workspace-warning {
+  max-width: min(320px, 32vw);
+  overflow: hidden;
+  color: var(--danger);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .header-status > span {
   gap: 5px;
   border: 1px solid var(--border);
@@ -394,6 +597,19 @@ pre {
   overflow: auto;
   scrollbar-gutter: stable both-edges;
   padding: 22px 0 150px;
+}
+
+.activity-timeline {
+  width: min(var(--chat-column-width), calc(100% - 24px));
+  max-height: 220px;
+  overflow: auto;
+  margin: 0 auto 10px;
+  padding: 0 0 6px;
+}
+
+.activity-heading {
+  display: flex;
+  align-items: center;
 }
 
 .welcome-chat {
@@ -752,6 +968,8 @@ pre {
 }
 
 .composer {
+  --composer-workspace-gap: 12px;
+
   position: sticky;
   bottom: 0;
   z-index: 20;
@@ -769,7 +987,7 @@ pre {
   border-radius: var(--surface-radius) var(--surface-radius) 0 0;
   background: transparent;
   overflow: visible;
-  padding: 0 0 14px;
+  padding: 0 0 var(--composer-workspace-gap);
   pointer-events: none;
 }
 
@@ -786,6 +1004,21 @@ pre {
   border-radius: 0;
   background: transparent;
   padding: 0;
+}
+
+.composer-workspace-row {
+  width: min(var(--chat-column-width), calc(100% - 24px));
+  margin: 0 auto var(--composer-workspace-gap);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 8px;
+  pointer-events: auto;
+}
+
+.composer-welcome .composer-workspace-row {
+  width: min(760px, calc(100% - 24px));
+  margin: 8px auto 0;
 }
 
 .composer-box {
@@ -2010,7 +2243,7 @@ pre {
 .activity-row button {
   width: 100%;
   display: grid;
-  grid-template-columns: 14px auto minmax(0, 1fr);
+  grid-template-columns: 14px auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
   border: 0;
@@ -2032,12 +2265,25 @@ pre {
   font-size: var(--font-size-caption);
 }
 
+.activity-status {
+  color: var(--muted);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+}
+
+.activity-pending,
 .activity-running {
   border-color: color-mix(in oklab, var(--secondary-info) 38%, var(--border));
 }
 
-.activity-warning {
+.activity-warning,
+.activity-blocked {
   border-color: rgba(234, 179, 8, 0.38);
+}
+
+.activity-success,
+.activity-ok {
+  border-color: color-mix(in oklab, var(--success) 34%, var(--border));
 }
 
 .activity-error {

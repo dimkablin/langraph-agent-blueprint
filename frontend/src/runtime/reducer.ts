@@ -31,9 +31,13 @@ export type ChatTimelineItem =
 
 export type ActivityKind =
   | "event"
+  | "runtime"
+  | "workspace"
+  | "git"
   | "tool"
   | "permission"
   | "skill"
+  | "verification"
   | "subagent"
   | "mcp"
   | "hook"
@@ -45,9 +49,10 @@ export type ActivityItem = {
   kind: ActivityKind;
   label: string;
   summary: string;
-  status: "running" | "ok" | "error" | "warning" | "info";
+  status: "pending" | "running" | "success" | "ok" | "error" | "blocked" | "warning" | "info";
   timestamp: string;
   eventType: string;
+  category?: string;
   data: Record<string, unknown>;
 };
 
@@ -73,6 +78,10 @@ export type RuntimeState = {
 };
 
 const STREAMING_DRAFT_ID_PREFIX = "draft:";
+const INTERNAL_COMPACTION_PREFIX = "Compacted prior context:";
+const TOOL_MESSAGE_ROLE = "tool";
+const TOOL_MESSAGE_TYPE = "ToolMessage";
+const ASSISTANT_DTO_ROLES = new Set<string>(["ai", "assistant"]);
 
 export function createInitialRuntimeState(): RuntimeState {
   return {
@@ -154,9 +163,8 @@ export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): Run
     const content = firstString(event.data.content);
     next = content ? appendAssistantMessage(next, content, event.timestamp, event.id) : next;
     return {
-      ...next,
+      ...appendActivity(next, event),
       finalResponse: content || next.finalResponse,
-      activities: [...next.activities, runtimeEventToActivity(event)],
       isStreaming: false,
     };
   }
@@ -217,10 +225,7 @@ export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): Run
     };
   }
 
-  return {
-    ...next,
-    activities: [...next.activities, runtimeEventToActivity(event)],
-  };
+  return appendActivity(next, event);
 }
 
 export function applyChatResponse(state: RuntimeState, response: {
@@ -255,7 +260,7 @@ export function applySessionDetail(state: RuntimeState, detail: SessionDetailDTO
     threadId: stringOrNull(detail.metadata.thread_id) || state.threadId,
     messages,
     timeline: messages.map(messageTimelineItem),
-    activities: detail.events.map(runtimeEventToActivity),
+    activities: uniqueActivities(detail.events.map(runtimeEventToActivity)),
     context: contextFromDto(detail.context),
     finalResponse: lastAssistantMessage(visibleMessages),
     pendingPermission: null,
@@ -276,6 +281,10 @@ export function setThreadId(state: RuntimeState, threadId: string): RuntimeState
 }
 
 export function runtimeEventToActivity(event: RuntimeEvent): ActivityItem {
+  const structured = activityFromRuntimeEvent(event);
+  if (structured) {
+    return structured;
+  }
   return {
     id: event.id,
     kind: activityKind(event.type),
@@ -284,8 +293,31 @@ export function runtimeEventToActivity(event: RuntimeEvent): ActivityItem {
     status: activityStatus(event),
     timestamp: event.timestamp,
     eventType: event.type,
+    category: activityKind(event.type),
     data: event.data || {},
   };
+}
+
+function appendActivity(state: RuntimeState, event: RuntimeEvent): RuntimeState {
+  const activity = runtimeEventToActivity(event);
+  if (state.activities.some((item) => item.id === activity.id)) {
+    return state;
+  }
+  return {
+    ...state,
+    activities: [...state.activities, activity],
+  };
+}
+
+function uniqueActivities(items: ActivityItem[]): ActivityItem[] {
+  const seen = new Set<string>();
+  const activities: ActivityItem[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    activities.push(item);
+  }
+  return activities;
 }
 
 function appendAssistantMessage(state: RuntimeState, content: string, timestamp: string, id: string): RuntimeState {
@@ -432,11 +464,61 @@ function activityKind(type: string): ActivityKind {
   return "event";
 }
 
+function activityFromRuntimeEvent(event: RuntimeEvent): ActivityItem | null {
+  const payload = isRecord(event.data?.activity) ? event.data.activity : null;
+  if (!payload) return null;
+  const type = firstString(payload.type);
+  if (!type) return null;
+  const category = firstString(payload.category) || "event";
+  const title = firstString(payload.title) || type;
+  return {
+    id: firstString(payload.id) || event.id,
+    kind: activityKindFromCategory(category, type),
+    label: title,
+    summary: firstString(payload.summary),
+    status: activityStatusFromPayload(payload.status, event),
+    timestamp: event.timestamp,
+    eventType: type,
+    category,
+    data: isRecord(payload.data) ? payload.data : {},
+  };
+}
+
+function activityKindFromCategory(category: string, type: string): ActivityKind {
+  if (category === "runtime") return "runtime";
+  if (category === "workspace") return "workspace";
+  if (category === "git") return "git";
+  if (category === "tool") return "tool";
+  if (category === "permission") return "permission";
+  if (category === "skill") return "skill";
+  if (category === "verification") return "verification";
+  if (category === "mcp") return "mcp";
+  if (category === "hook") return "hook";
+  if (category === "context") return "context";
+  if (category === "error") return "error";
+  return activityKind(type);
+}
+
+function activityStatusFromPayload(value: unknown, event: RuntimeEvent): ActivityItem["status"] {
+  if (
+    value === "pending" ||
+    value === "running" ||
+    value === "success" ||
+    value === "error" ||
+    value === "blocked" ||
+    value === "warning" ||
+    value === "info"
+  ) {
+    return value;
+  }
+  return activityStatus(event);
+}
+
 function activityStatus(event: RuntimeEvent): ActivityItem["status"] {
   if (event.severity === "error" || event.type.endsWith("_error")) return "error";
   if (event.severity === "warning" || event.type === "permission_required") return "warning";
   if (event.type.endsWith("_started")) return "running";
-  if (event.type.endsWith("_finished") || event.type === "final_response" || event.type === "permission_resolved") return "ok";
+  if (event.type.endsWith("_finished") || event.type === "final_response" || event.type === "permission_resolved") return "success";
   return "info";
 }
 
@@ -449,6 +531,7 @@ function errorActivity(error: string): ActivityItem {
     status: "error",
     timestamp: new Date().toISOString(),
     eventType: "stream_error",
+    category: "error",
     data: { error },
   };
 }
@@ -474,7 +557,10 @@ function messageFromDto(message: MessageDTO): ChatMessage {
 }
 
 function isVisibleMessageDto(message: MessageDTO): boolean {
-  return !(message.role === "system" && message.content.startsWith("Compacted prior context:"));
+  if (message.role === "system" && message.content.startsWith(INTERNAL_COMPACTION_PREFIX)) return false;
+  if (message.role === TOOL_MESSAGE_ROLE || message.type === TOOL_MESSAGE_TYPE || message.tool_call_id) return false;
+  if (isEmptyToolCallMessage(message)) return false;
+  return true;
 }
 
 function lastAssistantMessage(messages: MessageDTO[]): string | null {
@@ -484,6 +570,10 @@ function lastAssistantMessage(messages: MessageDTO[]): string | null {
     }
   }
   return null;
+}
+
+function isEmptyToolCallMessage(message: MessageDTO): boolean {
+  return ASSISTANT_DTO_ROLES.has(message.role) && !message.content.trim() && Boolean(message.tool_calls?.length);
 }
 
 function stringOrNull(value: unknown): string | null {

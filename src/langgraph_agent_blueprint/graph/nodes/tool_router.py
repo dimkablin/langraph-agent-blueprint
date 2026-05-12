@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
-from langgraph_agent_blueprint.models import ToolCall, ToolResult, dump_model, event, tool_result_to_tool_message, validate_list
+from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, ToolCall, ToolResult, dump_model, event, tool_result_to_tool_message, validate_list
+from langgraph_agent_blueprint.services.permission_service import DEFAULT_SENSITIVE_ARG_KEYS, summarize_args
+from langgraph_agent_blueprint.utils.activity import safe_activity_data
 
 
 def tool_router_node(state: dict, deps: AppDependencies) -> dict:
@@ -86,7 +88,21 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
         update = {
             "metadata": metadata,
             "pending_confirmation": pending,
-            "ui_events": [event("permission_required", **pending)],
+            "ui_events": [
+                event(
+                    "permission_required",
+                    **pending,
+                    activity=_permission_activity(
+                        call=call,
+                        tool=tool,
+                        reason=decision.reason,
+                        activity_type="permission.tool.requested",
+                        status="pending",
+                        title="Permission required",
+                        data=pending,
+                    ).model_dump(mode="json"),
+                )
+            ],
         }
         permission_hook_update = run_hook_point(
             deps,
@@ -100,12 +116,67 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
         metadata["tool_route"] = "rejected"
         result = ToolResult(id=call.id, name=name, status="rejected", content=decision.reason)
         result_payload = dump_model(result)
+        denied_data = _permission_activity_data(call, tool, decision.reason)
         return merge_updates(pre_tool_update, {
             "metadata": metadata,
             "tool_results": [result_payload],
             "messages": [tool_result_to_tool_message(result)],
             "pending_tool_calls": [],
+            "ui_events": [
+                event(
+                    "permission_resolved",
+                    tool_call_id=call.id,
+                    tool_name=name,
+                    approved=False,
+                    decision="rejected",
+                    reason=decision.reason,
+                    activity=_permission_activity(
+                        call=call,
+                        tool=tool,
+                        reason=decision.reason,
+                        activity_type="permission.tool.denied",
+                        status="blocked",
+                        title="Permission denied",
+                        data=denied_data,
+                    ).model_dump(mode="json"),
+                )
+            ],
         })
     metadata["tool_route"] = execution_route
     metadata.pop("after_permission_route", None)
     return merge_updates(pre_tool_update, {"metadata": metadata})
+
+
+def _permission_activity(
+    *,
+    call: ToolCall,
+    tool: object,
+    reason: str,
+    activity_type: str,
+    status: str,
+    title: str,
+    data: dict,
+) -> AgentActivityEvent:
+    return AgentActivityEvent(
+        id=f"activity_{call.id}_{activity_type.rsplit('.', 1)[-1]}",
+        type=activity_type,
+        source=AgentActivitySource(kind="permission", name=call.name, component="PermissionService"),
+        category="permission",
+        status=status,  # type: ignore[arg-type]
+        title=title,
+        summary=str(reason),
+        data=safe_activity_data(data),
+    )
+
+
+def _permission_activity_data(call: ToolCall, tool: object, reason: str) -> dict:
+    permission = getattr(tool, "permission", None)
+    sensitive_keys = DEFAULT_SENSITIVE_ARG_KEYS | set(getattr(permission, "sensitive_arg_keys", set()) or set())
+    return {
+        "tool_call_id": call.id,
+        "tool_name": call.name,
+        "action": getattr(permission, "action", None),
+        "risk": getattr(permission, "risk", None),
+        "args_summary": summarize_args(call.args, sensitive_keys=sensitive_keys),
+        "reason": reason,
+    }

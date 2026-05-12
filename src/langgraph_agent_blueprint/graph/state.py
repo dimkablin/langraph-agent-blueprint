@@ -27,6 +27,8 @@ class AssistantState(TypedDict, total=False):
     session_id: str
     thread_id: str
     project_root: str
+    project_id: str | None
+    workspace: dict[str, Any]
     cwd: str
     input_text: str
     input_kind: Literal["interactive", "headless", "command", "resume", "approval"]
@@ -70,6 +72,8 @@ class AssistantState(TypedDict, total=False):
 def create_initial_state(
     input_text: str,
     project_root: str | Path | None = None,
+    project_id: str | None = None,
+    workspace: dict[str, Any] | None = None,
     cwd: str | Path | None = None,
     input_kind: str = "headless",
     session_id: str | None = None,
@@ -84,7 +88,9 @@ def create_initial_state(
     return AssistantState(
         session_id=resolved_session_id,
         thread_id=resolved_thread_id,
+        project_id=project_id,
         project_root=str(root),
+        workspace=workspace or {},
         cwd=str(current),
         input_text=input_text,
         input_kind=input_kind,  # type: ignore[typeddict-item]

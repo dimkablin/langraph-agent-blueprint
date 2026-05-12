@@ -10,6 +10,8 @@ from .compaction_service import CompactionService
 from .diagnostics_service import DiagnosticsService
 from .export_service import ExportService
 from .file_service import FileService
+from .folder_picker_service import FolderPickerService
+from .git_service import GitService
 from .hook_service import HookService
 from .mcp_service import MCPService
 from .memory_service import MemoryService
@@ -25,6 +27,7 @@ from .skill_service import SkillInvocationService
 from .task_service import TaskService
 from .usage_service import UsageService
 from .web_service import WebService
+from .workspace_service import WorkspaceService
 
 __all__ = [
     "AgentService",
@@ -33,6 +36,8 @@ __all__ = [
     "DiagnosticsService",
     "ExportService",
     "FileService",
+    "FolderPickerService",
+    "GitService",
     "HookService",
     "MCPService",
     "MemoryService",
@@ -48,4 +53,5 @@ __all__ = [
     "TaskService",
     "UsageService",
     "WebService",
+    "WorkspaceService",
 ]

@@ -18,7 +18,9 @@ def persist_session_node(state: dict, deps: AppDependencies) -> dict:
         **state_metadata,
         "session_id": state["session_id"],
         "thread_id": state["thread_id"],
+        "project_id": state.get("project_id"),
         "project_root": state["project_root"],
+        "workspace": state.get("workspace", {}),
         "usage": state.get("usage", {}),
         "model": state_metadata.get("model_name"),
     }

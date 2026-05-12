@@ -217,12 +217,165 @@ test("session detail hides internal compaction summary messages", () => {
   );
 });
 
+test("session detail hides persisted tool result messages from chat history", () => {
+  const state = applySessionDetail(createInitialRuntimeState(), {
+    session_id: "session_1",
+    title: "folder question",
+    messages: [
+      {
+        id: "human-1",
+        role: "human",
+        type: "HumanMessage",
+        content: "привет что в папке?",
+        tool_calls: [],
+      },
+      {
+        id: "ai-tool-call",
+        role: "ai",
+        type: "AIMessage",
+        content: "",
+        tool_calls: [{ id: "call_glob", name: "glob", args: { pattern: "*" } }],
+      },
+      {
+        id: "tool-glob",
+        role: "tool",
+        type: "ToolMessage",
+        content: '{"name":"glob","status":"ok","content":"C:\\\\project\\\\README.md"}',
+        tool_calls: [],
+        tool_call_id: "call_glob",
+      },
+      {
+        id: "ai-final",
+        role: "ai",
+        type: "AIMessage",
+        content: "В папке проекта находится README.md.",
+        tool_calls: [],
+      },
+    ],
+    events: [],
+    tool_calls: [],
+    todos: [],
+    memory: {},
+    usage: {},
+    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    child_runs: [],
+    metadata: {},
+  });
+
+  assert.deepEqual(
+    state.messages.map((message) => message.content),
+    ["привет что в папке?", "В папке проекта находится README.md."],
+  );
+  assert.equal(state.finalResponse, "В папке проекта находится README.md.");
+});
+
 test("unknown events are preserved as generic activities", () => {
   const state = applyRuntimeEvent(createInitialRuntimeState(), event("future_event", { value: 1 }));
 
   assert.equal(state.activities.length, 1);
   assert.equal(state.activities[0].kind, "event");
   assert.equal(state.activities[0].label, "future_event");
+});
+
+test("structured activity payloads take precedence over runtime event fallback", () => {
+  const state = applyRuntimeEvent(
+    createInitialRuntimeState(),
+    event("tool_call_started", {
+      id: "call_1",
+      name: "custom_probe",
+      activity: {
+        id: "activity_1",
+        type: "custom.probe.started",
+        source: { kind: "tool", name: "custom_probe" },
+        category: "tool",
+        status: "running",
+        title: "Custom Probe",
+        summary: "Running custom probe",
+        data: { phrase: "hello" },
+        refs: [],
+      },
+    }),
+  );
+
+  assert.equal(state.activities.length, 1);
+  assert.equal(state.activities[0].id, "activity_1");
+  assert.equal(state.activities[0].kind, "tool");
+  assert.equal(state.activities[0].eventType, "custom.probe.started");
+  assert.equal(state.activities[0].label, "Custom Probe");
+  assert.equal(state.activities[0].status, "running");
+  assert.deepEqual(state.activities[0].data, { phrase: "hello" });
+});
+
+test("unknown structured activity category renders as generic event activity", () => {
+  const state = applyRuntimeEvent(
+    createInitialRuntimeState(),
+    event("agent_activity", {
+      activity: {
+        id: "activity_future",
+        type: "vendor.future.completed",
+        source: { kind: "vendor", name: "future" },
+        category: "future",
+        status: "success",
+        title: "Future activity",
+        summary: "A future producer emitted this.",
+        data: { value: 1 },
+        refs: [],
+      },
+    }),
+  );
+
+  assert.equal(state.activities[0].kind, "event");
+  assert.equal(state.activities[0].status, "success");
+  assert.equal(state.activities[0].label, "Future activity");
+});
+
+test("permission denied activity stays visible as blocked", () => {
+  const state = applyRuntimeEvent(
+    createInitialRuntimeState(),
+    event("permission_resolved", {
+      tool_call_id: "call_1",
+      decision: "rejected",
+      activity: {
+        id: "activity_permission",
+        type: "permission.tool.denied",
+        source: { kind: "permission", name: "bash" },
+        category: "permission",
+        status: "blocked",
+        title: "Permission denied",
+        summary: "Permission denied: destructive shell command blocked.",
+        data: { tool_name: "bash" },
+        refs: [],
+      },
+    }),
+  );
+
+  assert.equal(state.pendingPermission, null);
+  assert.equal(state.activities[0].kind, "permission");
+  assert.equal(state.activities[0].status, "blocked");
+  assert.equal(state.activities[0].summary, "Permission denied: destructive shell command blocked.");
+});
+
+test("activity events do not replace final response chat messages", () => {
+  let state = applyRuntimeEvent(
+    createInitialRuntimeState(),
+    event("agent_activity", {
+      activity: {
+        id: "activity_done",
+        type: "runtime.run.completed",
+        source: { kind: "runtime", component: "AssistantGraphRuntime" },
+        category: "runtime",
+        status: "success",
+        title: "Run completed",
+        data: {},
+        refs: [],
+      },
+    }),
+  );
+  state = applyRuntimeEvent(state, event("final_response", { content: "Final answer text" }));
+
+  assert.deepEqual(state.messages.map((message) => message.content), ["Final answer text"]);
+  assert.equal(state.activities[0].eventType, "runtime.run.completed");
+  assert.equal(state.finalResponse, "Final answer text");
 });
 
 test("done stream frame updates active session and final response", () => {

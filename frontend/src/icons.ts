@@ -80,6 +80,9 @@ export const IconFileText = makeIcon([
   { d: "M16 13H8" },
   { d: "M16 17H8" },
 ]);
+export const IconFolder = makeIcon([
+  { d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9l-.81-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" },
+]);
 export const IconGitCompare = makeIcon([
   { cx: 18, cy: 18, r: 3 },
   { cx: 6, cy: 6, r: 3 },

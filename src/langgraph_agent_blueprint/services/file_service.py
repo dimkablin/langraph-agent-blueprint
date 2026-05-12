@@ -16,6 +16,12 @@ class FileService:
     def __init__(self, project_root: str | Path) -> None:
         self.project_root = Path(project_root).resolve()
 
+    def for_root(self, project_root: str | Path) -> "FileService":
+        root = Path(project_root).resolve()
+        if root == self.project_root:
+            return self
+        return FileService(root)
+
     def resolve(self, path: str | Path) -> Path:
         return resolve_under_root(path, self.project_root)
 

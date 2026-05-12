@@ -1,4 +1,30 @@
 export type RuntimeEventSeverity = "info" | "warning" | "error";
+export type AgentActivityStatus = "pending" | "running" | "success" | "error" | "blocked";
+
+export type AgentActivitySource = {
+  kind: string;
+  name?: string | null;
+  component?: string | null;
+};
+
+export type AgentActivityRef = {
+  kind: string;
+  path?: string | null;
+  name?: string | null;
+  id?: string | null;
+};
+
+export type AgentActivityEvent = {
+  id: string;
+  type: string;
+  source: AgentActivitySource;
+  category: string;
+  status?: AgentActivityStatus | null;
+  title: string;
+  summary?: string | null;
+  data: Record<string, unknown>;
+  refs: AgentActivityRef[];
+};
 
 export type RuntimeEvent = {
   id: string;
@@ -43,10 +69,42 @@ export type ModelIntelligenceLevel = "low" | "medium" | "high" | "very_high";
 
 export type ChatRequest = {
   message: string;
+  project_id?: string | null;
   session_id?: string | null;
   thread_id?: string | null;
   model_intelligence?: ModelIntelligenceLevel | null;
   attachments?: AttachmentRef[];
+};
+
+export type GitStatusSummary = {
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  conflicted: number;
+};
+
+export type WorkspaceInfo = {
+  project_id: string;
+  display_name: string;
+  root_path: string;
+  is_git_repo: boolean;
+  current_branch?: string | null;
+  branches: string[];
+  git_status?: GitStatusSummary | null;
+  dirty: boolean;
+  created_at?: string | null;
+  last_opened_at?: string | null;
+};
+
+export type WorkspaceCheckoutRequest = {
+  branch: string;
+  confirm_dirty?: boolean;
+};
+
+export type WorkspaceCheckoutResult = {
+  ok: boolean;
+  workspace: WorkspaceInfo;
+  message: string;
 };
 
 export type ChatResponse = {

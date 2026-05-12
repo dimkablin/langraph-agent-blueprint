@@ -40,12 +40,11 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
                     tool_name=mcp_metadata.get("tool_name"),
                 )
             )
-        events.append(deps.tool_execution_service.started_event(call_payload))
-        record = deps.tool_execution_service.execute(call_payload, state)
+        record, activity_events = deps.tool_execution_service.execute_with_activity(call_payload, state)
         result = ToolResult.model_validate(record)
         results.append(record)
         messages.append(tool_result_to_tool_message(result))
-        events.append(deps.tool_execution_service.finished_event(record))
+        events.extend(activity_events)
         if is_mcp:
             events.append(
                 event(

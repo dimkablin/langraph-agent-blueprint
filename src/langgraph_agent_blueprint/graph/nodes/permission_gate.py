@@ -7,6 +7,8 @@ from langgraph.types import interrupt
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
 from langgraph_agent_blueprint.models import (
+    AgentActivityEvent,
+    AgentActivitySource,
     PermissionDecision,
     PermissionRequest,
     ToolCall,
@@ -15,6 +17,7 @@ from langgraph_agent_blueprint.models import (
     event,
     tool_result_to_tool_message,
 )
+from langgraph_agent_blueprint.utils.activity import safe_activity_data
 
 
 def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
@@ -46,7 +49,19 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
             "metadata": metadata,
             "pending_confirmation": None,
             "permission_decisions": [record],
-            "ui_events": [event("permission_resolved", **record)],
+            "ui_events": [
+                event(
+                    "permission_resolved",
+                    **record,
+                    activity=_permission_resolution_activity(
+                        request,
+                        record,
+                        activity_type="permission.tool.approved",
+                        status="success",
+                        title="Permission approved",
+                    ).model_dump(mode="json"),
+                )
+            ],
         }
         hook_update = run_hook_point(
             deps,
@@ -67,7 +82,19 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
         "pending_tool_calls": [],
         "tool_results": [result_payload],
         "messages": [tool_result_to_tool_message(result)],
-        "ui_events": [event("permission_resolved", **record)],
+        "ui_events": [
+            event(
+                "permission_resolved",
+                **record,
+                activity=_permission_resolution_activity(
+                    request,
+                    record,
+                    activity_type="permission.tool.denied",
+                    status="blocked",
+                    title="Permission denied",
+                ).model_dump(mode="json"),
+            )
+        ],
     }
     hook_update = run_hook_point(
         deps,
@@ -93,3 +120,34 @@ def _resume_decision(request: PermissionRequest, decision: object) -> Permission
             remember=bool(decision.get("remember", False)),
         )
     return PermissionDecision(tool_call_id=request.tool_call_id, decision="approved" if bool(decision) else "rejected")
+
+
+def _permission_resolution_activity(
+    request: PermissionRequest,
+    record: dict,
+    *,
+    activity_type: str,
+    status: str,
+    title: str,
+) -> AgentActivityEvent:
+    reason = record.get("reason") or request.reason or title
+    return AgentActivityEvent(
+        id=f"activity_{request.tool_call_id}_{activity_type.rsplit('.', 1)[-1]}",
+        type=activity_type,
+        source=AgentActivitySource(kind="permission", name=request.tool_name, component="PermissionService"),
+        category="permission",
+        status=status,  # type: ignore[arg-type]
+        title=title,
+        summary=str(reason),
+        data=safe_activity_data(
+            {
+                "tool_call_id": request.tool_call_id,
+                "tool_name": request.tool_name,
+                "action": request.action,
+                "risk": request.risk,
+                "args_summary": request.args_summary,
+                "decision": record.get("decision"),
+                "reason": reason,
+            }
+        ),
+    )

@@ -1,6 +1,7 @@
 """Public Pydantic/runtime model surface used across package layers."""
 
 from .base import FrozenRuntimeModel, RuntimeModel, dump_model, validate_list
+from .activity import AgentActivityEvent, AgentActivityRef, AgentActivitySource
 from .commands import CommandResult, CommandType, ParsedCommand
 from .config import ConfigDiagnostic, ConfigSource, ConfigValueOrigin, EffectiveConfigReport
 from .context import (
@@ -49,14 +50,18 @@ from .plugins import (
 from .runtime import AgentRunInput, AgentRunOutput, FileSnapshotInfo, FileSnapshotRecord, RollbackResult
 from .sessions import SessionMetadata
 from .subagents import ChildRunMetadata, ResultMergePolicy, SubagentRequest, SubagentResult
-from .tool_metadata import ToolPermissionMetadata, ToolRuntimeMetadata, ToolStateEffect
+from .tool_metadata import ToolActivitySpec, ToolPermissionMetadata, ToolRuntimeMetadata, ToolStateEffect
 from .tools import ToolCall, ToolResult, normalize_provider_tool_calls, tool_result_to_tool_message
+from .workspaces import GitStatusSummary, WorkspaceCheckoutResult, WorkspaceInfo
 
 __all__ = [
     "AttachmentContent",
     "AttachmentRef",
     "AgentRunInput",
     "AgentRunOutput",
+    "AgentActivityEvent",
+    "AgentActivityRef",
+    "AgentActivitySource",
     "ChildRunMetadata",
     "CommandResult",
     "CommandType",
@@ -75,6 +80,7 @@ __all__ = [
     "FileSnapshotInfo",
     "FileSnapshotRecord",
     "FrozenRuntimeModel",
+    "GitStatusSummary",
     "HookContext",
     "HookContribution",
     "HookInvocation",
@@ -126,6 +132,7 @@ __all__ = [
     "SubagentResult",
     "ToolCall",
     "ToolCallRecord",
+    "ToolActivitySpec",
     "ToolPermissionMetadata",
     "ToolResult",
     "ToolResultRecord",
@@ -134,6 +141,8 @@ __all__ = [
     "TraceContext",
     "TraceMetadata",
     "Usage",
+    "WorkspaceCheckoutResult",
+    "WorkspaceInfo",
     "dump_model",
     "event",
     "make_event",

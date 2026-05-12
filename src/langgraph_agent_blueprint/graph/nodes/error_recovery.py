@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point
-from langgraph_agent_blueprint.models import event
+from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, event
+from langgraph_agent_blueprint.utils.activity import safe_activity_data
 
 
 def error_recovery_node(state: dict, deps: AppDependencies) -> dict:
@@ -14,9 +15,18 @@ def error_recovery_node(state: dict, deps: AppDependencies) -> dict:
     latest = errors[-1] if errors else {"message": "Unknown error"}
     final = f"Recovered from error: {latest.get('message')}"
     hook_update = run_hook_point(deps, state, "error", metadata={"error": latest})
+    failed_activity = AgentActivityEvent(
+        type="runtime.run.failed",
+        source=AgentActivitySource(kind="runtime", component="AssistantGraphRuntime"),
+        category="runtime",
+        status="error",
+        title="Run error",
+        summary=str(latest.get("message") or "Unknown error"),
+        data=safe_activity_data(latest),
+    )
     return merge_updates(hook_update, {
         "pending_tool_calls": [],
         "final_response": final,
-        "ui_events": [event("error", **latest), event("final_response", content=final)],
+        "ui_events": [event("error", **latest, activity=failed_activity.model_dump(mode="json")), event("final_response", content=final)],
     })
 
