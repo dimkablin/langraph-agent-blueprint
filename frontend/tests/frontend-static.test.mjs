@@ -281,33 +281,59 @@ test("technical payloads render as terminal-like message cards", () => {
   assert.match(styles, /\.message-card-technical\s*\{[^}]*border:\s*0/);
 });
 
-test("permission approval prompt is composer-width and keeps actions below command details", () => {
+test("permission approval prompt is composer-width and keeps tool summary above collapsed command details", () => {
   const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
   const panel = readFileSync(join(srcRoot, "components", "permissions", "PermissionPanel.tsx"), "utf8");
+  const chatHook = readFileSync(join(srcRoot, "hooks", "useRuntimeChat.ts"), "utf8");
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
 
   assert.match(app, /<div className="chat-input-stack">[\s\S]*<PermissionPanel[\s\S]*<ChatComposer/);
-  assert.match(panel, /permission-command-description[\s\S]*permission-review-row/);
-  assert.match(panel, /permission-review-row[\s\S]*permission-actions/);
+  assert.match(panel, /import \{ useEffect, useState \} from "react"/);
+  assert.match(panel, /IconChevronRight/);
+  assert.match(panel, /const \[expanded, setExpanded\] = useState\(false\)/);
+  assert.ok(panel.indexOf('className="permission-review-row"') < panel.indexOf('className="permission-command-description"'));
+  assert.ok(panel.indexOf('className="permission-command-description"') < panel.indexOf('className="permission-actions"'));
+  assert.match(panel, /className="permission-details-block"[\s\S]*aria-expanded=\{expanded\}/);
+  assert.match(panel, /className="permission-details-block"[\s\S]*onClick=\{\(\) => setExpanded\(\(value\) => !value\)\}/);
+  assert.match(panel, /className="permission-details-block"[\s\S]*<code className=\{permissionDetailsCodeClassName\}>[\s\S]*<span className="permission-details-toggle"/);
+  assert.doesNotMatch(panel, /<button[^>]*className="permission-details-toggle"/);
+  assert.doesNotMatch(panel, /request\.action \|\| "action"/);
+  assert.doesNotMatch(panel, /request\.risk \|\| "unknown risk"/);
+  assert.match(chatHook, /setRuntimeState\(\(state\) => clearPendingPermission\(state\)\);[\s\S]*const response = await sendApproval/);
   assert.match(styles, /\.chat-input-stack\s*\{[^}]*position:\s*sticky/);
   assert.match(styles, /\.chat-input-stack \.composer\s*\{[^}]*position:\s*relative/);
   assert.match(styles, /\.permission-panel\s*\{[^}]*width:\s*min\(var\(--chat-column-width\),\s*calc\(100% - 24px\)\)/);
-  assert.match(styles, /\.permission-review-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
+  assert.match(styles, /\.permission-panel\s*\{[^}]*background:\s*color-mix\(in oklab,\s*var\(--surface-1\)\s*86%,\s*rgba\(234,\s*179,\s*8,\s*0\.18\)\)/);
+  assert.match(styles, /\.permission-panel\s*\{[^}]*backdrop-filter:\s*blur\(18px\) saturate\(1\.08\)/);
+  assert.match(styles, /\.permission-panel\s*\{[^}]*-webkit-backdrop-filter:\s*blur\(18px\) saturate\(1\.08\)/);
+  assert.match(styles, /\.permission-review-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  assert.match(styles, /\.permission-details-block\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*18px/);
+  assert.match(styles, /\.permission-details-block\s*\{[^}]*border:\s*1px solid var\(--terminal-border\)/);
+  assert.match(styles, /\.permission-details-block:hover,[\s\S]*\.permission-details-block:focus-visible\s*\{[^}]*border-color:\s*color-mix/);
+  assert.match(styles, /\.permission-details-code\s*\{[^}]*border:\s*0px/);
+  assert.match(styles, /\.permission-command-description \.permission-details-code\s*\{[^}]*border:\s*0px/);
+  assert.match(styles, /\.permission-actions\s*\{[^}]*align-self:\s*flex-end/);
 });
 
-test("assistant messages render markdown through a safe AST renderer", () => {
+test("assistant messages render markdown through a safe GFM renderer", () => {
   const markdownBlock = readFileSync(join(srcRoot, "components", "common", "MarkdownBlock.tsx"), "utf8");
-  const markdownParser = readFileSync(join(srcRoot, "components", "common", "markdown.ts"), "utf8");
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
+  const packageJson = readFileSync(join(root, "frontend", "package.json"), "utf8");
 
-  assert.match(markdownBlock, /parseMarkdown/);
-  assert.match(markdownBlock, /renderBlock/);
-  assert.match(markdownBlock, /renderInline/);
+  assert.match(packageJson, /"react-markdown"/);
+  assert.match(packageJson, /"remark-gfm"/);
+  assert.match(markdownBlock, /from "react-markdown"/);
+  assert.match(markdownBlock, /from "remark-gfm"/);
+  assert.match(markdownBlock, /remarkPlugins=\{markdownRemarkPlugins\}/);
+  assert.match(markdownBlock, /skipHtml/);
+  assert.match(markdownBlock, /urlTransform=\{defaultUrlTransform\}/);
+  assert.match(markdownBlock, /markdown-table-scroll/);
   assert.match(markdownBlock, /target="_blank"/);
-  assert.match(markdownParser, /isSafeLinkHref/);
   assert.doesNotMatch(markdownBlock, /dangerouslySetInnerHTML/);
+  assert.doesNotMatch(markdownBlock, /parseMarkdown|MarkdownBlockNode|MarkdownInlineNode/);
   assert.match(styles, /\.markdown-block h1,/);
   assert.match(styles, /\.markdown-block ul,/);
+  assert.match(styles, /\.markdown-block \.markdown-table-scroll\s*\{[^}]*overflow-x:\s*auto/);
   assert.match(styles, /\.markdown-block pre\s*\{[^}]*overflow-x:\s*auto/);
   assert.match(styles, /\.markdown-block a\s*\{[^}]*color:\s*var\(--primary\)/);
 });
@@ -683,7 +709,9 @@ test("chat presentation borrows widget width, message blocks, and floating compo
   assert.match(styles, /\.composer\s*\{[^}]*margin:\s*-96px 0 0/);
   assert.match(styles, /\.composer-surface\s*\{[^}]*width:\s*min\(var\(--chat-column-width\),\s*calc\(100% - 24px\)\)/);
   assert.match(styles, /\.composer-surface\s*\{[^}]*margin:\s*0 auto/);
-  assert.match(styles, /\.composer-surface\s*\{[^}]*background:\s*transparent/);
+  assert.match(styles, /\.composer-surface\s*\{[^}]*background:\s*linear-gradient/);
+  assert.match(styles, /\.composer-surface\s*\{[^}]*transparent calc\(100% - var\(--composer-workspace-gap\)\)/);
+  assert.match(styles, /\.composer-surface\s*\{[^}]*var\(--background\) calc\(100% - var\(--composer-workspace-gap\)\)/);
   assert.doesNotMatch(styles, /\.composer-surface\s*\{[^}]*background:\s*color-mix\(in oklab,\s*var\(--background\)/);
   assert.match(styles, /\.composer-surface\s*\{[^}]*border-radius:\s*var\(--surface-radius\) var\(--surface-radius\) 0 0/);
   assert.match(styles, /\.composer-surface\s*\{[^}]*overflow:\s*visible/);
@@ -727,6 +755,21 @@ test("chat presentation borrows widget width, message blocks, and floating compo
   assert.match(composer, /textarea\.scrollHeight/);
   assert.match(composer, /textarea\.style\.height/);
   assert.match(composer, /className="composer-surface"/);
+});
+
+test("floating composer masks scrolled text under the rounded input corners", () => {
+  const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
+
+  assert.match(styles, /\.composer\s*\{[^}]*background:\s*transparent/);
+  assert.match(styles, /\.composer-surface\s*\{[^}]*background:\s*linear-gradient/);
+  assert.match(styles, /\.composer-surface\s*\{[^}]*transparent calc\(100% - var\(--composer-workspace-gap\)\)/);
+  assert.match(styles, /\.composer-surface\s*\{[^}]*var\(--background\) calc\(100% - var\(--composer-workspace-gap\)\)/);
+  assert.match(styles, /\.composer-surface\s*\{[^}]*overflow:\s*visible/);
+  assert.doesNotMatch(styles, /\.composer-surface\s*\{[^}]*overflow:\s*hidden/);
+  assert.match(styles, /\.composer-welcome \.composer-surface\s*\{[^}]*background:\s*transparent/);
+  assert.match(styles, /\.composer-box\s*\{[^}]*border:\s*1px solid transparent/);
+  assert.doesNotMatch(styles, /\.composer-box::before/);
+  assert.doesNotMatch(styles, /\.composer:not\(\.composer-welcome\) \.composer-box::before/);
 });
 
 test("context budget is rendered inside the chat composer", () => {

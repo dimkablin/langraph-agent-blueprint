@@ -899,7 +899,9 @@ pre {
 .markdown-block ul,
 .markdown-block ol,
 .markdown-block blockquote,
-.markdown-block pre {
+.markdown-block pre,
+.markdown-block hr,
+.markdown-block .markdown-table-scroll {
   margin: 0 0 7px;
   overflow-wrap: anywhere;
 }
@@ -943,6 +945,38 @@ pre {
   white-space: pre-wrap;
 }
 
+.markdown-block hr {
+  border: 0;
+  border-top: 1px solid color-mix(in oklab, var(--foreground) 18%, transparent);
+}
+
+.markdown-block .markdown-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.markdown-block table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.96em;
+}
+
+.markdown-block th,
+.markdown-block td {
+  border: 1px solid color-mix(in oklab, var(--foreground) 14%, transparent);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+
+.markdown-block th {
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+  font-weight: 700;
+}
+
 .markdown-block pre {
   max-width: 100%;
   border-radius: var(--control-radius);
@@ -971,6 +1005,13 @@ pre {
   color: var(--primary);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.markdown-block input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0 6px 0 0;
+  vertical-align: -2px;
 }
 
 .markdown-inverted a {
@@ -1072,7 +1113,11 @@ pre {
   width: min(var(--chat-column-width), calc(100% - 24px));
   margin: 0 auto;
   border-radius: var(--surface-radius) var(--surface-radius) 0 0;
-  background: transparent;
+  background: linear-gradient(
+    to bottom,
+    transparent calc(100% - var(--composer-workspace-gap)),
+    var(--background) calc(100% - var(--composer-workspace-gap))
+  );
   overflow: visible;
   padding: 0 0 var(--composer-workspace-gap);
   pointer-events: none;
@@ -1855,7 +1900,9 @@ pre {
   margin: 0 auto;
   border: 1px solid rgba(234, 179, 8, 0.25);
   border-radius: var(--surface-radius);
-  background: rgba(234, 179, 8, 0.08);
+  background: color-mix(in oklab, var(--surface-1) 86%, rgba(234, 179, 8, 0.18));
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
   padding: 12px;
   pointer-events: auto;
 }
@@ -1869,9 +1916,8 @@ pre {
 
 .permission-review-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
 }
 
 .permission-copy {
@@ -1893,7 +1939,6 @@ pre {
   font-size: var(--font-size-body);
 }
 
-.permission-copy span,
 .permission-copy p {
   margin: 0;
   color: var(--muted);
@@ -1910,13 +1955,76 @@ pre {
   border-radius: var(--radius);
   background: var(--surface-terminal);
   color: var(--terminal-foreground);
+  display: block;
+  width: 100%;
+  margin: 0;
   padding: 8px;
   font-size: var(--font-size-caption);
   line-height: 1.55;
 }
 
+.permission-details-block {
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+  appearance: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: start;
+  gap: 6px;
+  overflow: auto;
+  border: 1px solid var(--terminal-border);
+  border-radius: var(--radius);
+  background: var(--surface-terminal);
+  color: var(--terminal-foreground);
+  padding: 8px;
+  text-align: left;
+}
+
+.permission-details-block:hover,
+.permission-details-block:focus-visible {
+  border-color: color-mix(in oklab, var(--terminal-border) 48%, var(--foreground));
+}
+
+.permission-details-code {
+  min-width: 0;
+  display: block;
+  width: auto;
+  margin: 0;
+  border: 0px;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.permission-command-description .permission-details-code {
+  border: 0px;
+}
+
+.permission-details-expanded {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.permission-details-toggle {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  color: var(--muted);
+}
+
+.permission-details-block:hover .permission-details-toggle,
+.permission-details-block:focus-visible .permission-details-toggle {
+  color: var(--foreground);
+}
+
 .permission-actions {
-  justify-self: end;
+  align-self: flex-end;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;

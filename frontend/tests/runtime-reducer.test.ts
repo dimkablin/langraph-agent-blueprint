@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildActivityEntries } from "../src/runtime/activityTimeline.ts";
-import { appendUserMessage, applyRuntimeEvent, applySessionDetail, applyStreamFrame, createInitialRuntimeState, markStreamingStopped } from "../src/runtime/reducer.ts";
+import {
+  appendUserMessage,
+  applyChatResponse,
+  applyRuntimeEvent,
+  applySessionDetail,
+  applyStreamFrame,
+  createInitialRuntimeState,
+  markStreamingStopped,
+} from "../src/runtime/reducer.ts";
 import type { RuntimeEvent, StreamFrame } from "../src/api/schemas.ts";
 
 function event(type: string, data: Record<string, unknown> = {}, id = `event_${type}`): RuntimeEvent {
@@ -112,6 +120,30 @@ test("permission_required and permission_resolved update modal state", () => {
 
   assert.equal(resolved.pendingPermission, null);
   assert.equal(resolved.activities.at(-1)?.kind, "permission");
+});
+
+test("approval response with explicit null permission clears modal state", () => {
+  const withPermission = applyRuntimeEvent(
+    createInitialRuntimeState(),
+    event("permission_required", {
+      tool_call_id: "call_1",
+      tool_name: "mcp.luxms-api.luxms_query_data",
+      action: "mcp",
+      risk: "high",
+      args_summary: "queries external data",
+      reason: "External MCP tool requires approval by default.",
+    }),
+  );
+
+  const resolved = applyChatResponse(withPermission, {
+    session_id: "session_1",
+    thread_id: "thread_1",
+    final_response: null,
+    events: [],
+    permission_required: null,
+  });
+
+  assert.equal(resolved.pendingPermission, null);
 });
 
 test("context events populate runtime context state", () => {

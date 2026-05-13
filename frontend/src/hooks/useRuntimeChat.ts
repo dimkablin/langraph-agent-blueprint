@@ -12,6 +12,7 @@ import {
   applyRuntimeEvent,
   applySessionDetail,
   applyStreamFrame,
+  clearPendingPermission,
   createInitialRuntimeState,
   markStreamingStopped,
   setThreadId,
@@ -128,6 +129,7 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
       const permission = runtimeState.pendingPermission;
       if (!permission || !runtimeState.threadId) return;
       setBusy(true);
+      setRuntimeState((state) => clearPendingPermission(state));
       try {
         const response = await sendApproval({
           thread_id: runtimeState.threadId,
@@ -142,14 +144,17 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
         await refreshSessions();
       } catch (error) {
         setRuntimeState((state) =>
-          applyRuntimeEvent(state, {
-            id: `approval-error-${Date.now()}`,
-            type: "error",
-            timestamp: new Date().toISOString(),
-            session_id: state.sessionId || "unknown",
-            severity: "error",
-            data: { error: errorMessage(error) },
-          }),
+          applyRuntimeEvent(
+            { ...state, pendingPermission: permission },
+            {
+              id: `approval-error-${Date.now()}`,
+              type: "error",
+              timestamp: new Date().toISOString(),
+              session_id: state.sessionId || "unknown",
+              severity: "error",
+              data: { error: errorMessage(error) },
+            },
+          ),
         );
       } finally {
         setBusy(false);

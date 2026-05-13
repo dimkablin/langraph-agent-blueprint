@@ -159,6 +159,14 @@ export function markStreamingStopped(state: RuntimeState): RuntimeState {
   };
 }
 
+export function clearPendingPermission(state: RuntimeState): RuntimeState {
+  if (!state.pendingPermission) return state;
+  return {
+    ...state,
+    pendingPermission: null,
+  };
+}
+
 export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): RuntimeState {
   let next: RuntimeState = {
     ...state,
@@ -241,11 +249,12 @@ export function applyChatResponse(state: RuntimeState, response: {
   events?: RuntimeEvent[];
   permission_required?: PermissionRequest | null;
 }): RuntimeState {
+  const hasPermissionField = Object.prototype.hasOwnProperty.call(response, "permission_required");
   let next: RuntimeState = {
     ...state,
     sessionId: response.session_id,
     threadId: response.thread_id,
-    pendingPermission: response.permission_required || state.pendingPermission,
+    pendingPermission: hasPermissionField ? response.permission_required ?? null : state.pendingPermission,
   };
   for (const event of response.events || []) {
     next = applyRuntimeEvent(next, event);
