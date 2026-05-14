@@ -338,6 +338,17 @@ test("assistant messages render markdown through a safe GFM renderer", () => {
   assert.match(styles, /\.markdown-block a\s*\{[^}]*color:\s*var\(--primary\)/);
 });
 
+test("markdown loose lists keep compact spacing inside chat messages", () => {
+  const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
+
+  assert.match(styles, /\.markdown-block li > p\s*\{[^}]*margin:\s*0/);
+  assert.match(styles, /\.markdown-block li > p \+ p\s*\{[^}]*margin-top:\s*4px/);
+  assert.match(styles, /\.markdown-block li > ul,/);
+  assert.match(styles, /\.markdown-block li > ol\s*\{[^}]*margin:\s*6px 0 0/);
+  assert.match(styles, /\.markdown-block li \+ li\s*\{[^}]*margin-top:\s*6px/);
+  assert.doesNotMatch(styles, /\.markdown-block p\s*\{[^}]*margin:\s*0/);
+});
+
 test("main page keeps only chat while registries live behind the help drawer", () => {
   const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
   const messageList = readFileSync(join(srcRoot, "components", "chat", "MessageList.tsx"), "utf8");
@@ -364,6 +375,7 @@ test("main page keeps only chat while registries live behind the help drawer", (
 });
 
 test("completed command activity rows render compactly without inline success chrome", () => {
+  const activityTimeline = readFileSync(join(srcRoot, "runtime", "activityTimeline.ts"), "utf8");
   const messageList = readFileSync(join(srcRoot, "components", "chat", "MessageList.tsx"), "utf8");
   const eventTimeline = readFileSync(join(srcRoot, "components", "events", "EventTimeline.tsx"), "utf8");
   const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
@@ -377,10 +389,12 @@ test("completed command activity rows render compactly without inline success ch
   assert.match(eventTimeline, /useState\(\(\) => !compactCommands\)/);
   assert.match(eventTimeline, /setOpen\(!compactCommands\)/);
   assert.match(eventTimeline, /const isCompactCommand = compactCommands && entry\.isCommand/);
-  assert.match(eventTimeline, /const expanded = expandedOverride \?\? \(!entry\.isCommand && entry\.expandedByDefault\)/);
+  assert.match(eventTimeline, /const \[expanded, setExpanded\] = useState\(false\)/);
   assert.match(eventTimeline, /<h2>\{title\}<\/h2>\s*<IconChevronRight size=\{16\}/);
   assert.match(eventTimeline, /className=\{isCompactCommand \? "activity-line activity-line-compact activity-line-toggle" : "activity-line activity-line-toggle"\}/);
-  assert.match(eventTimeline, /onClick=\{\(\) => setExpandedOverride\(\(value\) => !\(value \?\? \(!entry\.isCommand && entry\.expandedByDefault\)\)\)\}/);
+  assert.match(eventTimeline, /onClick=\{\(\) => setExpanded\(\(value\) => !value\)\}/);
+  assert.doesNotMatch(eventTimeline, /expandedByDefault/);
+  assert.doesNotMatch(activityTimeline, /expandedByDefault/);
   assert.doesNotMatch(eventTimeline, /activity-kind/);
   assert.doesNotMatch(eventTimeline, /activityKindLabel/);
   assert.doesNotMatch(eventTimeline, /activityTitleLead/);

@@ -47,8 +47,7 @@ export function EventTimeline({
 }
 
 function ActivityEntryRow({ compactCommands, entry }: { compactCommands: boolean; entry: ActivityTimelineEntry }) {
-  const [expandedOverride, setExpandedOverride] = useState<boolean | null>(null);
-  const expanded = expandedOverride ?? (!entry.isCommand && entry.expandedByDefault);
+  const [expanded, setExpanded] = useState(false);
   const isCompactCommand = compactCommands && entry.isCommand;
   const className = `activity-row activity-${entry.status}${entry.isCommand ? " activity-command-row" : ""}${isCompactCommand ? " activity-command-row-compact" : ""}`;
   return (
@@ -59,7 +58,7 @@ function ActivityEntryRow({ compactCommands, entry }: { compactCommands: boolean
           className={isCompactCommand ? "activity-line activity-line-compact activity-line-toggle" : "activity-line activity-line-toggle"}
           aria-label="Toggle activity details"
           aria-expanded={expanded}
-          onClick={() => setExpandedOverride((value) => !(value ?? (!entry.isCommand && entry.expandedByDefault)))}
+          onClick={() => setExpanded((value) => !value)}
         >
           <span className="activity-title-cell">
             <span className="activity-title-text">

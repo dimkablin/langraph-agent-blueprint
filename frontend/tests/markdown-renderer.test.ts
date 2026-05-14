@@ -57,6 +57,18 @@ test("renders assistant tables, horizontal rules, and fenced code blocks", async
   assert.match(html, /&quot;limit&quot;: 10/);
 });
 
+test("renders loose nested lists with paragraph children inside list items", async () => {
+  const html = await renderMarkdown(
+    "1. **meta.summary_compiled_rights**\n\n   - Source: `_meta_`\n\n   - Description: Not specified\n\n2. **meta.bi_data_lineage**",
+  );
+
+  assert.match(html, /<ol>/);
+  assert.match(html, /<li>\s*<p><strong>meta\.summary_compiled_rights<\/strong><\/p>\s*<ul>/);
+  assert.match(html, /<li>\s*<p>Source: <code>_meta_<\/code><\/p>\s*<\/li>/);
+  assert.match(html, /<li>\s*<p>Description: Not specified<\/p>\s*<\/li>/);
+  assert.match(html, /<li>\s*<p><strong>meta\.bi_data_lineage<\/strong><\/p>\s*<\/li>/);
+});
+
 test("does not render raw HTML or unsafe markdown links into the chat DOM", async () => {
   const html = await renderMarkdown("<script>alert('xss')</script>\n\n[bad](javascript:alert(1))");
 

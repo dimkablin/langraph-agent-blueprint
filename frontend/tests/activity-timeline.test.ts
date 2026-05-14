@@ -177,7 +177,7 @@ test("command activity entries expose compact row metadata and detail-only statu
   assert.equal(entries[1].titleLead, "npm");
   assert.equal(entries[1].titleRest, "test");
   assert.equal(entries[1].status, "error");
-  assert.equal(entries[1].expandedByDefault, false);
+  assert.equal("expandedByDefault" in entries[1], false);
 });
 
 test("activity entries hide redundant generic status summaries", () => {
@@ -229,7 +229,37 @@ test("skill permission and unknown activity entries render compact generic narra
 
   assert.equal(entries[0].title, "Loaded skill: writing-plans");
   assert.equal(entries[1].title, "Permission denied: destructive shell command.");
-  assert.equal(entries[1].expandedByDefault, true);
+  assert.equal("expandedByDefault" in entries[1], false);
   assert.equal(entries[2].title, "Future activity");
   assert.equal(entries[2].summary, "A future producer emitted this.");
+});
+
+test("non-command error and blocked activity details are collapsed by the view by default", () => {
+  const entries = buildActivityEntries([
+    activity({
+      eventType: "tool.koob_query.failed",
+      kind: "tool",
+      category: "tool",
+      label: "Query failed",
+      summary: "Structured KOOB query failed.",
+      status: "error",
+      data: { tool_call_id: "query_1", tool_name: "mcp.luxms-api.luxms_query_data", reason: "timeout" },
+    }),
+    activity({
+      eventType: "permission.tool.denied",
+      kind: "permission",
+      category: "permission",
+      label: "Permission denied",
+      summary: "Permission denied: External MCP tool requires approval.",
+      status: "blocked",
+      data: { tool_call_id: "query_2", tool_name: "mcp.luxms-api.luxms_query_data", reason: "Rejected by user." },
+    }),
+  ]);
+
+  assert.equal(entries[0].terminal, null);
+  assert.equal(entries[0].status, "error");
+  assert.equal("expandedByDefault" in entries[0], false);
+  assert.equal(entries[1].terminal, null);
+  assert.equal(entries[1].status, "blocked");
+  assert.equal("expandedByDefault" in entries[1], false);
 });

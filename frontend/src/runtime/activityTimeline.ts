@@ -22,7 +22,6 @@ export type ActivityTimelineEntry = {
   debugPayload: unknown;
   isCommand: boolean;
   detailStatusLabel: string;
-  expandedByDefault: boolean;
 };
 
 const TERMINAL_OUTPUT_LIMIT = 1600;
@@ -99,7 +98,6 @@ function activityTimelineEntry(activity: ActivityItem, activities: ActivityItem[
     debugPayload: relatedActivities.length > 1 ? relatedActivities.map(debugPayloadForActivity) : debugPayloadForActivity(activity),
     isCommand: Boolean(terminal),
     detailStatusLabel: activityStatusLabel(activity.status),
-    expandedByDefault: !terminal && (activity.status === "error" || activity.status === "blocked"),
   };
 }
 

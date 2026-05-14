@@ -930,12 +930,25 @@ pre {
 }
 
 .markdown-block li {
-  margin: 0 0 5px;
+  margin: 0;
   white-space: pre-wrap;
 }
 
-.markdown-block li:last-child {
-  margin-bottom: 0;
+.markdown-block li + li {
+  margin-top: 6px;
+}
+
+.markdown-block li > p {
+  margin: 0;
+}
+
+.markdown-block li > p + p {
+  margin-top: 4px;
+}
+
+.markdown-block li > ul,
+.markdown-block li > ol {
+  margin: 6px 0 0;
 }
 
 .markdown-block blockquote {
