@@ -34,6 +34,8 @@ def route_after_permission(state: dict[str, Any]) -> str:
 
 
 def route_after_tool_execution(state: dict[str, Any]) -> str:
+    if state.get("metadata", {}).get("runtime_cancelled"):
+        return "persist_session"
     if state.get("errors"):
         return "error_recovery"
     return "compact_decision"

@@ -63,6 +63,7 @@ EventType = Literal[
     "memory_updated",
     "export_finished",
     "session_persisted",
+    "run_cancelled",
     "final_response",
     "error",
 ]

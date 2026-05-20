@@ -47,7 +47,7 @@ from .plugins import (
     PluginToolContribution,
     PluginTrustPolicy,
 )
-from .runtime import AgentRunInput, AgentRunOutput, FileSnapshotInfo, FileSnapshotRecord, RollbackResult
+from .runtime import AgentRunInput, AgentRunOutput, FileSnapshotInfo, FileSnapshotRecord, RollbackResult, RunCancellationResult
 from .sessions import SessionMetadata
 from .subagents import ChildRunMetadata, ResultMergePolicy, SubagentRequest, SubagentResult
 from .tool_metadata import ToolActivitySpec, ToolPermissionMetadata, ToolRuntimeMetadata, ToolStateEffect
@@ -124,6 +124,7 @@ __all__ = [
     "ResolvedContextItem",
     "ResultMergePolicy",
     "RollbackResult",
+    "RunCancellationResult",
     "RuntimeEvent",
     "RuntimeModel",
     "SessionMetadata",

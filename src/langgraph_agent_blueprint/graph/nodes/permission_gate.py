@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from langchain_core.messages import AIMessage
 from langgraph.types import interrupt
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
@@ -73,7 +74,8 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
         return merge_updates(update, hook_update)
     metadata["tool_route"] = "rejected"
     call = ToolCall.model_validate(state.get("pending_tool_calls", [{}])[0])
-    result = ToolResult(id=call.id, name=request.tool_name, status="rejected", content="Tool call rejected by user.")
+    final_response = _rejected_permission_final_response(request)
+    result = ToolResult(id=call.id, name=request.tool_name, status="rejected", content=final_response)
     result_payload = dump_model(result)
     update = {
         "metadata": metadata,
@@ -81,7 +83,8 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
         "permission_decisions": [record],
         "pending_tool_calls": [],
         "tool_results": [result_payload],
-        "messages": [tool_result_to_tool_message(result)],
+        "messages": [tool_result_to_tool_message(result), AIMessage(content=final_response)],
+        "final_response": final_response,
         "ui_events": [
             event(
                 "permission_resolved",
@@ -120,6 +123,10 @@ def _resume_decision(request: PermissionRequest, decision: object) -> Permission
             remember=bool(decision.get("remember", False)),
         )
     return PermissionDecision(tool_call_id=request.tool_call_id, decision="approved" if bool(decision) else "rejected")
+
+
+def _rejected_permission_final_response(request: PermissionRequest) -> str:
+    return f"Tool call '{request.tool_name}' was rejected by user. No tool was executed."
 
 
 def _permission_resolution_activity(

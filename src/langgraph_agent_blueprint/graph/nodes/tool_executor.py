@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
+from langgraph_agent_blueprint.graph.run_control import cancellation_update
 from langgraph_agent_blueprint.models import ToolCall, ToolResult, event, tool_result_to_tool_message, validate_list
 
 RECOVERABLE_TOOL_ERROR_LIMIT = 3
@@ -16,6 +17,9 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
     and each result receives a matching ToolMessage for the next model turn.
     """
 
+    cancelled = cancellation_update(state, deps, node="tool_executor")
+    if cancelled is not None:
+        return cancelled
     calls = validate_list(ToolCall, state.get("pending_tool_calls", []))
     events = []
     results = []

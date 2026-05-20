@@ -1,6 +1,7 @@
 # Reference Runtime Capability Matrix
 
 Current audit date: 2026-05-07
+Last readiness update: 2026-05-13
 
 This matrix describes the current Python/LangGraph runtime, not historical pre-fix status.
 
@@ -11,7 +12,7 @@ This matrix describes the current Python/LangGraph runtime, not historical pre-f
 | CLI chat | working | `cli.py chat` uses shared runtime and one session id per loop. | observability CLI tests | README | Rich TUI remains future. | P2 |
 | Headless query | working | `cli.py query` | `test_cli_headless.py` | README | More SDK event variants optional. | P2 |
 | Stream JSON | working | `AssistantGraphRuntime.stream` yields UI events. | `test_cli_headless.py`, observability stream tests | README, `OBSERVABILITY.md` | Replay harness should pin event contracts. | P1 |
-| API/frontend contract | partial | `api` package, frontend static tests | `test_api_frontend_contract.py`, frontend static tests | `FRONTEND.md` | Full frontend UI after runtime readiness. | frontend_phase |
+| API/frontend contract | working_mvp | `api` package exposes chat, SSE, approval, sessions, context, child runs, export, registry/status/config/MCP/plugin/hook/observability, and workspace routes consumed by the frontend. | `test_api_frontend_contract.py`, frontend static/unit tests | `FRONTEND.md`, `API_FRONTEND_CONTRACT.md` | Direct todo/memory/command endpoints, upload/download endpoints, and richer command-specific APIs are post-MVP. | P1 |
 | Tool registry | working | `ToolRegistry`, core tool factory | `test_tool_registry.py` | `TOOLS.md` | Add deferred ToolSearch later if needed. | P2 |
 | File tools | working | `file_tools.py`, `FileService` | `test_file_tools.py`, runtime tools tests | `TOOLS.md` | MultiEdit/patch batch missing. | P1 |
 | Notebook tools | working | `notebook_tools.py` | runtime tools tests | `TOOLS.md` | Rich notebook rendering optional. | P3 |
@@ -53,4 +54,4 @@ This matrix describes the current Python/LangGraph runtime, not historical pre-f
 | Security hardening | working | Batch 1 and Batch 2 fixes | security-focused regression tests | audit docs, `PERMISSIONS.md` | Keep external content untrusted. | P0/P1 |
 | Context providers/attachments | working_mvp | `models/context.py`, `context/providers.py`, `resolve_context` graph node, `/context` | context model/provider/graph/security/subagent/observability tests | `CONTEXT_ATTACHMENTS.md` | Image/PDF extraction is metadata-only; frontend attachment UX remains future. | P1 |
 | Eval/replay harness | working_mvp | `models/evals.py`, `evals/loader.py`, `evals/runner.py`, `evals/assertions.py`, `evals/reporter.py`, `lg-agent eval ...` | `test_eval_models.py`, `test_eval_loader.py`, `test_eval_assertions.py`, `test_eval_runner.py`, `test_eval_cli.py`, `test_eval_scenarios.py` | `EVAL_REPLAY.md`, README | Add optional Langfuse scoring and richer replay diffs later. | P1 |
-| Frontend readiness | partial | Static React shell, API contract, stable config/plugin diagnostics | frontend static tests | `FRONTEND.md` | Build real UI on top of runtime APIs. | frontend_phase |
+| Frontend readiness | working_mvp | TypeScript React/Vite frontend with chat, SSE timeline, permission panel, sessions, context window, settings center, runtime/sidebar panels, workspace controls, and local UI preferences. | `npm.cmd --prefix frontend run test:static`, `npm.cmd --prefix frontend run test`, `npm.cmd --prefix frontend run build` | `FRONTEND.md`, `FRONTEND_IMPLEMENTATION_PLAN.md` | Playwright/browser smoke, upload/download UX, richer subagent transcript view, plugin management UI, eval dashboard. | P1 |

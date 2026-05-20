@@ -327,13 +327,14 @@ test("assistant messages render markdown through a safe GFM renderer", () => {
   assert.match(markdownBlock, /remarkPlugins=\{markdownRemarkPlugins\}/);
   assert.match(markdownBlock, /skipHtml/);
   assert.match(markdownBlock, /urlTransform=\{defaultUrlTransform\}/);
-  assert.match(markdownBlock, /markdown-table-scroll/);
+  assert.match(markdownBlock, /markdown-scroll-block/);
+  assert.match(markdownBlock, /pre\(\{ node: _node, \.\.\.props \}\)/);
   assert.match(markdownBlock, /target="_blank"/);
   assert.doesNotMatch(markdownBlock, /dangerouslySetInnerHTML/);
   assert.doesNotMatch(markdownBlock, /parseMarkdown|MarkdownBlockNode|MarkdownInlineNode/);
   assert.match(styles, /\.markdown-block h1,/);
   assert.match(styles, /\.markdown-block ul,/);
-  assert.match(styles, /\.markdown-block \.markdown-table-scroll\s*\{[^}]*overflow-x:\s*auto/);
+  assert.match(styles, /\.markdown-block \.markdown-scroll-block\s*\{[^}]*overflow-x:\s*auto/);
   assert.match(styles, /\.markdown-block pre\s*\{[^}]*overflow-x:\s*auto/);
   assert.match(styles, /\.markdown-block a\s*\{[^}]*color:\s*var\(--primary\)/);
 });
@@ -1101,4 +1102,16 @@ test("settings preference dropdowns use app-styled popovers instead of native se
       ].join("|"),
     ),
   );
+});
+
+test("stop generation requests backend cancellation before aborting the stream", () => {
+  const hook = readFileSync(join(srcRoot, "hooks", "useRuntimeChat.ts"), "utf8");
+  const chatApi = readFileSync(join(srcRoot, "api", "chat.ts"), "utf8");
+
+  assert.match(chatApi, /export function cancelChat/);
+  assert.match(chatApi, /"\/chat\/cancel"/);
+  assert.match(hook, /import \{ cancelChat \} from "\.\.\/api\/chat\.ts"/);
+  assert.match(hook, /cancelChat\(\{[\s\S]*thread_id:[\s\S]*session_id:[\s\S]*reason:/);
+  const stopStream = hook.slice(hook.indexOf("const stopStream"), hook.indexOf("const startNewChat"));
+  assert.ok(stopStream.indexOf("cancelChat({") < stopStream.indexOf("abortRef.current?.abort()"));
 });

@@ -51,6 +51,15 @@ class RollbackResult(RuntimeModel):
     path: str | None = None
 
 
+class RunCancellationResult(RuntimeModel):
+    """Runtime-control result returned when a client asks to stop an active run."""
+
+    cancelled: bool
+    thread_id: str
+    session_id: str | None = None
+    reason: str | None = None
+
+
 class AgentRunInput(RuntimeModel):
     """Public runtime request used by tests and embedders that call the graph directly."""
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
+from langgraph_agent_blueprint.graph.run_control import cancellation_update
 from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, ToolCall, ToolResult, dump_model, event, tool_result_to_tool_message, validate_list
 from langgraph_agent_blueprint.services.permission_service import DEFAULT_SENSITIVE_ARG_KEYS, summarize_args
 from langgraph_agent_blueprint.utils.activity import safe_activity_data
@@ -18,6 +19,13 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
 
     calls = validate_list(ToolCall, state.get("pending_tool_calls", []))
     metadata = dict(state.get("metadata", {}))
+    if metadata.get("runtime_cancelled"):
+        metadata["tool_route"] = "cancelled"
+        return {"metadata": metadata}
+    cancelled = cancellation_update(state, deps, node="tool_router")
+    if cancelled is not None:
+        metadata = {**cancelled.get("metadata", {}), "tool_route": "cancelled"}
+        return {**cancelled, "metadata": metadata}
     if not calls:
         metadata["tool_route"] = "no_tools"
         return {"metadata": metadata}

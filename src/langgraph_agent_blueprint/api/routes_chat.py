@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from .schemas import ApprovalRequest, ChatRequest, RuntimeEventDTO, StreamFrame
+from .schemas import ApprovalRequest, ChatCancelRequest, ChatCancelResponse, ChatRequest, RuntimeEventDTO, StreamFrame
 from .serializers import runtime_event_dto
 
 router = APIRouter()
@@ -42,6 +42,19 @@ def chat_stream(request_body: ChatRequest, request: Request) -> StreamingRespons
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/chat/cancel", response_model=ChatCancelResponse)
+def chat_cancel(request_body: ChatCancelRequest, request: Request) -> ChatCancelResponse:
+    """Request cooperative cancellation for the active graph run on a thread."""
+
+    runtime = request.app.state.runtime
+    result = runtime.cancel(
+        request_body.thread_id,
+        session_id=request_body.session_id,
+        reason=request_body.reason,
+    )
+    return ChatCancelResponse.model_validate(result)
 
 
 @router.post("/approval/events", response_model=list[RuntimeEventDTO])

@@ -7,6 +7,7 @@ from langgraph.config import get_stream_writer
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
+from langgraph_agent_blueprint.graph.run_control import cancellation_update
 from langgraph_agent_blueprint.models import ModelRequest, ModelResponse, ToolCall, dump_model, event, validate_list
 
 
@@ -17,6 +18,9 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
     AIMessage, and leaves actual tool execution to the downstream tool router.
     """
 
+    cancelled = cancellation_update(state, deps, node="model_call")
+    if cancelled is not None:
+        return cancelled
     if state.get("final_response") and not state.get("pending_tool_calls"):
         return {}
     pre_update = run_hook_point(deps, state, "pre_model")
@@ -37,6 +41,9 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
         },
     )
     response = _generate_model_response(current, deps, request)
+    cancelled = cancellation_update(current, deps, node="model_call")
+    if cancelled is not None:
+        return merge_updates(pre_update, cancelled)
     tool_calls = validate_list(ToolCall, response.tool_calls)
     usage = deps.usage_service.merge(current.get("usage", {}), response.usage.model_dump(mode="json"))
     events = [event("node_started", node="model_call")]
@@ -63,9 +70,15 @@ def _generate_model_response(state: dict, deps: AppDependencies, request: ModelR
 
     writer = get_stream_writer()
     response: ModelResponse | None = None
+    cancelled = False
     for stream_event in deps.model_provider.stream_generate(request):
+        if deps.run_control_service.is_cancelled(str(state.get("thread_id") or "")):
+            cancelled = True
+            break
         if stream_event.type == "token" and stream_event.token:
             writer(event("model_token", session_id=state["session_id"], node="model_call", token=stream_event.token))
         elif stream_event.type == "response" and stream_event.response is not None:
             response = stream_event.response
+    if cancelled:
+        return ModelResponse()
     return response or deps.model_provider.generate(request)

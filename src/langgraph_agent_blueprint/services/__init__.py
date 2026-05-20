@@ -20,6 +20,7 @@ from .notebook_service import NotebookService
 from .observability_service import ObservabilityService
 from .permission_service import PermissionService
 from .plugin_service import PluginService
+from .run_control_service import RunControlService
 from .search_service import SearchService
 from .session_service import SessionService
 from .shell_service import ShellService
@@ -46,6 +47,7 @@ __all__ = [
     "ObservabilityService",
     "PermissionService",
     "PluginService",
+    "RunControlService",
     "SearchService",
     "SessionService",
     "ShellService",

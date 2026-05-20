@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models import AgentRunInput, AgentRunOutput, AttachmentRef, FileSnapshotRecord, TraceContext, TraceMetadata, WorkspaceInfo, dump_model
+from langgraph_agent_blueprint.models import AgentRunInput, AgentRunOutput, AttachmentRef, FileSnapshotRecord, RunCancellationResult, TraceContext, TraceMetadata, WorkspaceInfo, dump_model
 from langgraph_agent_blueprint.utils.ids import new_id, validate_session_id, validate_thread_id
 
 from .checkpoints import default_checkpointer
@@ -99,6 +99,7 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
             "no_tools": "hook_runner",
             "execute": "tool_executor",
             "needs_permission": "permission_gate",
+            "cancelled": "persist_session",
             "rejected": "compact_decision",
             "skill_tool": "skill_graph",
             "agent_tool": "agent_graph",
@@ -109,12 +110,12 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
     graph.add_conditional_edges(
         "permission_gate",
         route_after_permission,
-        {"execute": "tool_executor", "mcp_tool": "mcp_graph", "rejected": "compact_decision"},
+        {"execute": "tool_executor", "mcp_tool": "mcp_graph", "rejected": "persist_session"},
     )
     graph.add_conditional_edges(
         "tool_executor",
         route_after_tool_execution,
-        {"compact_decision": "compact_decision", "error_recovery": "error_recovery"},
+        {"compact_decision": "compact_decision", "error_recovery": "error_recovery", "persist_session": "persist_session"},
     )
     graph.add_edge("agent_graph", "compact_decision")
     graph.add_edge("mcp_graph", "compact_decision")
@@ -185,20 +186,24 @@ class AssistantGraphRuntime:
         if turn_index is not None:
             state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
         trace_context = self._trace_context(state)
-        with self.dependencies.observability_service.trace_turn(
-            trace_context,
-            self._trace_metadata(state),
-            input_data={"input_text": input_text, "input_kind": input_kind},
-            name="lg-agent chat turn",
-        ) as trace:
-            config = trace.graph_config({"configurable": {"thread_id": state["thread_id"]}}, self._trace_metadata(state))
-            result = self.app.invoke(state, config)
-            result_context = self._trace_context(result) if isinstance(result, dict) else trace_context
-            trace.record_runtime_events(result.get("ui_events", []) if isinstance(result, dict) else [], result_context)
-            if isinstance(result, dict):
-                trace.set_output(result.get("final_response"))
-                self._drop_completed_checkpoint(result.get("thread_id") or state["thread_id"], result)
-        return result
+        self.dependencies.run_control_service.start_run(state["thread_id"], session_id=state["session_id"])
+        try:
+            with self.dependencies.observability_service.trace_turn(
+                trace_context,
+                self._trace_metadata(state),
+                input_data={"input_text": input_text, "input_kind": input_kind},
+                name="lg-agent chat turn",
+            ) as trace:
+                config = trace.graph_config({"configurable": {"thread_id": state["thread_id"]}}, self._trace_metadata(state))
+                result = self.app.invoke(state, config)
+                result_context = self._trace_context(result) if isinstance(result, dict) else trace_context
+                trace.record_runtime_events(result.get("ui_events", []) if isinstance(result, dict) else [], result_context)
+                if isinstance(result, dict):
+                    trace.set_output(result.get("final_response"))
+                    self._drop_completed_checkpoint(result.get("thread_id") or state["thread_id"], result)
+            return result
+        finally:
+            self.dependencies.run_control_service.finish_run(state["thread_id"])
 
     def run(self, request: AgentRunInput) -> AgentRunOutput:
         """Invoke the public Pydantic runtime contract and validate the terminal result."""
@@ -266,20 +271,35 @@ class AssistantGraphRuntime:
             release=self.dependencies.config.langfuse.release,
             user_id=self.dependencies.config.langfuse.trace_user_id,
         )
-        with self.dependencies.observability_service.trace_turn(
-            initial_context,
-            self._trace_metadata({}),
-            input_data={"resume": decision},
-            name="lg-agent resume turn",
-        ) as trace:
-            config = trace.graph_config({"configurable": {"thread_id": thread_id}}, self._trace_metadata({}))
-            result = self.app.invoke(Command(resume=decision), config)
-            result_context = self._trace_context(result) if isinstance(result, dict) else initial_context
-            trace.record_runtime_events(result.get("ui_events", []) if isinstance(result, dict) else [], result_context)
-            if isinstance(result, dict):
-                trace.set_output(result.get("final_response"))
-                self._drop_completed_checkpoint(result.get("thread_id") or thread_id, result)
-        return result
+        self.dependencies.run_control_service.start_run(thread_id, session_id=session_id)
+        try:
+            with self.dependencies.observability_service.trace_turn(
+                initial_context,
+                self._trace_metadata({}),
+                input_data={"resume": decision},
+                name="lg-agent resume turn",
+            ) as trace:
+                config = trace.graph_config({"configurable": {"thread_id": thread_id}}, self._trace_metadata({}))
+                result = self.app.invoke(Command(resume=decision), config)
+                result_context = self._trace_context(result) if isinstance(result, dict) else initial_context
+                trace.record_runtime_events(result.get("ui_events", []) if isinstance(result, dict) else [], result_context)
+                if isinstance(result, dict):
+                    trace.set_output(result.get("final_response"))
+                    self._drop_completed_checkpoint(result.get("thread_id") or thread_id, result)
+            return result
+        finally:
+            self.dependencies.run_control_service.finish_run(thread_id)
+
+    def cancel(
+        self,
+        thread_id: str,
+        *,
+        session_id: str | None = None,
+        reason: str | None = None,
+    ) -> RunCancellationResult:
+        """Request cooperative cancellation for an active graph run."""
+
+        return self.dependencies.run_control_service.cancel(thread_id, session_id=session_id, reason=reason)
 
     def stream(
         self,
@@ -320,42 +340,46 @@ class AssistantGraphRuntime:
             previous_count: int | None = None
             trace_context = self._trace_context(state)
             stream_context = trace_context
-            with self.dependencies.observability_service.stream_trace_turn(
-                trace_context,
-                self._trace_metadata(state),
-                input_data={"input_text": input_text, "input_kind": input_kind},
-                name="lg-agent chat turn",
-            ) as trace:
-                config = trace.graph_config({"configurable": {"thread_id": state["thread_id"]}}, self._trace_metadata(state))
-                for raw_chunk in self.app.stream(
-                    state,
-                    config,
-                    stream_mode=["custom", "values"],
-                ):
-                    mode, chunk = raw_chunk if isinstance(raw_chunk, tuple) and len(raw_chunk) == 2 else ("values", raw_chunk)
-                    if mode == "custom":
-                        if isinstance(chunk, dict) and "type" in chunk and "data" in chunk:
-                            trace.record_runtime_event(chunk, stream_context)
-                            yield chunk
-                        continue
-                    if isinstance(chunk, dict):
-                        final_chunk = chunk
-                        context = self._trace_context(chunk)
-                        stream_context = context
-                        events = chunk.get("ui_events", [])
-                    else:
-                        context = trace_context
-                        events = []
-                    if previous_count is None:
+            self.dependencies.run_control_service.start_run(state["thread_id"], session_id=state["session_id"])
+            try:
+                with self.dependencies.observability_service.stream_trace_turn(
+                    trace_context,
+                    self._trace_metadata(state),
+                    input_data={"input_text": input_text, "input_kind": input_kind},
+                    name="lg-agent chat turn",
+                ) as trace:
+                    config = trace.graph_config({"configurable": {"thread_id": state["thread_id"]}}, self._trace_metadata(state))
+                    for raw_chunk in self.app.stream(
+                        state,
+                        config,
+                        stream_mode=["custom", "values"],
+                    ):
+                        mode, chunk = raw_chunk if isinstance(raw_chunk, tuple) and len(raw_chunk) == 2 else ("values", raw_chunk)
+                        if mode == "custom":
+                            if isinstance(chunk, dict) and "type" in chunk and "data" in chunk:
+                                trace.record_runtime_event(chunk, stream_context)
+                                yield chunk
+                            continue
+                        if isinstance(chunk, dict):
+                            final_chunk = chunk
+                            context = self._trace_context(chunk)
+                            stream_context = context
+                            events = chunk.get("ui_events", [])
+                        else:
+                            context = trace_context
+                            events = []
+                        if previous_count is None:
+                            previous_count = len(events)
+                            continue
+                        for item in events[previous_count:]:
+                            trace.record_runtime_event(item, context)
+                            yield item
                         previous_count = len(events)
-                        continue
-                    for item in events[previous_count:]:
-                        trace.record_runtime_event(item, context)
-                        yield item
-                    previous_count = len(events)
-                if final_chunk is not None:
-                    trace.set_output(final_chunk.get("final_response"))
-                    self._drop_completed_checkpoint(final_chunk.get("thread_id") or state["thread_id"], final_chunk)
+                    if final_chunk is not None:
+                        trace.set_output(final_chunk.get("final_response"))
+                        self._drop_completed_checkpoint(final_chunk.get("thread_id") or state["thread_id"], final_chunk)
+            finally:
+                self.dependencies.run_control_service.finish_run(state["thread_id"])
 
         return generator()
 

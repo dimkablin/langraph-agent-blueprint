@@ -33,12 +33,22 @@ Observed routes from `create_app(AppConfig(llm_provider="fake"))`:
 | GET | `/skills` | `list_skills` |
 | GET | `/tools` | `list_tools` |
 | GET | `/mcp` | `list_mcp` |
+| GET | `/mcp/snapshot` | `snapshot_mcp` |
 | GET | `/plugins` | `get_plugins_status` |
 | GET | `/hooks` | `get_hooks_status` |
 | GET | `/config` | `get_config` |
 | GET | `/config/explain` | `explain_config` |
 | GET | `/config/validate` | `validate_config` |
 | GET | `/observability` | `get_observability_status` |
+| GET | `/workspaces` | `list_workspaces` |
+| POST | `/workspaces` | `add_workspace` |
+| POST | `/workspaces/pick` | `pick_workspace_folder` |
+| GET | `/workspaces/active` | `get_active_workspace` |
+| POST | `/workspaces/select` | `select_workspace` |
+| GET | `/workspaces/{project_id}` | `get_workspace` |
+| GET | `/workspaces/{project_id}/git/status` | `get_workspace_git_status` |
+| GET | `/workspaces/{project_id}/branches` | `list_workspace_branches` |
+| POST | `/workspaces/{project_id}/checkout` | `checkout_workspace_branch` |
 | GET | `/docs` | FastAPI docs |
 | GET | `/openapi.json` | OpenAPI |
 | GET | `/redoc` | ReDoc |
@@ -85,6 +95,7 @@ Note: `/commands`, `/skills`, and `/tools` are now router-owned only. OpenAPI ex
 | Observability status | yes | `GET /observability` | none | `ObservabilityStatusDTO` | no | working | None for read-only panel. | P2 |
 | Config show/explain/validate | yes | `GET /config`, `GET /config/explain`, `GET /config/validate` | none | `ConfigShowDTO`, `ConfigExplainDTO`, `ConfigValidateDTO` | no | working | Config editing is intentionally deferred. | P1 |
 | Eval list/run/report | partial | CLI `eval ...` | no API | CLI/report files | no | future | Keep CLI-only for frontend MVP; add later if dashboard is desired. | P3 |
+| Workspace/project/branch controls | yes | `GET/POST /workspaces`, `/workspaces/active`, `/workspaces/select`, `/workspaces/{id}/git/status`, `/workspaces/{id}/branches`, `/workspaces/{id}/checkout` | typed workspace DTOs | `WorkspaceInfo`, `GitStatusSummary`, `WorkspaceCheckoutResult` | no | working | Folder picker can be unavailable on non-desktop environments and returns 501. | P1 |
 
 ## Actions
 

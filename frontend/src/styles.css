@@ -901,7 +901,7 @@ pre {
 .markdown-block blockquote,
 .markdown-block pre,
 .markdown-block hr,
-.markdown-block .markdown-table-scroll {
+.markdown-block .markdown-scroll-block {
   margin: 0 0 7px;
   overflow-wrap: anywhere;
 }
@@ -963,7 +963,7 @@ pre {
   border-top: 1px solid color-mix(in oklab, var(--foreground) 18%, transparent);
 }
 
-.markdown-block .markdown-table-scroll {
+.markdown-block .markdown-scroll-block {
   max-width: 100%;
   overflow-x: auto;
 }

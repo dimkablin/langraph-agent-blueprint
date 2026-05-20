@@ -115,6 +115,19 @@ export type ChatResponse = {
   permission_required?: PermissionRequest | null;
 };
 
+export type ChatCancelRequest = {
+  thread_id: string;
+  session_id?: string | null;
+  reason?: string | null;
+};
+
+export type ChatCancelResponse = {
+  cancelled: boolean;
+  thread_id: string;
+  session_id?: string | null;
+  reason?: string | null;
+};
+
 export type StreamFrame =
   | { type: "event"; event: RuntimeEvent }
   | { type: "done"; session_id?: string | null; thread_id?: string | null; final_response?: string | null }

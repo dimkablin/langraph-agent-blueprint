@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from langgraph_agent_blueprint.models import AgentRunInput
+from langgraph_agent_blueprint.services.permission_service import PermissionService
 
 from .helpers import (
     ai_final,
@@ -15,6 +16,46 @@ from .helpers import (
 
 
 class TestPermissionBehavior:
+    def test_human_rejected_tool_permission_finishes_without_reasking_model(
+        self,
+        runtime_factory,
+        scripted_chat_model,
+        temp_project,
+    ):
+        model = scripted_chat_model(
+            steps=[
+                expect_user_message("Remove everything in the workspace."),
+                ai_tool_call(
+                    "bash",
+                    {"command": "Remove-Item -Recurse -Force ."},
+                    call_id="dangerous_shell",
+                ),
+            ]
+        )
+        shell = recording_shell_executor()
+        runtime = runtime_factory(
+            project_root=temp_project,
+            chat_model=model,
+            permissions=PermissionService(),
+            shell_executor=shell,
+        )
+
+        interrupted = runtime.invoke("Remove everything in the workspace.", project_root=temp_project)
+
+        assert "__interrupt__" in interrupted
+        result = runtime.resume(
+            interrupted["thread_id"],
+            {"tool_call_id": "dangerous_shell", "decision": "rejected", "reason": "rejected by test user"},
+            session_id=interrupted["session_id"],
+        )
+
+        assert "__interrupt__" not in result
+        assert result["pending_confirmation"] is None
+        assert result["pending_tool_calls"] == []
+        assert result["final_response"] == "Tool call 'bash' was rejected by user. No tool was executed."
+        assert shell.executed_commands == []
+        model.assert_no_unused_steps()
+
     def test_denied_shell_permission_is_reported_and_not_executed(
         self,
         runtime_factory,

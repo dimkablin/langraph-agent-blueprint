@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { sendApproval } from "../api/approval.ts";
+import { cancelChat } from "../api/chat.ts";
 import { fetchSessionContext, fetchSessionDetail } from "../api/sessions.ts";
 import { streamChat } from "../api/stream.ts";
 import { clearActiveSessionId, loadActiveSessionId, saveActiveSessionId } from "../runtime/activeSession.ts";
@@ -30,6 +31,7 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
   const [modelIntelligenceLevel, setModelIntelligenceLevel] = useState<ModelIntelligenceLevel>(DEFAULT_MODEL_INTELLIGENCE_LEVEL);
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const activeRunRef = useRef<{ threadId: string; sessionId: string | null } | null>(null);
   const sessionLoadVersionRef = useRef(0);
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -73,6 +75,7 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
       const threadId = runtimeState.threadId || newRuntimeId("thread");
       abortRef.current?.abort();
       abortRef.current = new AbortController();
+      activeRunRef.current = { threadId, sessionId: runtimeState.sessionId };
       setBusy(true);
       setRuntimeState((state) => setThreadId(appendUserMessage(state, message), threadId));
       try {
@@ -103,6 +106,7 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
           }),
         );
       } finally {
+        activeRunRef.current = null;
         setBusy(false);
       }
     },
@@ -110,19 +114,37 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
   );
 
   const stopStream = useCallback(() => {
+    const activeRun = activeRunRef.current || (runtimeState.threadId ? { threadId: runtimeState.threadId, sessionId: runtimeState.sessionId } : null);
+    if (activeRun?.threadId) {
+      void cancelChat({
+        thread_id: activeRun.threadId,
+        session_id: activeRun.sessionId,
+        reason: "stop button",
+      });
+    }
     abortRef.current?.abort();
+    activeRunRef.current = null;
     setBusy(false);
     setRuntimeState((state) => markStreamingStopped(state));
-  }, []);
+  }, [runtimeState.sessionId, runtimeState.threadId]);
 
   const startNewChat = useCallback(() => {
     sessionLoadVersionRef.current += 1;
+    const activeRun = activeRunRef.current || (runtimeState.threadId ? { threadId: runtimeState.threadId, sessionId: runtimeState.sessionId } : null);
+    if (activeRun?.threadId) {
+      void cancelChat({
+        thread_id: activeRun.threadId,
+        session_id: activeRun.sessionId,
+        reason: "new chat",
+      });
+    }
     abortRef.current?.abort();
+    activeRunRef.current = null;
     setBusy(false);
     clearSessionError?.();
     clearActiveSessionId();
     setRuntimeState(createInitialRuntimeState());
-  }, [clearSessionError]);
+  }, [clearSessionError, runtimeState.sessionId, runtimeState.threadId]);
 
   const resolvePermission = useCallback(
     async (decision: "approved" | "rejected") => {

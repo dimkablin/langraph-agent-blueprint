@@ -7,6 +7,49 @@
 **P2 — power-user / platform**: расширяемость, команды, субагенты, MCP, hooks, плагины.
 **P3 — enterprise / cloud / experimental**: команды агентов, scheduled tasks, policy, security, cloud/web/Slack.
 
+## Актуальный статус готовности
+
+Обновлено: **2026-05-13**.
+
+Этот файл теперь используется в двух режимах:
+
+1. Верхний блок ниже — **текущий readiness-чеклист MVP/v0.1**.
+2. Подробный parity-tree ниже по документу — **backlog полной Claude Code-like parity**, а не обязательный блокер для первого MVP.
+
+Статусы:
+
+* `[x]` — готово и подтверждено тестами/смоуком.
+* `[~]` — работает для MVP, но есть явно описанное ограничение.
+* `[ ]` — не готово или не проверено.
+* `[defer]` — осознанно вынесено за рамки MVP.
+
+### MVP readiness summary
+
+| Область | Статус | Доказательство | Что осталось |
+| --- | --- | --- | --- |
+| LangGraph runtime / agent loop | [x] ready | `python -m pytest -q` проходит; runtime, tools, permissions, sessions, context, eval, plugins, MCP покрыты тестами и acceptance-доками. | Поддерживать event contracts при новых фичах. |
+| CLI/headless | [~] ready with caveat | `query`, `chat`, `serve`, `sessions`, `skills`, `tools`, `plugins`, `eval`, `config` существуют. | Windows CP1251 Unicode output для `lg-agent query` нужно починить или явно задокументировать перед public tag. |
+| API contract | [x] ready | FastAPI routes покрывают chat, SSE stream, approval, sessions, context, child runs, export, registries, config, hooks, plugins, MCP, observability, workspaces. | Прямые command/context/todo/memory endpoints можно добавить позже; MVP работает через chat/session routes. |
+| React frontend MVP | [x] ready | TypeScript React/Vite frontend реализован: chat, SSE timeline, permissions, sessions, context meter/window, settings center, runtime sidebar, workspace controls. `npm.cmd --prefix frontend run test:static`, `npm.cmd --prefix frontend run test`, `npm.cmd --prefix frontend run build` проходят вне Windows sandbox. | Playwright/browser smoke с fake provider; upload/download UX; richer subagent transcript UI. |
+| Permission UX | [x] ready | Frontend хранит `session_id`, `thread_id`, `tool_call_id`; backend approval/rejection resume работает через `/approval`. | Nested subagent approval остаётся ограничением runtime, не frontend blocker. |
+| Sessions/context/workspaces | [x] ready | Session list/detail/messages/events/context/child-runs/export endpoints есть; frontend tests покрывают active session, sidebar, context window, workspace API/control/folder picker/branch checkout. | Export download/read endpoint и file upload endpoint — post-MVP polish. |
+| Settings/extension panels | [x] ready | Read-only Settings page показывает config, runtime, model, MCP, plugins, hooks, observability, skills; UI preferences хранятся локально. | Config editing, plugin management UI, MCP resource browser/editor — post-MVP. |
+| Eval/replay | [x] ready for engineering | CLI eval/replay harness существует и покрыт тестами. | Eval dashboard/API — post-MVP. |
+| Security/safety baseline | [x] ready | Permission gate, protected config redaction, no direct frontend tool execution, MCP snapshot separation, path/session id hardening covered by tests/docs. | Продолжать threat review для plugin install UI, upload/download и executable plugin adapters. |
+| Release readiness | [~] candidate | Backend/frontend/build checks green; worktree проверяется отдельно перед tag. | Закрыть CLI Unicode caveat, добавить browser smoke, обновить stale historical audit labels. |
+
+### MVP release criteria
+
+* [x] Backend tests pass.
+* [x] Frontend static tests pass.
+* [x] Frontend unit tests pass outside Windows sandbox.
+* [x] Frontend production build passes outside Windows sandbox.
+* [x] Runtime API and frontend do not bypass the graph/tool/permission flow.
+* [x] Frontend is implemented as the actual usable first screen, not a placeholder shell.
+* [~] CLI quickstart is usable, with a known Windows legacy-console Unicode caveat.
+* [~] Browser-level E2E smoke is still manual/not automated.
+* [defer] Full Claude Code parity, enterprise/cloud, IDE/LSP, agent teams, marketplace, background tasks, and remote surfaces.
+
 ---
 
 # P0. Базовое ядро agentic coding assistant
@@ -1750,57 +1793,57 @@ Claude Code docs distinguish `/loop`, desktop scheduled tasks and cloud schedule
 
 ## Phase 1 — “usable coding agent”
 
-* [ ] Interactive CLI.
-* [ ] Session state.
-* [ ] Read/Edit/Write/Glob/Grep/Bash.
-* [ ] Permission gate.
-* [ ] Plan mode.
-* [ ] TODO state.
-* [ ] Git diff/status awareness.
-* [ ] Test/build verification loop.
-* [ ] Context compaction.
-* [ ] File snapshots.
-* [ ] Resume session.
-* [ ] Final summary with changed files and verification.
+* [x] Interactive CLI.
+* [x] Session state.
+* [x] Read/Edit/Write/Glob/Grep/Bash.
+* [x] Permission gate.
+* [x] Plan mode.
+* [x] TODO state.
+* [x] Git diff/status awareness.
+* [x] Test/build verification loop.
+* [x] Context compaction.
+* [x] File snapshots.
+* [x] Resume session.
+* [x] Final summary with changed files and verification.
 
 ## Phase 2 — “daily driver”
 
-* [ ] Slash commands.
-* [ ] Project/user memory.
-* [ ] Settings scopes.
-* [ ] Better permission rules.
-* [ ] Hooks.
-* [ ] Skills.
-* [ ] Subagents: Explore, Plan, General.
-* [ ] LSP.
-* [ ] IDE integration.
-* [ ] Worktree isolation.
-* [ ] Background session support.
+* [x] Slash commands.
+* [x] Project/user memory.
+* [x] Settings scopes.
+* [x] Better permission rules.
+* [x] Hooks.
+* [x] Skills.
+* [~] Subagents: local child graph baseline works; nested approval resume and background lifecycle remain.
+* [defer] LSP.
+* [defer] IDE integration.
+* [~] Worktree/workspace controls: frontend workspace/project/branch controls exist; full isolated worktree workflow remains post-MVP.
+* [defer] Background session support.
 
 ## Phase 3 — “Claude Code-like platform”
 
-* [ ] MCP.
-* [ ] Plugin system.
-* [ ] Agent view.
-* [ ] Remote control.
-* [ ] GitHub/CI integration.
-* [ ] PR review/autofix.
-* [ ] Loop/goal/tasks.
-* [ ] Monitor.
-* [ ] Desktop/web UI.
-* [ ] Usage/cost dashboard.
+* [~] MCP: stdio/config/tools/resources/prompts baseline works; HTTP/OAuth/server mode deferred.
+* [~] Plugin system: local/git plugin baseline, skills/hooks/policies/context/MCP contributions work; marketplace and executable adapters deferred.
+* [~] Agent view: basic child-run/session surfaces exist; richer transcript/team view deferred.
+* [defer] Remote control.
+* [defer] GitHub/CI integration.
+* [defer] PR review/autofix.
+* [~] Loop/goal/tasks: eval/replay and local agent task baseline exist; scheduled/background task lifecycle deferred.
+* [defer] Monitor.
+* [x] Desktop/web UI: React browser frontend MVP is implemented.
+* [~] Usage/cost dashboard: `/cost` and config/status surfaces exist; provider-specific cost accounting/dashboard deferred.
 
 ## Phase 4 — “enterprise / advanced”
 
-* [ ] Managed policy.
-* [ ] Enterprise permissions.
-* [ ] Sandboxing.
-* [ ] Auto mode classifier.
-* [ ] Agent teams.
-* [ ] Cloud scheduled tasks.
-* [ ] Plugin marketplace.
-* [ ] Audit/compliance.
-* [ ] Multi-provider model routing.
+* [defer] Managed policy.
+* [defer] Enterprise permissions.
+* [~] Sandboxing: local permission/safety baseline exists; enterprise/container sandboxing deferred.
+* [defer] Auto mode classifier.
+* [defer] Agent teams.
+* [defer] Cloud scheduled tasks.
+* [defer] Plugin marketplace.
+* [~] Audit/compliance: logs/evals/observability baseline exists; compliance export deferred.
+* [~] Multi-provider model routing: provider abstraction exists; advanced routing/fallback/cost-aware policy deferred.
 
 ---
 

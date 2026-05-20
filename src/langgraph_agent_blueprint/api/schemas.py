@@ -74,6 +74,33 @@ class ChatResponse(BaseModel):
     permission_required: PermissionRequest | None = None
 
 
+class ChatCancelRequest(BaseModel):
+    """API request payload for stopping an active streaming graph turn."""
+
+    thread_id: str
+    session_id: str | None = None
+    reason: str | None = None
+
+    @field_validator("session_id")
+    @classmethod
+    def _validate_session_id(cls, value: str | None) -> str | None:
+        return validate_session_id(value) if value is not None else None
+
+    @field_validator("thread_id")
+    @classmethod
+    def _validate_thread_id(cls, value: str) -> str:
+        return validate_thread_id(value)
+
+
+class ChatCancelResponse(BaseModel):
+    """API response payload returned after a stop-generation request."""
+
+    cancelled: bool
+    thread_id: str
+    session_id: str | None = None
+    reason: str | None = None
+
+
 class WorkspaceAddRequest(BaseModel):
     """Request to register and select a validated local workspace root."""
 

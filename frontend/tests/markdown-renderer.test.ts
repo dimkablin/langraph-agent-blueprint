@@ -48,12 +48,12 @@ test("renders assistant tables, horizontal rules, and fenced code blocks", async
     "| date | actual | planned |\n|---|---:|---:|\n| 2023-01-01 | 29,662 | `27,199` |\n\n---\n\n```json\n{\"limit\": 10}\n```",
   );
 
-  assert.match(html, /<div class="markdown-table-scroll"><table>/);
+  assert.match(html, /<div class="markdown-scroll-block"><table>/);
   assert.match(html, /<th[^>]*>date<\/th>/);
   assert.match(html, /<td[^>]*>2023-01-01<\/td>/);
   assert.match(html, /<td[^>]*><code>27,199<\/code><\/td>/);
   assert.match(html, /<hr\/>/);
-  assert.match(html, /<pre><code class="language-json">/);
+  assert.match(html, /<div class="markdown-scroll-block"><pre><code class="language-json">/);
   assert.match(html, /&quot;limit&quot;: 10/);
 });
 
