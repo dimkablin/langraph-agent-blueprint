@@ -9,7 +9,7 @@
 
 ## Актуальный статус готовности
 
-Обновлено: **2026-05-13**.
+Обновлено: **2026-05-22**.
 
 Этот файл теперь используется в двух режимах:
 
@@ -27,16 +27,17 @@
 
 | Область | Статус | Доказательство | Что осталось |
 | --- | --- | --- | --- |
-| LangGraph runtime / agent loop | [x] ready | `python -m pytest -q` проходит; runtime, tools, permissions, sessions, context, eval, plugins, MCP покрыты тестами и acceptance-доками. | Поддерживать event contracts при новых фичах. |
+| LangGraph runtime / agent loop | [x] ready | `python -m pytest -q` проходит на текущей ветке: 54 backend tests; runtime, tools, permissions, sessions, context, eval, plugins, MCP, workspace and cancellation contracts покрыты тестами. | Поддерживать event contracts при новых фичах. |
 | CLI/headless | [~] ready with caveat | `query`, `chat`, `serve`, `sessions`, `skills`, `tools`, `plugins`, `eval`, `config` существуют. | Windows CP1251 Unicode output для `lg-agent query` нужно починить или явно задокументировать перед public tag. |
 | API contract | [x] ready | FastAPI routes покрывают chat, SSE stream, approval, sessions, context, child runs, export, registries, config, hooks, plugins, MCP, observability, workspaces. | Прямые command/context/todo/memory endpoints можно добавить позже; MVP работает через chat/session routes. |
-| React frontend MVP | [x] ready | TypeScript React/Vite frontend реализован: chat, SSE timeline, permissions, sessions, context meter/window, settings center, runtime sidebar, workspace controls. `npm.cmd --prefix frontend run test:static`, `npm.cmd --prefix frontend run test`, `npm.cmd --prefix frontend run build` проходят вне Windows sandbox. | Playwright/browser smoke с fake provider; upload/download UX; richer subagent transcript UI. |
+| React frontend MVP | [x] ready | TypeScript React/Vite frontend реализован: chat, safe GFM markdown renderer, SSE timeline, permissions, sessions, context meter/window, settings center, runtime sidebar, workspace controls. `npm.cmd run build`, `npm.cmd test` (79 tests), `npm.cmd run test:static` проходят. | Playwright/browser smoke с fake provider; upload/download UX; richer subagent transcript UI. |
 | Permission UX | [x] ready | Frontend хранит `session_id`, `thread_id`, `tool_call_id`; backend approval/rejection resume работает через `/approval`. | Nested subagent approval остаётся ограничением runtime, не frontend blocker. |
 | Sessions/context/workspaces | [x] ready | Session list/detail/messages/events/context/child-runs/export endpoints есть; frontend tests покрывают active session, sidebar, context window, workspace API/control/folder picker/branch checkout. | Export download/read endpoint и file upload endpoint — post-MVP polish. |
+| Run cancellation / stale workspace resilience | [x] ready | `/chat/cancel` сериализует typed cancellation result; frontend stop/new-chat sends cancellation before abort and swallows cancel-call failure; workspace service/API ignore stale registered workspaces and `/chat` returns 400 for deleted workspace roots. | Add visible UX copy for stale/deleted workspace recovery and browser smoke around stop/new-chat cancellation. |
 | Settings/extension panels | [x] ready | Read-only Settings page показывает config, runtime, model, MCP, plugins, hooks, observability, skills; UI preferences хранятся локально. | Config editing, plugin management UI, MCP resource browser/editor — post-MVP. |
 | Eval/replay | [x] ready for engineering | CLI eval/replay harness существует и покрыт тестами. | Eval dashboard/API — post-MVP. |
 | Security/safety baseline | [x] ready | Permission gate, protected config redaction, no direct frontend tool execution, MCP snapshot separation, path/session id hardening covered by tests/docs. | Продолжать threat review для plugin install UI, upload/download и executable plugin adapters. |
-| Release readiness | [~] candidate | Backend/frontend/build checks green; worktree проверяется отдельно перед tag. | Закрыть CLI Unicode caveat, добавить browser smoke, обновить stale historical audit labels. |
+| Release readiness | [~] candidate | Backend/frontend/build checks green на 2026-05-22; текущая ветка содержит проверенный WIP по cancellation/workspace handling. | Закрыть CLI Unicode caveat, добавить browser smoke, обновить stale historical audit labels, разделить WIP на аккуратные коммиты. |
 
 ### MVP release criteria
 
@@ -46,9 +47,20 @@
 * [x] Frontend production build passes outside Windows sandbox.
 * [x] Runtime API and frontend do not bypass the graph/tool/permission flow.
 * [x] Frontend is implemented as the actual usable first screen, not a placeholder shell.
+* [x] Stream/run cancellation path is contract-tested across frontend and API.
+* [x] Stale/deleted workspace registry entries no longer break workspace list/active chat paths.
 * [~] CLI quickstart is usable, with a known Windows legacy-console Unicode caveat.
 * [~] Browser-level E2E smoke is still manual/not automated.
 * [defer] Full Claude Code parity, enterprise/cloud, IDE/LSP, agent teams, marketplace, background tasks, and remote surfaces.
+
+### Next change plan
+
+1. Split the current dirty worktree into focused commits: cancellation serialization/frontend cancel tolerance, stale workspace handling, and docs/checklist.
+2. Add a browser-level smoke for stop/new-chat cancellation and permission rejection recovery so the React behavior is covered beyond static source checks.
+3. Add user-facing stale workspace recovery copy/actions in the workspace control when a previously active folder disappears.
+4. Close the Windows CP1251 CLI Unicode caveat for `lg-agent query`.
+5. Add export download/read and file upload endpoints as post-MVP polish.
+6. Continue stale audit cleanup: historical docs still describe several parity items as open even when the current runtime has tests for them.
 
 ---
 
