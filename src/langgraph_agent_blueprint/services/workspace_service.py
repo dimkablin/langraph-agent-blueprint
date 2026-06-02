@@ -63,7 +63,11 @@ class WorkspaceService:
 
     def list_workspaces(self) -> list[WorkspaceInfo]:
         registry = self._load_registry()
-        workspaces = [self._workspace_from_record(item) for item in registry["workspaces"].values()]
+        workspaces = [
+            workspace
+            for item in registry["workspaces"].values()
+            if (workspace := self._safe_workspace_from_record(item)) is not None
+        ]
         return sorted(workspaces, key=lambda item: (item.last_opened_at or "", item.display_name), reverse=True)
 
     def get_workspace(self, project_id: str) -> WorkspaceInfo:
@@ -77,7 +81,7 @@ class WorkspaceService:
             return None
         try:
             return self.get_workspace(str(project_id))
-        except WorkspaceNotFoundError:
+        except (WorkspaceNotFoundError, WorkspacePathError):
             return None
 
     def checkout_branch(self, project_id: str, branch: str, *, confirm_dirty: bool = False) -> WorkspaceCheckoutResult:
@@ -113,6 +117,12 @@ class WorkspaceService:
             "dirty": bool(git_status and git_status.dirty),
         }
         return WorkspaceInfo.model_validate(payload)
+
+    def _safe_workspace_from_record(self, record: dict[str, Any]) -> WorkspaceInfo | None:
+        try:
+            return self._workspace_from_record(record)
+        except WorkspacePathError:
+            return None
 
     def _load_registry(self) -> dict[str, Any]:
         raw = self.storage.load()

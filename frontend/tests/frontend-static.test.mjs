@@ -1112,6 +1112,7 @@ test("stop generation requests backend cancellation before aborting the stream",
   assert.match(chatApi, /"\/chat\/cancel"/);
   assert.match(hook, /import \{ cancelChat \} from "\.\.\/api\/chat\.ts"/);
   assert.match(hook, /cancelChat\(\{[\s\S]*thread_id:[\s\S]*session_id:[\s\S]*reason:/);
+  assert.match(hook, /cancelChat\(\{[\s\S]*\}\)\.catch\(\(\) => undefined\)/);
   const stopStream = hook.slice(hook.indexOf("const stopStream"), hook.indexOf("const startNewChat"));
   assert.ok(stopStream.indexOf("cancelChat({") < stopStream.indexOf("abortRef.current?.abort()"));
 });

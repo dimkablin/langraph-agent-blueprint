@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -36,6 +37,55 @@ def test_workspace_api_rejects_invalid_local_paths(tmp_path: Path) -> None:
 
     assert missing.status_code == 400
     assert file_response.status_code == 400
+
+
+def test_workspace_api_ignores_stale_active_workspace(tmp_path: Path) -> None:
+    storage = tmp_path / "storage"
+    missing_root = tmp_path / "missing-workspace"
+    project_id = f"project_missing_{missing_root.name}"
+    _write_workspace_registry(
+        storage,
+        active_project_id=project_id,
+        workspaces={
+            project_id: {
+                "project_id": project_id,
+                "display_name": "missing-workspace",
+                "root_path": str(missing_root),
+            }
+        },
+    )
+    client = _client(tmp_path)
+
+    workspaces = client.get("/workspaces")
+    active = client.get("/workspaces/active")
+
+    assert workspaces.status_code == 200
+    assert workspaces.json() == []
+    assert active.status_code == 200
+    assert active.json() is None
+
+
+def test_chat_api_reports_deleted_workspace_folder(tmp_path: Path) -> None:
+    storage = tmp_path / "storage"
+    missing_root = tmp_path / "deleted-workspace"
+    project_id = f"project_missing_{missing_root.name}"
+    _write_workspace_registry(
+        storage,
+        active_project_id=None,
+        workspaces={
+            project_id: {
+                "project_id": project_id,
+                "display_name": "deleted-workspace",
+                "root_path": str(missing_root),
+            }
+        },
+    )
+    client = _client(tmp_path)
+
+    response = client.post("/chat", json={"message": "hello", "project_id": project_id})
+
+    assert response.status_code == 400
+    assert "Workspace path does not exist" in response.json()["detail"]
 
 
 def test_workspace_api_can_pick_folder_through_public_picker_service(tmp_path: Path) -> None:
@@ -126,3 +176,11 @@ def _git(repo: Path, *args: str) -> str:
         check=True,
     )
     return completed.stdout.strip()
+
+
+def _write_workspace_registry(storage: Path, *, active_project_id: str | None, workspaces: dict[str, dict[str, str]]) -> None:
+    storage.mkdir(parents=True, exist_ok=True)
+    (storage / "workspaces.json").write_text(
+        json.dumps({"active_project_id": active_project_id, "workspaces": workspaces}),
+        encoding="utf-8",
+    )

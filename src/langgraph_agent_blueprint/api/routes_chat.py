@@ -54,7 +54,8 @@ def chat_cancel(request_body: ChatCancelRequest, request: Request) -> ChatCancel
         session_id=request_body.session_id,
         reason=request_body.reason,
     )
-    return ChatCancelResponse.model_validate(result)
+    payload = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
+    return ChatCancelResponse.model_validate(payload)
 
 
 @router.post("/approval/events", response_model=list[RuntimeEventDTO])

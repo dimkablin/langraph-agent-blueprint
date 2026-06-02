@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from langgraph_agent_blueprint.config import AppConfig
 from langgraph_agent_blueprint.dependencies import build_dependencies
 from langgraph_agent_blueprint.graph.builder import AssistantGraphRuntime
+from langgraph_agent_blueprint.services.workspace_service import WorkspaceNotFoundError, WorkspacePathError
 
 from .schemas import ApprovalRequest, ChatRequest, ChatResponse
 from .routes_chat import router as chat_router
@@ -43,15 +44,20 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     @api.post("/chat", response_model=ChatResponse)
     def chat(request: ChatRequest) -> ChatResponse:
         attachments = [item.model_dump(mode="json", exclude_none=True) for item in request.attachments]
-        result = runtime.invoke(
-            request.message,
-            input_kind="headless",
-            project_id=request.project_id,
-            session_id=request.session_id,
-            thread_id=request.thread_id,
-            model_intelligence=request.model_intelligence,
-            attachments=attachments,
-        )
+        try:
+            result = runtime.invoke(
+                request.message,
+                input_kind="headless",
+                project_id=request.project_id,
+                session_id=request.session_id,
+                thread_id=request.thread_id,
+                model_intelligence=request.model_intelligence,
+                attachments=attachments,
+            )
+        except WorkspaceNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except WorkspacePathError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         permission_required = None
         if "__interrupt__" in result:
             permission_required = result["__interrupt__"][0].value

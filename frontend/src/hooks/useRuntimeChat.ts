@@ -120,7 +120,7 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
         thread_id: activeRun.threadId,
         session_id: activeRun.sessionId,
         reason: "stop button",
-      });
+      }).catch(() => undefined);
     }
     abortRef.current?.abort();
     activeRunRef.current = null;
@@ -136,7 +136,7 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
         thread_id: activeRun.threadId,
         session_id: activeRun.sessionId,
         reason: "new chat",
-      });
+      }).catch(() => undefined);
     }
     abortRef.current?.abort();
     activeRunRef.current = null;

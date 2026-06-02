@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -34,6 +35,27 @@ def test_workspace_service_rejects_nonexistent_and_file_paths(tmp_path: Path) ->
 
     with pytest.raises(WorkspacePathError, match="not a directory"):
         service.add_workspace(file_path)
+
+
+def test_workspace_service_ignores_stale_registered_workspaces(tmp_path: Path) -> None:
+    storage = tmp_path / "storage"
+    missing_root = tmp_path / "missing-project"
+    project_id = WorkspaceService.project_id_for_root(missing_root)
+    _write_workspace_registry(
+        storage,
+        active_project_id=project_id,
+        workspaces={
+            project_id: {
+                "project_id": project_id,
+                "display_name": "missing-project",
+                "root_path": str(missing_root),
+            }
+        },
+    )
+    service = WorkspaceService(storage, git_service=GitService())
+
+    assert service.list_workspaces() == []
+    assert service.get_active_workspace() is None
 
 
 def test_non_git_workspace_reports_no_git_metadata(tmp_path: Path) -> None:
@@ -130,3 +152,11 @@ def _git(repo: Path, *args: str) -> str:
         check=True,
     )
     return completed.stdout.strip()
+
+
+def _write_workspace_registry(storage: Path, *, active_project_id: str | None, workspaces: dict[str, dict[str, str]]) -> None:
+    storage.mkdir(parents=True, exist_ok=True)
+    (storage / "workspaces.json").write_text(
+        json.dumps({"active_project_id": active_project_id, "workspaces": workspaces}),
+        encoding="utf-8",
+    )
