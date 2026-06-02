@@ -27,7 +27,7 @@ export default function App() {
   const { commands, skills, tools, registryError } = useRuntimeRegistries();
   const { sessions, sessionError, refreshSessions, reportSessionError, clearSessionError } = useRuntimeSessions();
   const { runtimeStatus } = useRuntimeStatus();
-  const { workspaces, activeWorkspace, workspaceError, pickLocalWorkspace, setActiveProject, checkoutBranch } = useWorkspaces();
+  const { workspaces, activeWorkspace, workspaceError, addLocalWorkspace, pickLocalWorkspace, setActiveProject, checkoutBranch } = useWorkspaces();
   const { preferences, updatePreferences } = useUIPreferences();
   const {
     runtimeState,
@@ -83,8 +83,11 @@ export default function App() {
     setSidebarOpen(true);
     setAppView("settings");
   };
-  const handleAddWorkspace = () => {
+  const handlePickWorkspace = () => {
     void pickLocalWorkspace();
+  };
+  const handleAddWorkspace = (rootPath: string) => {
+    void addLocalWorkspace(rootPath);
   };
 
   return (
@@ -141,6 +144,7 @@ export default function App() {
                     workspaceError={workspaceError}
                     onIntelligenceChange={setModelIntelligenceLevel}
                     onAddWorkspace={handleAddWorkspace}
+                    onPickWorkspace={handlePickWorkspace}
                     onSelectWorkspace={(projectId) => void setActiveProject(projectId)}
                     onCheckoutBranch={(branch) => void checkoutBranch(branch)}
                     onOpenContextWindow={() => setContextWindowOpen(true)}
@@ -184,6 +188,7 @@ export default function App() {
                       workspaceError={workspaceError}
                       onIntelligenceChange={setModelIntelligenceLevel}
                       onAddWorkspace={handleAddWorkspace}
+                      onPickWorkspace={handlePickWorkspace}
                       onSelectWorkspace={(projectId) => void setActiveProject(projectId)}
                       onCheckoutBranch={(branch) => void checkoutBranch(branch)}
                       onOpenContextWindow={() => setContextWindowOpen(true)}

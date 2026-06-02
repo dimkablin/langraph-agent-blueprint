@@ -33,8 +33,10 @@ export function useWorkspaces() {
         setActiveWorkspace(workspace);
         await refreshWorkspaces();
         setWorkspaceError(null);
+        return workspace;
       } catch (error) {
         setWorkspaceError(workspaceErrorMessage(error));
+        return null;
       }
     },
     [refreshWorkspaces],

@@ -67,5 +67,8 @@ export function workspaceErrorMessage(error: unknown): string {
   if (message.includes("409") || message.includes("uncommitted changes")) {
     return "Есть несохранённые изменения. Переключение ветки остановлено.";
   }
+  if (message.includes("501") || message.includes("Folder picker is unavailable")) {
+    return "Системный выбор папки недоступен в Docker. Введите путь внутри контейнера, например /workspace/my-project.";
+  }
   return message;
 }

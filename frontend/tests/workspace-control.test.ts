@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { workspaceControlView, workspaceDirtyFileCount, type WorkspaceInfo } from "../src/runtime/workspaces.ts";
+import { workspaceControlView, workspaceDirtyFileCount, workspaceErrorMessage, type WorkspaceInfo } from "../src/runtime/workspaces.ts";
 
 test("workspace control asks the user to select a project when no workspace is active", () => {
   const view = workspaceControlView(null);
@@ -57,6 +57,14 @@ test("workspace dirty file count sums the public git status summary", () => {
     ),
     17,
   );
+});
+
+test("workspace errors explain Docker folder picker fallback instead of surfacing raw 501 text", () => {
+  const message = workspaceErrorMessage(new Error('501 Not Implemented: {"detail":"Folder picker is unavailable in this environment."}'));
+
+  assert.match(message, /Docker/);
+  assert.match(message, /\/workspace\/my-project/);
+  assert.doesNotMatch(message, /501 Not Implemented/);
 });
 
 function workspace(overrides: Partial<WorkspaceInfo>): WorkspaceInfo {

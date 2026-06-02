@@ -331,7 +331,7 @@ pre {
 }
 
 .workspace-project-popover {
-  width: min(262px, calc(100vw - 32px));
+  width: min(336px, calc(100vw - 32px));
 }
 
 .workspace-branch-popover {
@@ -448,6 +448,57 @@ pre {
   margin-top: 6px;
   border-radius: calc(var(--control-radius) - 2px);
   padding-top: 6px;
+}
+
+.workspace-path-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 5px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.workspace-path-label,
+.workspace-path-help {
+  color: var(--muted);
+  font-size: var(--font-size-caption);
+  font-weight: 650;
+}
+
+.workspace-path-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 6px;
+}
+
+.workspace-path-row input {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--control-radius) - 2px);
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-small);
+  padding: 6px 8px;
+}
+
+.workspace-path-row button {
+  min-width: 30px;
+  border: 0;
+  border-radius: calc(var(--control-radius) - 2px);
+  background: var(--hover-surface);
+  color: var(--foreground);
+}
+
+.workspace-path-row button:disabled {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.workspace-path-help {
+  margin: 0;
+  line-height: 1.35;
 }
 
 .workspace-dirty-dot {

@@ -51,8 +51,12 @@ python -m pip install -e ".[anthropic]"
 For a one-command local manual test stack with frontend, backend, Langfuse, Postgres, ClickHouse, Redis, and MinIO, see `docs/LOCAL_STACK.md` and run:
 
 ```bash
+cp .env.example .env
+mkdir -p mounted-projects
 docker compose -f docker-compose.local.yml up --build
 ```
+
+For the local Docker stack, real provider credentials and project mounts are configured in the uncommitted root `.env`. Use `LLM_PROVIDER`/model/key variables documented in `docs/LOCAL_STACK.md`, then recreate only the backend after provider changes. Docker project selection uses container paths such as `/workspace/my-project`, backed by the host `LOCAL_PROJECTS_DIR` bind mount.
 
 Copy `.env.example` to `.env` in the project root or set the variables in your shell. Phase 8 config precedence is:
 

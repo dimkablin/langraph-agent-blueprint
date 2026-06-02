@@ -32,6 +32,7 @@ export function ChatComposer({
   workspaceError,
   onIntelligenceChange,
   onAddWorkspace,
+  onPickWorkspace,
   onSelectWorkspace,
   onCheckoutBranch,
   onOpenContextWindow,
@@ -49,7 +50,8 @@ export function ChatComposer({
   workspaces: WorkspaceInfo[];
   workspaceError: string | null;
   onIntelligenceChange: (level: ModelIntelligenceLevel) => void;
-  onAddWorkspace: () => void;
+  onAddWorkspace: (rootPath: string) => void;
+  onPickWorkspace: () => void;
   onSelectWorkspace: (projectId: string) => void;
   onCheckoutBranch: (branch: string) => void;
   onOpenContextWindow?: () => void;
@@ -164,6 +166,7 @@ export function ChatComposer({
           workspaces={workspaces}
           workspaceError={workspaceError}
           onAddWorkspace={onAddWorkspace}
+          onPickWorkspace={onPickWorkspace}
           onSelectWorkspace={onSelectWorkspace}
           onCheckoutBranch={onCheckoutBranch}
         />

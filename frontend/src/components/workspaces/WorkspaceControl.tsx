@@ -11,19 +11,22 @@ export function WorkspaceControl({
   workspaces,
   workspaceError,
   onAddWorkspace,
+  onPickWorkspace,
   onSelectWorkspace,
   onCheckoutBranch,
 }: {
   workspace: WorkspaceInfo | null;
   workspaces: WorkspaceInfo[];
   workspaceError: string | null;
-  onAddWorkspace: () => void;
+  onAddWorkspace: (rootPath: string) => void;
+  onPickWorkspace: () => void;
   onSelectWorkspace: (projectId: string) => void;
   onCheckoutBranch: (branch: string) => void;
 }) {
   const [openMenu, setOpenMenu] = useState<WorkspaceMenu>(null);
   const [projectQuery, setProjectQuery] = useState("");
   const [branchQuery, setBranchQuery] = useState("");
+  const [rootPathInput, setRootPathInput] = useState("/workspace/");
   const controlRef = useRef<HTMLDivElement | null>(null);
   const view = workspaceControlView(workspace);
   const filteredWorkspaces = useMemo(() => {
@@ -72,6 +75,13 @@ export function WorkspaceControl({
     if (view.branchDisabled) return;
     setOpenMenu((current) => (current === "branch" ? null : "branch"));
     setBranchQuery("");
+  }
+
+  function submitRootPath() {
+    const rootPath = rootPathInput.trim();
+    if (!rootPath) return;
+    onAddWorkspace(rootPath);
+    setOpenMenu(null);
   }
 
   return (
@@ -125,17 +135,42 @@ export function WorkspaceControl({
                 <p className="workspace-menu-empty">Проекты не найдены</p>
               )}
             </div>
+            <div className="workspace-path-entry" role="group" aria-label="Добавить проект по пути">
+              <label className="workspace-path-label" htmlFor="workspace-root-path">
+                Путь внутри backend-контейнера
+              </label>
+              <div className="workspace-path-row">
+                <input
+                  id="workspace-root-path"
+                  value={rootPathInput}
+                  onChange={(event) => setRootPathInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      submitRootPath();
+                    }
+                  }}
+                  placeholder="/workspace/my-project"
+                />
+                <button type="button" onClick={submitRootPath} disabled={!rootPathInput.trim()}>
+                  <IconPlus size={15} />
+                </button>
+              </div>
+              <p className="workspace-path-help">
+                В Docker используйте путь из bind mount, например /workspace/my-project.
+              </p>
+            </div>
             <button
               type="button"
               className="workspace-menu-row workspace-menu-add"
               role="menuitem"
               onClick={() => {
-                onAddWorkspace();
+                onPickWorkspace();
                 setOpenMenu(null);
               }}
             >
-              <IconPlus size={15} />
-              <span>Добавить новый проект</span>
+              <IconFolder size={15} />
+              <span>Открыть системный выбор папки</span>
             </button>
           </div>
         ) : null}

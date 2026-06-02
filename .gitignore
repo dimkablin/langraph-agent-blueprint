@@ -37,3 +37,6 @@ frontend/.env
 frontend/.env.*
 !frontend/.env.example
 uv.lock
+
+# Local Docker compose bind mount for manually selected projects.
+mounted-projects/
