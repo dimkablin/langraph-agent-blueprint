@@ -1,9 +1,9 @@
-﻿"""Central permission policy service for read, write, shell, network, MCP, plugin, and plan-mode decisions."""
+"""Central permission policy service for read, write, shell, network, MCP, plugin, and plan-mode decisions."""
 
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, get_args
 
 from langgraph_agent_blueprint.config import PermissionMode
 from langgraph_agent_blueprint.models import PermissionCheck, PermissionRequest, ToolCall, ToolPermissionMetadata
@@ -32,15 +32,18 @@ class PermissionService:
         """Return allow/ask/deny for a tool call under the active permission mode and plan state."""
 
         permission = _tool_permission(tool)
+        mode = _effective_permission_mode(state, self.mode)
         if state.get("plan_mode", {}).get("enabled") and not permission.is_read_only and not permission.allowed_in_plan_mode:
             return PermissionCheck(decision="ask", reason="plan mode blocks side effects until approval")
-        if self.mode == "strict" and permission.requires_permission:
+        if mode == "bypass_read_only":
+            return PermissionCheck(decision="allow", reason="bypass_read_only allows tool side effects for this run")
+        if mode == "strict" and permission.requires_permission:
             return PermissionCheck(decision="ask", reason=permission.reason or "strict mode requires approval")
-        if self.mode == "accept_edits" and permission.action in {"write", "edit"}:
+        if mode == "accept_edits" and permission.action in {"write", "edit"}:
             return PermissionCheck(decision="allow", reason="accept_edits allows file edits")
         if permission.requires_permission:
             return PermissionCheck(decision="ask", reason=permission.reason or f"{getattr(tool, 'name', 'tool')} requires approval")
-        if permission.is_read_only and self.mode in {"default", "bypass_read_only", "accept_edits"}:
+        if permission.is_read_only and mode in {"default", "accept_edits"}:
             return PermissionCheck(decision="allow", reason="read-only tool allowed")
         return PermissionCheck(decision="allow", reason="tool allowed by policy")
 
@@ -76,6 +79,14 @@ def summarize_args(args: dict[str, Any], *, sensitive_keys: set[str], limit: int
     if len(rendered) <= limit:
         return rendered
     return rendered[: max(0, limit - 13)] + "...<truncated>"
+
+
+def _effective_permission_mode(state: dict[str, Any], fallback: PermissionMode) -> PermissionMode:
+    metadata = state.get("metadata") if isinstance(state, dict) else None
+    requested = metadata.get("permission_mode") if isinstance(metadata, dict) else None
+    if requested in get_args(PermissionMode):
+        return requested
+    return fallback
 
 
 def _tool_permission(tool: Any) -> ToolPermissionMetadata:

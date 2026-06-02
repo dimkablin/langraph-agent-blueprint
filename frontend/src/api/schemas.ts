@@ -66,6 +66,7 @@ export type PermissionDecisionDTO = {
 };
 
 export type ModelIntelligenceLevel = "low" | "medium" | "high" | "very_high";
+export type PermissionMode = "default" | "accept_edits" | "bypass_read_only" | "plan" | "strict";
 
 export type ChatRequest = {
   message: string;
@@ -73,6 +74,7 @@ export type ChatRequest = {
   session_id?: string | null;
   thread_id?: string | null;
   model_intelligence?: ModelIntelligenceLevel | null;
+  permission_mode?: PermissionMode | null;
   attachments?: AttachmentRef[];
 };
 

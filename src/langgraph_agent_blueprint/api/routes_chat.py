@@ -35,6 +35,7 @@ def chat_stream(request_body: ChatRequest, request: Request) -> StreamingRespons
         session_id=request_body.session_id,
         thread_id=request_body.thread_id,
         model_intelligence=request_body.model_intelligence,
+        permission_mode=request_body.permission_mode,
         attachments=attachments,
     )
     return StreamingResponse(

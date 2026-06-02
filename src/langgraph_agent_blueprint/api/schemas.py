@@ -18,6 +18,7 @@ from langgraph_agent_blueprint.models import (
 from langgraph_agent_blueprint.utils.ids import validate_session_id, validate_thread_id
 
 ModelIntelligenceLevel = Literal["low", "medium", "high", "very_high"]
+PermissionMode = Literal["default", "accept_edits", "bypass_read_only", "plan", "strict"]
 
 
 class RuntimeEventDTO(BaseModel):
@@ -51,6 +52,7 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
     thread_id: str | None = None
     model_intelligence: ModelIntelligenceLevel | None = None
+    permission_mode: PermissionMode | None = None
     attachments: list[AttachmentRef] = Field(default_factory=list)
 
     @field_validator("session_id")

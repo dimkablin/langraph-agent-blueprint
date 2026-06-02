@@ -162,6 +162,7 @@ class AssistantGraphRuntime:
         project_id: str | None = None,
         turn_index: int | None = None,
         model_intelligence: str | None = None,
+        permission_mode: str | None = None,
         attachments: list[dict[str, Any]] | None = None,
         mode: str | None = None,
     ) -> dict[str, Any]:
@@ -186,6 +187,8 @@ class AssistantGraphRuntime:
             state["attachments"] = [dump_model(AttachmentRef.model_validate(item)) for item in attachments]
         if model_intelligence:
             state["metadata"] = {**state.get("metadata", {}), "model_intelligence": model_intelligence}
+        if permission_mode:
+            state["metadata"] = {**state.get("metadata", {}), "permission_mode": permission_mode}
         if turn_index is not None:
             state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
         trace_context = self._trace_context(state)
@@ -229,6 +232,7 @@ class AssistantGraphRuntime:
             project_root=request.project_root,
             project_id=request.project_id,
             model_intelligence=request.model_intelligence,
+            permission_mode=request.permission_mode,
             attachments=request.attachments,
             mode=request.mode,
         )
@@ -322,6 +326,7 @@ class AssistantGraphRuntime:
         project_id: str | None = None,
         turn_index: int | None = None,
         model_intelligence: str | None = None,
+        permission_mode: str | None = None,
         attachments: list[dict[str, Any]] | None = None,
     ) -> Iterable[dict[str, Any]]:
         """Yield newly appended UI events from LangGraph value-stream state updates."""
@@ -344,6 +349,8 @@ class AssistantGraphRuntime:
                 state["attachments"] = [dump_model(AttachmentRef.model_validate(item)) for item in attachments]
             if model_intelligence:
                 state["metadata"] = {**state.get("metadata", {}), "model_intelligence": model_intelligence}
+            if permission_mode:
+                state["metadata"] = {**state.get("metadata", {}), "permission_mode": permission_mode}
             if turn_index is not None:
                 state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
             state["metadata"] = {**state.get("metadata", {}), "streaming_enabled": True}

@@ -15,6 +15,7 @@ from .base import RuntimeModel
 AgentRunMode = Literal["default", "plan"]
 AgentRunAction = Literal["run", "rollback"]
 AgentRunStatus = Literal["success", "error", "blocked"]
+RuntimePermissionMode = Literal["default", "accept_edits", "bypass_read_only", "plan", "strict"]
 VerificationStatus = Literal["passed", "failed", "not run"]
 RollbackStatus = Literal["restored", "not_available", "error"]
 
@@ -73,6 +74,7 @@ class AgentRunInput(RuntimeModel):
     thread_id: str | None = None
     rollback_snapshot_id: str | None = None
     model_intelligence: str | None = None
+    permission_mode: RuntimePermissionMode | None = None
     attachments: list[dict[str, Any]] = Field(default_factory=list)
 
     @field_validator("session_id")

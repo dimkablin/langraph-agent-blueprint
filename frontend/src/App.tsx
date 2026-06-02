@@ -34,6 +34,8 @@ export default function App() {
     busy,
     modelIntelligenceLevel,
     setModelIntelligenceLevel,
+    permissionMode,
+    setPermissionMode,
     submitMessage,
     stopStream,
     startNewChat,
@@ -138,11 +140,13 @@ export default function App() {
                     contextMaxTokens={contextMaxTokens}
                     disabled={busy && !runtimeState.isStreaming}
                     intelligenceLevel={modelIntelligenceLevel}
+                    permissionMode={permissionMode}
                     isStreaming={runtimeState.isStreaming || busy}
                     workspace={activeWorkspace}
                     workspaces={workspaces}
                     workspaceError={workspaceError}
                     onIntelligenceChange={setModelIntelligenceLevel}
+                    onPermissionModeChange={setPermissionMode}
                     onAddWorkspace={handleAddWorkspace}
                     onPickWorkspace={handlePickWorkspace}
                     onSelectWorkspace={(projectId) => void setActiveProject(projectId)}
@@ -182,11 +186,13 @@ export default function App() {
                       contextMaxTokens={contextMaxTokens}
                       disabled={busy && !runtimeState.isStreaming}
                       intelligenceLevel={modelIntelligenceLevel}
+                      permissionMode={permissionMode}
                       isStreaming={runtimeState.isStreaming || busy}
                       workspace={activeWorkspace}
                       workspaces={workspaces}
                       workspaceError={workspaceError}
                       onIntelligenceChange={setModelIntelligenceLevel}
+                      onPermissionModeChange={setPermissionMode}
                       onAddWorkspace={handleAddWorkspace}
                       onPickWorkspace={handlePickWorkspace}
                       onSelectWorkspace={(projectId) => void setActiveProject(projectId)}

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ComposerActionMenu } from "./ComposerActionMenu.tsx";
 import { ComposerContextMeter } from "./ComposerContextMeter.tsx";
 import { ComposerIntelligencePicker } from "./ComposerIntelligencePicker.tsx";
+import { ComposerPermissionModePicker } from "./ComposerPermissionModePicker.tsx";
 import { ComposerSuggestions } from "./ComposerSuggestions.tsx";
 import { WorkspaceControl } from "../workspaces/WorkspaceControl.tsx";
 import type { RegistryMap, WorkspaceInfo } from "../../api/schemas.ts";
@@ -15,6 +16,7 @@ import {
   filterComposerSuggestions,
 } from "../../runtime/composerSuggestions.ts";
 import type { ModelIntelligenceLevel } from "../../runtime/modelIntelligence.ts";
+import type { PermissionMode } from "../../runtime/permissionMode.ts";
 import type { RuntimeContextState } from "../../runtime/reducer.ts";
 
 const COMPOSER_TEXTAREA_MIN_HEIGHT = 56;
@@ -27,10 +29,12 @@ export function ChatComposer({
   disabled,
   intelligenceLevel,
   isStreaming,
+  permissionMode,
   workspace,
   workspaces,
   workspaceError,
   onIntelligenceChange,
+  onPermissionModeChange,
   onAddWorkspace,
   onPickWorkspace,
   onSelectWorkspace,
@@ -46,10 +50,12 @@ export function ChatComposer({
   disabled?: boolean;
   intelligenceLevel: ModelIntelligenceLevel;
   isStreaming: boolean;
+  permissionMode: PermissionMode;
   workspace: WorkspaceInfo | null;
   workspaces: WorkspaceInfo[];
   workspaceError: string | null;
   onIntelligenceChange: (level: ModelIntelligenceLevel) => void;
+  onPermissionModeChange: (mode: PermissionMode) => void;
   onAddWorkspace: (rootPath: string) => void;
   onPickWorkspace: () => void;
   onSelectWorkspace: (projectId: string) => void;
@@ -61,6 +67,7 @@ export function ChatComposer({
 }) {
   const [input, setInput] = useState("");
   const [intelligenceOpen, setIntelligenceOpen] = useState(false);
+  const [permissionModeOpen, setPermissionModeOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const trigger = detectComposerSuggestionTrigger(input);
   const commandSuggestions = useMemo(() => buildCommandSuggestions(commands), [commands]);
@@ -120,6 +127,13 @@ export function ChatComposer({
           <div className="composer-footer">
             <div className="composer-footer-left">
               <ComposerActionMenu />
+              <ComposerPermissionModePicker
+                mode={permissionMode}
+                open={permissionModeOpen}
+                onToggle={() => setPermissionModeOpen((value) => !value)}
+                onChange={onPermissionModeChange}
+                onClose={() => setPermissionModeOpen(false)}
+              />
             </div>
             <div className="composer-footer-right">
               <ComposerContextMeter context={context} configuredMaxTokens={contextMaxTokens} onOpenContextWindow={onOpenContextWindow} />

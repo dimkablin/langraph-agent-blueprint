@@ -1910,6 +1910,120 @@ pre {
   background: var(--primary-soft);
 }
 
+.composer-permission-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.composer-permission-button {
+  max-width: 220px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  border-radius: var(--control-radius);
+  background: transparent;
+  color: var(--muted);
+  outline: 0;
+  padding: 0 8px;
+  font-size: var(--font-size-small);
+  font-weight: 650;
+}
+
+.composer-permission-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-permission-button:hover,
+.composer-permission-button[aria-expanded="true"] {
+  background: var(--hover-surface);
+  color: var(--foreground);
+}
+
+.composer-permission-button-elevated {
+  background: color-mix(in oklab, var(--warning) 11%, transparent);
+  color: color-mix(in oklab, var(--warning) 76%, var(--foreground));
+}
+
+.composer-permission-button:focus-visible {
+  outline: 1px solid var(--focus-outline);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.composer-permission-popover {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 18;
+  width: min(320px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card-elevated);
+  color: var(--foreground);
+  padding: 8px;
+}
+
+.permission-mode-menu-title {
+  color: var(--muted);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  padding: 4px 7px 7px;
+}
+
+.permission-mode-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-radius: var(--control-radius);
+  background: transparent;
+  color: var(--foreground);
+  padding: 8px 7px;
+  text-align: left;
+  font-size: var(--font-size-small);
+}
+
+.permission-mode-option:hover,
+.permission-mode-option-selected {
+  background: var(--primary-soft);
+}
+
+.permission-mode-option-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.permission-mode-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.permission-mode-option-description,
+.permission-mode-warning {
+  color: var(--muted);
+  font-size: var(--font-size-small);
+  line-height: 1.35;
+}
+
+.permission-mode-warning {
+  margin: 8px 7px 2px;
+}
+
 .send-button {
   position: relative;
   width: 30px;

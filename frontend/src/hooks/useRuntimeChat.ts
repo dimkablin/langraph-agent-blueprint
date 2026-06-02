@@ -6,6 +6,7 @@ import { fetchSessionContext, fetchSessionDetail } from "../api/sessions.ts";
 import { streamChat } from "../api/stream.ts";
 import { clearActiveSessionId, loadActiveSessionId, saveActiveSessionId } from "../runtime/activeSession.ts";
 import { DEFAULT_MODEL_INTELLIGENCE_LEVEL, type ModelIntelligenceLevel } from "../runtime/modelIntelligence.ts";
+import { loadPermissionMode, savePermissionMode, type PermissionMode } from "../runtime/permissionMode.ts";
 import {
   appendUserMessage,
   applyChatResponse,
@@ -29,6 +30,7 @@ type UseRuntimeChatOptions = {
 export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, clearSessionError }: UseRuntimeChatOptions = {}) {
   const [runtimeState, setRuntimeState] = useState(createInitialRuntimeState);
   const [modelIntelligenceLevel, setModelIntelligenceLevel] = useState<ModelIntelligenceLevel>(DEFAULT_MODEL_INTELLIGENCE_LEVEL);
+  const [permissionMode, setPermissionModeState] = useState<PermissionMode>(() => loadPermissionMode());
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const activeRunRef = useRef<{ threadId: string; sessionId: string | null } | null>(null);
@@ -65,6 +67,14 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
   }, [loadSession]);
 
   useEffect(() => {
+    savePermissionMode(permissionMode);
+  }, [permissionMode]);
+
+  const setPermissionMode = useCallback((mode: PermissionMode) => {
+    setPermissionModeState(mode);
+  }, []);
+
+  useEffect(() => {
     if (runtimeState.sessionId) {
       saveActiveSessionId(runtimeState.sessionId);
     }
@@ -86,6 +96,7 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
             session_id: runtimeState.sessionId,
             thread_id: threadId,
             model_intelligence: modelIntelligenceLevel,
+            permission_mode: permissionMode,
           },
           {
             signal: abortRef.current.signal,
@@ -110,7 +121,7 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
         setBusy(false);
       }
     },
-    [modelIntelligenceLevel, projectId, refreshSessions, runtimeState.sessionId, runtimeState.threadId],
+    [modelIntelligenceLevel, permissionMode, projectId, refreshSessions, runtimeState.sessionId, runtimeState.threadId],
   );
 
   const stopStream = useCallback(() => {
@@ -192,6 +203,8 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
     busy,
     modelIntelligenceLevel,
     setModelIntelligenceLevel,
+    permissionMode,
+    setPermissionMode,
     submitMessage,
     stopStream,
     startNewChat,

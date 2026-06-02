@@ -1,4 +1,4 @@
-﻿"""FastAPI application factory that mounts graph-facing routes and shared runtime state."""
+"""FastAPI application factory that mounts graph-facing routes and shared runtime state."""
 
 from __future__ import annotations
 
@@ -52,6 +52,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 session_id=request.session_id,
                 thread_id=request.thread_id,
                 model_intelligence=request.model_intelligence,
+                permission_mode=request.permission_mode,
                 attachments=attachments,
             )
         except WorkspaceNotFoundError as exc:

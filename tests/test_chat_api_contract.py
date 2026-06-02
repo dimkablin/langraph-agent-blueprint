@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 
 from fastapi import FastAPI
@@ -50,6 +51,50 @@ def test_chat_cancel_endpoint_delegates_to_runtime_control_service() -> None:
             "thread_id": "thread_stop_123",
             "session_id": "session_stop_123",
             "reason": "stop button",
+        }
+    ]
+
+
+def test_chat_stream_endpoint_delegates_permission_mode_to_runtime() -> None:
+    @dataclass
+    class RuntimeWithStream:
+        stream_calls: list[dict[str, Any]] = field(default_factory=list)
+        dependencies: Any = field(
+            default_factory=lambda: SimpleNamespace(
+                observability_service=SimpleNamespace(redact_payload=lambda payload: payload),
+            )
+        )
+
+        def stream(self, input_text: str, **kwargs: Any) -> list[dict[str, Any]]:
+            self.stream_calls.append({"input_text": input_text, **kwargs})
+            return []
+
+    runtime = RuntimeWithStream()
+    app = FastAPI()
+    app.state.runtime = runtime
+    app.include_router(chat_router)
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat/stream",
+        json={
+            "message": "do it",
+            "thread_id": "thread_perm_123",
+            "permission_mode": "bypass_read_only",
+        },
+    )
+
+    assert response.status_code == 200
+    assert runtime.stream_calls == [
+        {
+            "input_text": "do it",
+            "input_kind": "headless",
+            "project_id": None,
+            "session_id": None,
+            "thread_id": "thread_perm_123",
+            "model_intelligence": None,
+            "permission_mode": "bypass_read_only",
+            "attachments": [],
         }
     ]
 
