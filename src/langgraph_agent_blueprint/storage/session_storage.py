@@ -69,6 +69,8 @@ class SessionStorage:
         current = SessionMetadata.from_record(current).to_record()
         metadata_path.write_text(json.dumps(current, indent=2), encoding="utf-8")
         (session_dir / "events.jsonl").touch(exist_ok=True)
+        if not (session_dir / "events.index.json").exists():
+            (session_dir / "events.index.json").write_text("[]", encoding="utf-8")
         (session_dir / "tool_calls.jsonl").touch(exist_ok=True)
         return session_dir
 
@@ -140,18 +142,36 @@ class SessionStorage:
         events = self._read_jsonl(child_dir / "events.jsonl", RuntimeEvent)
         return {"metadata": metadata, "result": result, "events": events}
 
+    def append_events(self, project_root: str | Path, session_id: str, events: list[dict[str, Any]]) -> None:
+        """Append multiple events in one pass, deduplicating by event id when available."""
+
+        if not events:
+            return
+
+        session_dir = self.create_session(project_root, session_id, {})
+        existing_ids = self._load_event_ids(session_dir)
+        serialized: list[str] = []
+
+        for event in events:
+            payload = dump_model(RuntimeEvent.model_validate(event))
+            event_id = payload.get("id")
+            if event_id and event_id in existing_ids:
+                continue
+            serialized.append(json.dumps(payload, ensure_ascii=False))
+            if event_id:
+                existing_ids.add(event_id)
+
+        if not serialized:
+            return
+
+        with (session_dir / "events.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write("\n".join(serialized) + "\n")
+        self._write_event_ids(session_dir, existing_ids)
+
     def append_event(self, project_root: str | Path, session_id: str, event: dict[str, Any]) -> None:
         """Append a session event once, deduplicating by event id when available."""
 
-        session_dir = self.create_session(project_root, session_id, {})
-        payload = dump_model(RuntimeEvent.model_validate(event))
-        event_id = payload.get("id")
-        if event_id:
-            for existing in self._read_jsonl(session_dir / "events.jsonl"):
-                if existing.get("id") == event_id:
-                    return
-        with (session_dir / "events.jsonl").open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        self.append_events(project_root, session_id, [event])
 
     def append_tool_call(self, project_root: str | Path, session_id: str, record: dict[str, Any]) -> None:
         session_dir = self.create_session(project_root, session_id, {})
@@ -300,6 +320,7 @@ class SessionStorage:
         (session_dir / "events.jsonl").write_text("", encoding="utf-8")
         (session_dir / "tool_calls.jsonl").write_text("", encoding="utf-8")
         (session_dir / "messages.json").write_text("[]", encoding="utf-8")
+        self._write_event_ids(session_dir, set())
 
     def rewind_session(self, project_root: str | Path, session_id: str, keep_last: int) -> list[BaseMessage]:
         loaded = self.load_session(project_root, session_id)
@@ -325,6 +346,36 @@ class SessionStorage:
                 continue
             rows.append(payload)
         return rows
+
+    def _events_index_path(self, session_dir: Path) -> Path:
+        return session_dir / "events.index.json"
+
+    def _load_event_ids(self, session_dir: Path) -> set[str]:
+        index_path = self._events_index_path(session_dir)
+        events_path = session_dir / "events.jsonl"
+
+        if index_path.exists():
+            try:
+                ids = json.loads(index_path.read_text(encoding="utf-8"))
+                if isinstance(ids, list):
+                    return {str(item) for item in ids if isinstance(item, str)}
+            except (OSError, json.JSONDecodeError):
+                pass
+
+        if not events_path.exists():
+            return set()
+
+        ids = {
+            payload.get("id")
+            for payload in self._read_jsonl(events_path)
+            if isinstance(payload, dict) and isinstance(payload.get("id"), str)
+        }
+        self._write_event_ids(session_dir, ids)
+        return ids
+
+    def _write_event_ids(self, session_dir: Path, event_ids: set[str]) -> None:
+        index_path = self._events_index_path(session_dir)
+        index_path.write_text(json.dumps(sorted(event_ids), ensure_ascii=False), encoding="utf-8")
 
     def _file_snapshots_path(self, project_root: str | Path, session_id: str) -> Path:
         return self.session_dir(project_root, session_id) / "file_snapshots.json"

@@ -32,16 +32,18 @@ def persist_session_node(state: dict, deps: AppDependencies) -> dict:
     deps.session_storage.save_messages(state["project_root"], state["session_id"], state.get("messages", []))
     deps.session_storage.save_json(state["project_root"], state["session_id"], "todos.json", state.get("todos", []))
     deps.session_storage.save_json(state["project_root"], state["session_id"], "memory_refs.json", state.get("memory", {}))
-    for item in state.get("ui_events", []):
-        deps.session_storage.append_event(state["project_root"], state["session_id"], item)
+
+    events = list(state.get("ui_events", []))
     persistence_duration_ms = duration_ms(persistence_start)
     persisted_event = event(
         "session_persisted",
         session_id=state["session_id"],
         persistence_duration_ms=persistence_duration_ms,
-        persisted_event_count=len(state.get("ui_events", []) or []),
+        persisted_event_count=len(events),
     )
-    deps.session_storage.append_event(state["project_root"], state["session_id"], persisted_event)
+    events.append(persisted_event)
+    deps.session_storage.append_events(state["project_root"], state["session_id"], events)
+
     return {
         "ui_events": [persisted_event],
         **runtime_metrics_update(
