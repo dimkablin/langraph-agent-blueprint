@@ -48,6 +48,12 @@ python -m pip install -e ".[anthropic]"
 
 ## Configure
 
+For a one-command local manual test stack with frontend, backend, Langfuse, Postgres, ClickHouse, Redis, and MinIO, see `docs/LOCAL_STACK.md` and run:
+
+```bash
+docker compose -f docker-compose.local.yml up --build
+```
+
 Copy `.env.example` to `.env` in the project root or set the variables in your shell. Phase 8 config precedence is:
 
 ```text
