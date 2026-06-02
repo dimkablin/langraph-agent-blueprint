@@ -41,6 +41,23 @@ test("permission mode options expose the required Russian labels and backend mod
   assert.equal(FULL_ACCESS_PERMISSION_MODE, "bypass_read_only");
   assert.equal(permissionModeOptionById("default").label, "Разрешение по умолчанию");
   assert.equal(permissionModeOptionById("bypass_read_only").risk, "elevated");
+  assert.ok(PERMISSION_MODE_OPTIONS.every((option) => !("description" in option)));
+});
+
+test("permission mode picker renders only icons, labels, and selected checkmark", () => {
+  const srcRoot = join(import.meta.dirname, "..", "src");
+  const picker = readFileSync(join(srcRoot, "components", "chat", "ComposerPermissionModePicker.tsx"), "utf8");
+  const styles = readFileSync(join(srcRoot, "styles.css"), "utf8");
+
+  assert.doesNotMatch(picker, /permission-mode-option-description|permission-mode-warning|option\.description/);
+  assert.doesNotMatch(picker, /Агент запрашивает подтверждение|Расширяет доступ инструментов|Полный доступ не включается по умолчанию/);
+  assert.match(picker, /<SelectedModeIcon size=\{14\} \/>\s*<span>\{selected\.label\}<\/span>/);
+  assert.match(picker, /<PermissionModeIcon size=\{14\} \/>\s*\{option\.label\}/);
+  assert.match(picker, /\{isSelected \? <IconCheck size=\{16\} \/> : null\}/);
+  const permissionStyles = styles.slice(styles.indexOf(".composer-permission-control"), styles.indexOf(".send-button"));
+
+  assert.doesNotMatch(picker, /permission-mode-option-selected|composer-permission-button-elevated/);
+  assert.doesNotMatch(permissionStyles, /permission-mode-option-selected|composer-permission-button-elevated|\[aria-expanded="true"\]/);
 });
 
 test("permission mode preference persists non-default selection and defaults safely", () => {

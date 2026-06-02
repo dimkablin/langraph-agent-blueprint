@@ -5,7 +5,6 @@ export type { PermissionMode };
 export type PermissionModeOption = {
   id: PermissionMode;
   label: string;
-  description: string;
   risk?: "default" | "elevated";
 };
 
@@ -18,13 +17,11 @@ export const PERMISSION_MODE_OPTIONS: PermissionModeOption[] = [
   {
     id: DEFAULT_PERMISSION_MODE,
     label: "Разрешение по умолчанию",
-    description: "Агент запрашивает подтверждение для действий с побочными эффектами.",
     risk: "default",
   },
   {
     id: FULL_ACCESS_PERMISSION_MODE,
     label: "Полный доступ",
-    description: "Расширяет доступ инструментов для следующего запуска. Используйте только в доверенном workspace.",
     risk: "elevated",
   },
 ];

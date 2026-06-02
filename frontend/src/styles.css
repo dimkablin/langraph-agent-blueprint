@@ -1941,15 +1941,9 @@ pre {
   white-space: nowrap;
 }
 
-.composer-permission-button:hover,
-.composer-permission-button[aria-expanded="true"] {
+.composer-permission-button:hover {
   background: var(--hover-surface);
   color: var(--foreground);
-}
-
-.composer-permission-button-elevated {
-  background: color-mix(in oklab, var(--warning) 11%, transparent);
-  color: color-mix(in oklab, var(--warning) 76%, var(--foreground));
 }
 
 .composer-permission-button:focus-visible {
@@ -1994,8 +1988,7 @@ pre {
   font-size: var(--font-size-small);
 }
 
-.permission-mode-option:hover,
-.permission-mode-option-selected {
+.permission-mode-option:hover {
   background: var(--primary-soft);
 }
 
@@ -2011,17 +2004,6 @@ pre {
   align-items: center;
   gap: 6px;
   font-weight: 700;
-}
-
-.permission-mode-option-description,
-.permission-mode-warning {
-  color: var(--muted);
-  font-size: var(--font-size-small);
-  line-height: 1.35;
-}
-
-.permission-mode-warning {
-  margin: 8px 7px 2px;
 }
 
 .send-button {
