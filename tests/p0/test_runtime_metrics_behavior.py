@@ -17,7 +17,12 @@ def test_runtime_metrics_event_emits_safe_turn_node_model_and_persistence_metric
     approving_permissions: Any,
     temp_project: Path,
 ) -> None:
-    model = scripted_chat_model(steps=[expect_user_message("Read README."), ai_final("README inspected.")])
+    model = scripted_chat_model(
+        steps=[
+            expect_user_message("Read README."),
+            ai_final("README inspected."),
+        ]
+    )
     runtime = runtime_factory(project_root=temp_project, chat_model=model, permissions=approving_permissions)
 
     result = runtime.run(AgentRunInput(message="Read README.", project_root=str(temp_project)))
@@ -38,6 +43,47 @@ def test_runtime_metrics_event_emits_safe_turn_node_model_and_persistence_metric
     assert "Read README" not in rendered
     assert str(temp_project) not in rendered
     assert "api_key" not in rendered.lower()
+    model.assert_no_unused_steps()
+
+
+def test_context_builder_reuses_cached_session_memory_and_records_metrics(
+    runtime_factory: Any,
+    scripted_chat_model: Any,
+    approving_permissions: Any,
+    temp_project: Path,
+) -> None:
+    session_id = "t95363b6b-memory-cache"
+    model = scripted_chat_model(
+        steps=[
+            expect_user_message("Prime memory."),
+            ai_final("Primed."),
+            expect_user_message("Reuse memory."),
+            ai_final("Reused."),
+        ]
+    )
+    runtime = runtime_factory(project_root=temp_project, chat_model=model, permissions=approving_permissions)
+    runtime.dependencies.memory_service.remember("session", "Session-scoped note for cache behavior.", session_id=session_id)
+
+    call_count = {"count": 0}
+    original_load_memory = runtime.dependencies.memory_service.load_memory
+
+    def tracking_load_memory(project_root: str | None, session_id_param: str | None = None) -> dict[str, str]:
+        call_count["count"] += 1
+        return original_load_memory(project_root, session_id_param)
+
+    runtime.dependencies.memory_service.load_memory = tracking_load_memory
+
+    runtime.run(AgentRunInput(message="Prime memory.", project_root=str(temp_project), session_id=session_id))
+    assert call_count["count"] == 1
+
+    call_count["count"] = 0
+    result = runtime.run(AgentRunInput(message="Reuse memory.", project_root=str(temp_project), session_id=session_id))
+    assert call_count["count"] == 0
+
+    metrics = _single_metrics_event(result.events)["data"]["metrics"]
+    assert metrics["context_builder_memory_cache_hit"] is True
+    assert metrics["memory_scope_count"] == 3
+    assert metrics["memory_context_chars"] >= len("session memory:\nSession-scoped note for cache behavior.")
     model.assert_no_unused_steps()
 
 
