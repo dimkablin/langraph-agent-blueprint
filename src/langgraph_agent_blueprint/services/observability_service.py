@@ -81,8 +81,10 @@ LOW_SIGNAL_RUNTIME_EVENTS = {
     "compact_started",
     "compact_finished",
     "session_persisted",
+    "runtime_metrics",
 }
 IMPORTANT_RUNTIME_EVENTS = HIGH_SIGNAL_RUNTIME_EVENTS | LOW_SIGNAL_RUNTIME_EVENTS
+
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
 WINDOWS_USER_PATH_RE = re.compile(r"^[A-Za-z]:[\\/](Users|Documents)[\\/]", re.IGNORECASE)
 POSIX_PRIVATE_PATH_PREFIXES = ("/home/", "/Users/", "/var/", "/tmp/", "/opt/", "/srv/", "/workspace/", "/mnt/", "/root/")

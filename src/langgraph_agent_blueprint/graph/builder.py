@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Iterable
 
 from langgraph.graph import END, START, StateGraph
@@ -14,6 +15,7 @@ from langgraph_agent_blueprint.models import AgentRunInput, AgentRunOutput, Atta
 from langgraph_agent_blueprint.utils.ids import new_id, validate_session_id, validate_thread_id
 
 from .checkpoints import default_checkpointer
+from .instrumentation import duration_ms, runtime_metrics_event, timed_node
 from .nodes.bootstrap_config import bootstrap_config_node
 from .nodes.command_router import command_router_node
 from .nodes.compact_context import compact_context_node
@@ -50,26 +52,27 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
     """Build the main LangGraph StateGraph for assistant runtime."""
 
     graph = StateGraph(AssistantState)
-    graph.add_node("bootstrap_config", lambda state: bootstrap_config_node(state, deps))
-    graph.add_node("load_registries", lambda state: load_registries_node(state, deps))
-    graph.add_node("normalize_input", lambda state: normalize_input_node(state, deps))
-    graph.add_node("command_router", lambda state: command_router_node(state, deps))
-    graph.add_node("skill_graph", build_skill_node(deps))
-    graph.add_node("plugin_policy", lambda state: plugin_policy_node(state, deps))
-    graph.add_node("resolve_context", lambda state: resolve_context_node(state, deps))
-    graph.add_node("context_builder", lambda state: context_builder_node(state, deps))
-    graph.add_node("model_call", lambda state: model_call_node(state, deps))
-    graph.add_node("tool_router", lambda state: tool_router_node(state, deps))
-    graph.add_node("permission_gate", lambda state: permission_gate_node(state, deps))
-    graph.add_node("tool_executor", lambda state: tool_executor_node(state, deps))
-    graph.add_node("hook_runner", lambda state: hook_runner_node(state, deps))
+    graph.add_node("bootstrap_config", timed_node("bootstrap_config", lambda state: bootstrap_config_node(state, deps)))
+    graph.add_node("load_registries", timed_node("load_registries", lambda state: load_registries_node(state, deps)))
+    graph.add_node("normalize_input", timed_node("normalize_input", lambda state: normalize_input_node(state, deps)))
+    graph.add_node("command_router", timed_node("command_router", lambda state: command_router_node(state, deps)))
+    graph.add_node("skill_graph", timed_node("skill_graph", build_skill_node(deps)))
+    graph.add_node("plugin_policy", timed_node("plugin_policy", lambda state: plugin_policy_node(state, deps)))
+    graph.add_node("resolve_context", timed_node("resolve_context", lambda state: resolve_context_node(state, deps)))
+    graph.add_node("context_builder", timed_node("context_builder", lambda state: context_builder_node(state, deps)))
+    graph.add_node("model_call", timed_node("model_call", lambda state: model_call_node(state, deps)))
+    graph.add_node("tool_router", timed_node("tool_router", lambda state: tool_router_node(state, deps)))
+    graph.add_node("permission_gate", timed_node("permission_gate", lambda state: permission_gate_node(state, deps)))
+    graph.add_node("tool_executor", timed_node("tool_executor", lambda state: tool_executor_node(state, deps)))
+    graph.add_node("hook_runner", timed_node("hook_runner", lambda state: hook_runner_node(state, deps)))
     graph.add_node("agent_graph", build_agent_graph(deps).compile())
     graph.add_node("mcp_graph", build_mcp_graph(deps).compile())
-    graph.add_node("compact_decision", lambda state: compact_decision_node(state, deps))
-    graph.add_node("compact_context", lambda state: compact_context_node(state, deps))
-    graph.add_node("persist_session", lambda state: persist_session_node(state, deps))
-    graph.add_node("finalize_response", lambda state: finalize_response_node(state, deps))
-    graph.add_node("error_recovery", lambda state: error_recovery_node(state, deps))
+    graph.add_node("compact_decision", timed_node("compact_decision", lambda state: compact_decision_node(state, deps)))
+    graph.add_node("compact_context", timed_node("compact_context", lambda state: compact_context_node(state, deps)))
+    graph.add_node("persist_session", timed_node("persist_session", lambda state: persist_session_node(state, deps)))
+    graph.add_node("finalize_response", timed_node("finalize_response", lambda state: finalize_response_node(state, deps)))
+    graph.add_node("error_recovery", timed_node("error_recovery", lambda state: error_recovery_node(state, deps)))
+
 
     graph.add_edge(START, "bootstrap_config")
     graph.add_edge("bootstrap_config", "load_registries")
@@ -187,6 +190,7 @@ class AssistantGraphRuntime:
             state["metadata"] = {**state.get("metadata", {}), "turn_index": turn_index}
         trace_context = self._trace_context(state)
         self.dependencies.run_control_service.start_run(state["thread_id"], session_id=state["session_id"])
+        turn_start = perf_counter()
         try:
             with self.dependencies.observability_service.trace_turn(
                 trace_context,
@@ -197,6 +201,13 @@ class AssistantGraphRuntime:
                 config = trace.graph_config({"configurable": {"thread_id": state["thread_id"]}}, self._trace_metadata(state))
                 result = self.app.invoke(state, config)
                 result_context = self._trace_context(result) if isinstance(result, dict) else trace_context
+                if isinstance(result, dict):
+                    metrics_event = runtime_metrics_event(
+                        result,
+                        total_duration_ms=duration_ms(turn_start),
+                        event_count=len(result.get("ui_events", []) or []) + 1,
+                    )
+                    result["ui_events"] = [*list(result.get("ui_events", []) or []), metrics_event]
                 trace.record_runtime_events(result.get("ui_events", []) if isinstance(result, dict) else [], result_context)
                 if isinstance(result, dict):
                     trace.set_output(result.get("final_response"))
@@ -341,6 +352,7 @@ class AssistantGraphRuntime:
             trace_context = self._trace_context(state)
             stream_context = trace_context
             self.dependencies.run_control_service.start_run(state["thread_id"], session_id=state["session_id"])
+            turn_start = perf_counter()
             try:
                 with self.dependencies.observability_service.stream_trace_turn(
                     trace_context,
@@ -377,6 +389,13 @@ class AssistantGraphRuntime:
                         previous_count = len(events)
                     if final_chunk is not None:
                         trace.set_output(final_chunk.get("final_response"))
+                        metrics_event = runtime_metrics_event(
+                            final_chunk,
+                            total_duration_ms=duration_ms(turn_start),
+                            event_count=len(final_chunk.get("ui_events", []) or []) + 1,
+                        )
+                        trace.record_runtime_event(metrics_event, self._trace_context(final_chunk))
+                        yield metrics_event
                         self._drop_completed_checkpoint(final_chunk.get("thread_id") or state["thread_id"], final_chunk)
             finally:
                 self.dependencies.run_control_service.finish_run(state["thread_id"])

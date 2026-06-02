@@ -1,9 +1,12 @@
-﻿"""LangGraph node module responsible for one thin state-transition step in the assistant runtime."""
+"""LangGraph node module responsible for one thin state-transition step in the assistant runtime."""
 
 from __future__ import annotations
 
+from time import perf_counter
+
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
+from langgraph_agent_blueprint.graph.instrumentation import duration_ms, runtime_metrics_update
 from langgraph_agent_blueprint.graph.run_control import cancellation_update
 from langgraph_agent_blueprint.models import ToolCall, ToolResult, event, tool_result_to_tool_message, validate_list
 
@@ -28,6 +31,7 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
     child_runs = []
     metadata = dict(state.get("metadata", {}))
     messages = []
+    tool_durations = []
     recoverable_error_count = int(metadata.get("recoverable_tool_error_count", 0) or 0)
     for call in calls:
         call_payload = call.model_dump(mode="json")
@@ -44,8 +48,13 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
                     tool_name=mcp_metadata.get("tool_name"),
                 )
             )
+        tool_start = perf_counter()
         record, activity_events = deps.tool_execution_service.execute_with_activity(call_payload, state)
+        tool_duration_ms = duration_ms(tool_start)
+        tool_durations.append({"id": call.id, "name": call.name, "duration_ms": tool_duration_ms})
+        _attach_tool_duration(activity_events, call.id, tool_duration_ms)
         result = ToolResult.model_validate(record)
+        record["metadata"] = {**dict(record.get("metadata", {}) or {}), "duration_ms": tool_duration_ms}
         results.append(record)
         messages.append(tool_result_to_tool_message(result))
         events.extend(activity_events)
@@ -56,6 +65,7 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
                     id=result.id,
                     name=result.name,
                     status=result.status,
+                    duration_ms=tool_duration_ms,
                     server_name=mcp_metadata.get("server_name"),
                     tool_name=mcp_metadata.get("tool_name"),
                 )
@@ -88,10 +98,20 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
         "metadata": metadata,
         "errors": errors,
         "ui_events": events,
+        **runtime_metrics_update(state, {}, extra_metrics={"tool_durations_ms": tool_durations}),
     }
     active_tool = results[0] if results else None
     post_update = run_hook_point(deps, state_with_update(state, update), "post_tool", active_tool=active_tool)
     return merge_updates(update, post_update)
+
+
+def _attach_tool_duration(events: list[dict], tool_call_id: str, duration_ms: float) -> None:
+    for item in events:
+        if item.get("type") not in {"tool_call_finished", "tool_call_error"}:
+            continue
+        data = item.get("data")
+        if isinstance(data, dict) and data.get("id") == tool_call_id:
+            data["duration_ms"] = duration_ms
 
 
 def _error_payload(record: dict) -> dict:
