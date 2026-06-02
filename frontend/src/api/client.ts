@@ -1,5 +1,4 @@
-const viteEnv = typeof import.meta !== "undefined" && "env" in import.meta ? import.meta.env as Record<string, string | undefined> : {};
-const API_BASE_URL = viteEnv.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "http://127.0.0.1:8010";
 
 export class ApiError extends Error {
   readonly status: number;

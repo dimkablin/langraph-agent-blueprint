@@ -21,6 +21,8 @@ Wait until Compose reports the app containers as healthy or running, then open:
 
 The backend runs with the fake LLM provider and local dummy Langfuse project keys. The matching Langfuse project/user are bootstrapped by the `langfuse-web` container for local use only.
 
+The compose frontend is built with `VITE_API_BASE_URL=http://127.0.0.1:8010`, so browser requests go to the host-mapped backend port. The root `.env.example` and `frontend/.env.example` use the same value for manual local frontend runs against this compose backend.
+
 ## Smoke checks
 
 ```bash
