@@ -1,4 +1,4 @@
-﻿"""Filesystem-backed persistence for sessions, messages, events, tool calls, todos, and memory refs."""
+"""Filesystem-backed persistence for sessions, messages, events, tool calls, todos, and memory refs."""
 
 from __future__ import annotations
 
@@ -69,8 +69,6 @@ class SessionStorage:
         current = SessionMetadata.from_record(current).to_record()
         metadata_path.write_text(json.dumps(current, indent=2), encoding="utf-8")
         (session_dir / "events.jsonl").touch(exist_ok=True)
-        if not (session_dir / "events.index.json").exists():
-            (session_dir / "events.index.json").write_text("[]", encoding="utf-8")
         (session_dir / "tool_calls.jsonl").touch(exist_ok=True)
         return session_dir
 

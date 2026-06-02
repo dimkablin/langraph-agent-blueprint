@@ -40,6 +40,24 @@ def test_append_events_deduplicates_within_and_across_calls(tmp_path):
     assert set(json.loads(index_path.read_text(encoding="utf-8"))) == {"evt-alpha", "evt-beta", "evt-gamma"}
 
 
+def test_append_events_backfills_missing_index_for_legacy_session(tmp_path):
+    storage = SessionStorage(tmp_path / "storage")
+    project_root = tmp_path / "project"
+    session_id = "legacy-session"
+    existing = event("node_finished", session_id=session_id, node="graph", data={"step": "first"})
+    existing["id"] = "evt-alpha"
+    session_dir = storage.create_session(project_root, session_id, {})
+    events_path = session_dir / "events.jsonl"
+    index_path = session_dir / "events.index.json"
+    events_path.write_text(json.dumps(existing) + "\n", encoding="utf-8")
+    index_path.unlink(missing_ok=True)
+
+    storage.append_events(project_root, session_id, [existing])
+
+    assert _line_count(events_path) == 1
+    assert set(json.loads(index_path.read_text(encoding="utf-8"))) == {"evt-alpha"}
+
+
 def test_clear_session_resets_event_index(tmp_path):
     storage = SessionStorage(tmp_path / "storage")
     project_root = tmp_path / "project"
