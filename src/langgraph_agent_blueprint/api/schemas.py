@@ -15,6 +15,7 @@ from langgraph_agent_blueprint.models import (
     ConfigValueOrigin,
     PermissionRequest,
 )
+from langgraph_agent_blueprint.models.conversations import ArtifactCreate, MessageCreate, StreamEventCreate, ToolCallCreate
 from langgraph_agent_blueprint.utils.ids import validate_session_id, validate_thread_id
 
 ModelIntelligenceLevel = Literal["low", "medium", "high", "very_high"]
@@ -75,6 +76,22 @@ class ChatResponse(BaseModel):
     events: list[RuntimeEventDTO]
     usage: dict[str, Any] = Field(default_factory=dict)
     permission_required: PermissionRequest | None = None
+
+
+class ConversationRenameRequest(BaseModel):
+    """Request body for renaming a user-owned conversation."""
+
+    title: str
+
+
+class ConversationAppendRequest(BaseModel):
+    """Request body for appending a durable conversation turn in one transaction."""
+
+    user_message: MessageCreate | None = None
+    assistant_message: MessageCreate | None = None
+    events: list[StreamEventCreate] = Field(default_factory=list)
+    tool_calls: list[ToolCallCreate] = Field(default_factory=list)
+    artifacts: list[ArtifactCreate] = Field(default_factory=list)
 
 
 class ChatCancelRequest(BaseModel):

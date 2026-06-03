@@ -13,6 +13,7 @@ from langgraph_agent_blueprint.services import (
     AgentService,
     CommandService,
     CompactionService,
+    ConversationService,
     DiagnosticsService,
     ExportService,
     FolderPickerService,
@@ -33,7 +34,7 @@ from langgraph_agent_blueprint.services import (
 )
 from langgraph_agent_blueprint.services.tool_execution_service import ToolExecutionService
 from langgraph_agent_blueprint.skills import SkillRegistry, build_builtin_skill_registry
-from langgraph_agent_blueprint.storage import SessionStorage
+from langgraph_agent_blueprint.storage import SQLiteConversationStorage, SessionStorage
 from langgraph_agent_blueprint.tools import PluginToolAdapter, ToolRegistry, build_core_tool_registry
 
 
@@ -51,6 +52,7 @@ class AppDependencies:
     tool_execution_service: ToolExecutionService
     session_storage: SessionStorage
     session_service: SessionService
+    conversation_service: ConversationService
     memory_service: MemoryService
     compaction_service: CompactionService
     hook_registry: HookRegistry
@@ -135,6 +137,7 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
     command_registry = build_builtin_command_registry()
     command_registry.register_plugin_contributions(plugin_contributions)
     session_storage = SessionStorage(config.storage_dir)
+    conversation_storage = SQLiteConversationStorage(config.storage_dir / "conversations.sqlite3")
     workspace_service = WorkspaceService(config.storage_dir)
     folder_picker_service = FolderPickerService()
     return AppDependencies(
@@ -148,6 +151,7 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         tool_execution_service=ToolExecutionService(tool_registry, config.tool_output_limit, session_storage),
         session_storage=session_storage,
         session_service=SessionService(session_storage),
+        conversation_service=ConversationService(conversation_storage),
         memory_service=MemoryService(config.storage_dir),
         compaction_service=CompactionService(
             max_tokens_before_compact=config.auto_compact_threshold,
