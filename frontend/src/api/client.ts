@@ -16,13 +16,25 @@ export function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
 }
 
+export function currentUserId(): string {
+  if (typeof globalThis.localStorage === "undefined") {
+    return "dev-user";
+  }
+  return globalThis.localStorage.getItem("langgraph-agent-blueprint:user-id") || "dev-user";
+}
+
+export function userScopedHeaders(headers: HeadersInit = {}): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "X-User-Id": currentUserId(),
+    ...(headers as Record<string, string>),
+  };
+}
+
 export async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(apiUrl(path), {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers: userScopedHeaders(options.headers),
   });
   if (!response.ok) {
     const body = await response.text();

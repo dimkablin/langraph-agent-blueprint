@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { sendApproval } from "../api/approval.ts";
 import { cancelChat } from "../api/chat.ts";
-import { fetchSessionContext, fetchSessionDetail } from "../api/sessions.ts";
+import { fetchConversationDetail } from "../api/conversations.ts";
 import { streamChat } from "../api/stream.ts";
 import { clearActiveSessionId, loadActiveSessionId, saveActiveSessionId } from "../runtime/activeSession.ts";
 import { DEFAULT_MODEL_INTELLIGENCE_LEVEL, type ModelIntelligenceLevel } from "../runtime/modelIntelligence.ts";
@@ -46,10 +46,9 @@ export function useRuntimeChat({ projectId, onSessionsChanged, onSessionError, c
     async (sessionId: string) => {
       const loadVersion = ++sessionLoadVersionRef.current;
       try {
-        const detail = await fetchSessionDetail(sessionId);
-        const context = await fetchSessionContext(sessionId);
+        const detail = await fetchConversationDetail(sessionId);
         if (sessionLoadVersionRef.current !== loadVersion) return;
-        setRuntimeState((state) => applyContextState(applySessionDetail(state, detail), context));
+        setRuntimeState((state) => applyContextState(applySessionDetail(state, detail), detail.context));
         clearSessionError?.();
       } catch (error) {
         if (sessionLoadVersionRef.current === loadVersion) {

@@ -112,6 +112,7 @@ export type WorkspaceCheckoutResult = {
 export type ChatResponse = {
   session_id: string;
   thread_id: string;
+  conversation_id?: string | null;
   final_response?: string | null;
   events: RuntimeEvent[];
   usage?: Record<string, unknown>;
@@ -131,9 +132,77 @@ export type ChatCancelResponse = {
   reason?: string | null;
 };
 
+export type ConversationStatus = "active" | "archived" | "deleted";
+
+export type ConversationRecordDTO = {
+  conversation_id: string;
+  session_id: string;
+  thread_id: string;
+  user_id: string;
+  title?: string | null;
+  status: ConversationStatus;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+  schema_version: number;
+};
+
+export type ConversationListItemDTO = {
+  conversation_id: string;
+  session_id: string;
+  thread_id: string;
+  title?: string | null;
+  status: ConversationStatus;
+  message_count: number;
+  event_count: number;
+  tool_call_count: number;
+  artifact_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ConversationMessageDTO = {
+  message_id: string;
+  role: string;
+  content: string;
+  created_at: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type ConversationEventDTO = {
+  event_id: string;
+  conversation_id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type ConversationToolCallDTO = {
+  tool_call_id: string;
+  name: string;
+  status: string;
+  metadata: Record<string, unknown>;
+};
+
+export type ConversationArtifactDTO = {
+  artifact_id: string;
+  kind: string;
+  uri?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ConversationDetailDTO = {
+  conversation: ConversationRecordDTO;
+  messages: ConversationMessageDTO[];
+  events: ConversationEventDTO[];
+  tool_calls: ConversationToolCallDTO[];
+  artifacts: ConversationArtifactDTO[];
+};
+
 export type StreamFrame =
   | { type: "event"; event: RuntimeEvent }
-  | { type: "done"; session_id?: string | null; thread_id?: string | null; final_response?: string | null }
+  | { type: "done"; session_id?: string | null; thread_id?: string | null; conversation_id?: string | null; final_response?: string | null }
   | { type: "error"; error: string };
 
 export type ApprovalRequest = {

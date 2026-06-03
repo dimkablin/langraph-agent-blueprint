@@ -13,6 +13,7 @@ It demonstrates:
 - hooks
 - human-in-the-loop permissions
 - session persistence
+- durable multi-user conversation history
 - streaming events
 - memory
 - compaction
@@ -121,6 +122,10 @@ lg-agent config explain
 lg-agent config validate
 lg-agent doctor
 ```
+
+## Conversation Persistence
+
+Multi-user chat history is persisted through a user-scoped conversation service and local SQLite backend. See `docs/conversation_persistence.md` for the data model, `X-User-Id` scoping, API routes, local SQLite initialization, PostgreSQL production path, verification commands, and benchmark instructions.
 
 ## Eval And Replay Harness
 

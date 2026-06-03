@@ -2488,11 +2488,44 @@ pre {
   text-align: left;
 }
 
-.runtime-sidebar-chat span {
+.runtime-sidebar-chat-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.runtime-sidebar-chat-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  opacity: 0;
+}
+
+.runtime-sidebar-chat:hover .runtime-sidebar-chat-actions,
+.runtime-sidebar-chat:focus-within .runtime-sidebar-chat-actions {
+  opacity: 1;
+}
+
+.runtime-sidebar-chat-actions button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  padding: 2px 4px;
+  font-size: 10px;
+}
+
+.runtime-sidebar-chat-actions button:hover,
+.runtime-sidebar-chat-actions button:focus-visible {
+  background: var(--hover-surface);
+  color: var(--foreground);
 }
 
 .runtime-sidebar-chat strong,

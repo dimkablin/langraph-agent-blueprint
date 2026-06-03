@@ -25,7 +25,7 @@ type AppView = "chat" | "settings";
 
 export default function App() {
   const { commands, skills, tools, registryError } = useRuntimeRegistries();
-  const { sessions, sessionError, refreshSessions, reportSessionError, clearSessionError } = useRuntimeSessions();
+  const { sessions, sessionError, refreshSessions, reportSessionError, clearSessionError, renameSession, archiveSession, deleteSession } = useRuntimeSessions();
   const { runtimeStatus } = useRuntimeStatus();
   const { workspaces, activeWorkspace, workspaceError, addLocalWorkspace, pickLocalWorkspace, setActiveProject, checkoutBranch } = useWorkspaces();
   const { preferences, updatePreferences } = useUIPreferences();
@@ -80,6 +80,27 @@ export default function App() {
     openChatView();
     void selectSession(sessionId);
   };
+  const handleRenameSession = (sessionId: string) => {
+    const session = sessions.find((item) => item.session_id === sessionId);
+    const title = globalThis.prompt?.("Новое название чата", session?.title || "")?.trim();
+    if (!title) return;
+    void renameSession(sessionId, title);
+  };
+  const handleArchiveSession = (sessionId: string) => {
+    if (!globalThis.confirm?.("Архивировать этот чат?")) return;
+    if (runtimeState.sessionId === sessionId) {
+      startNewChat();
+    }
+    void archiveSession(sessionId);
+  };
+  const handleDeleteSession = (sessionId: string) => {
+    if (!globalThis.confirm?.("Удалить этот чат из истории?")) return;
+    if (runtimeState.sessionId === sessionId) {
+      startNewChat();
+    }
+    void deleteSession(sessionId);
+  };
+
   const handleOpenSettings = () => {
     setActiveDrawer(null);
     setSidebarOpen(true);
@@ -107,6 +128,9 @@ export default function App() {
         onOpenPlugins={() => setActiveDrawer("help")}
         onOpenSettings={handleOpenSettings}
         onSettingsTabChange={setActiveSettingsTab}
+        onArchiveSession={handleArchiveSession}
+        onDeleteSession={handleDeleteSession}
+        onRenameSession={handleRenameSession}
         onSelectSession={handleSelectSession}
       />
       <div className="app-main">

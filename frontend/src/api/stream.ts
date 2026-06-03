@@ -1,4 +1,4 @@
-import { apiUrl, ApiError } from "./client.ts";
+import { apiUrl, ApiError, userScopedHeaders } from "./client.ts";
 import type { ChatRequest, StreamFrame } from "./schemas.ts";
 
 export type StreamHandlers = {
@@ -39,7 +39,7 @@ parseSseFramesFromText.createBufferedParser = function createBufferedParser(): B
 export async function streamChat(request: ChatRequest, handlers: StreamHandlers): Promise<void> {
   const response = await fetch(apiUrl("/chat/stream"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: userScopedHeaders(),
     body: JSON.stringify(request),
     signal: handlers.signal,
   });

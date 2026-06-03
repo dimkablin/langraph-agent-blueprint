@@ -45,7 +45,7 @@ def chat_stream(request_body: ChatRequest, request: Request, x_user_id: str | No
                 ConversationCreate(title=title_from_message(request_body.message), project_id=request_body.project_id),
             )
     session_id = conversation.session_id if conversation is not None else request_body.session_id
-    thread_id = (request_body.thread_id or conversation.thread_id) if conversation is not None else request_body.thread_id
+    thread_id = conversation.thread_id if conversation is not None else request_body.thread_id
     attachments = [item.model_dump(mode="json", exclude_none=True) for item in request_body.attachments]
     events = runtime.stream(
         request_body.message,
@@ -71,6 +71,8 @@ def chat_stream(request_body: ChatRequest, request: Request, x_user_id: str | No
             events,
             redactor=runtime.dependencies.observability_service.redact_payload,
             on_complete=on_complete,
+            conversation_id=conversation.conversation_id if conversation is not None else None,
+            thread_id=thread_id,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -104,7 +106,14 @@ def approval_events(request_body: ApprovalRequest, request: Request) -> list[Run
 __all__ = ["router"]
 
 
-def _sse_event_stream(events: Iterable[dict[str, Any]], *, redactor: Any, on_complete: Any | None = None) -> Iterable[str]:
+def _sse_event_stream(
+    events: Iterable[dict[str, Any]],
+    *,
+    redactor: Any,
+    on_complete: Any | None = None,
+    conversation_id: str | None = None,
+    thread_id: str | None = None,
+) -> Iterable[str]:
     session_id: str | None = None
     final_response: str | None = None
     captured_events = []
@@ -118,7 +127,7 @@ def _sse_event_stream(events: Iterable[dict[str, Any]], *, redactor: Any, on_com
             yield _sse_frame("runtime_event", StreamFrame(type="event", event=dto).model_dump(mode="json", exclude_none=True))
         if on_complete is not None:
             on_complete(final_response, captured_events)
-        yield _sse_frame("done", _done_frame_payload(session_id=session_id, final_response=final_response))
+        yield _sse_frame("done", _done_frame_payload(session_id=session_id, thread_id=thread_id, conversation_id=conversation_id, final_response=final_response))
     except Exception as exc:
         yield _sse_frame("error", StreamFrame(type="error", error=str(exc)).model_dump(mode="json", exclude_none=True))
 
@@ -130,8 +139,8 @@ def _session_id_from_event(event: RuntimeEventDTO, current: str | None) -> str |
     return str(data_session_id) if data_session_id else current
 
 
-def _done_frame_payload(*, session_id: str | None, final_response: str | None) -> dict[str, Any]:
-    payload = StreamFrame(type="done", session_id=session_id, final_response=final_response).model_dump(
+def _done_frame_payload(*, session_id: str | None, thread_id: str | None, conversation_id: str | None, final_response: str | None) -> dict[str, Any]:
+    payload = StreamFrame(type="done", session_id=session_id, thread_id=thread_id, conversation_id=conversation_id, final_response=final_response).model_dump(
         mode="json",
         exclude_none=True,
     )

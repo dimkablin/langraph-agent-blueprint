@@ -18,6 +18,9 @@ type RuntimeSidebarProps = {
   onOpenPlugins: () => void;
   onOpenSettings: () => void;
   onSettingsTabChange: (tab: SettingsTab) => void;
+  onArchiveSession: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
+  onRenameSession: (sessionId: string) => void;
   onSelectSession: (sessionId: string) => void;
 };
 
@@ -33,6 +36,9 @@ export function RuntimeSidebar({
   onOpenPlugins,
   onOpenSettings,
   onSettingsTabChange,
+  onArchiveSession,
+  onDeleteSession,
+  onRenameSession,
   onSelectSession,
 }: RuntimeSidebarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -65,6 +71,9 @@ export function RuntimeSidebar({
             onNewChat={onNewChat}
             onOpenPlugins={onOpenPlugins}
             onOpenSettings={onOpenSettings}
+            onArchiveSession={onArchiveSession}
+            onDeleteSession={onDeleteSession}
+            onRenameSession={onRenameSession}
             onQueryChange={setQuery}
             onSearchToggle={() => setSearchOpen((value) => !value)}
             onSelectSession={onSelectSession}
@@ -85,6 +94,9 @@ function ChatSidebar({
   onNewChat,
   onOpenPlugins,
   onOpenSettings,
+  onArchiveSession,
+  onDeleteSession,
+  onRenameSession,
   onQueryChange,
   onSearchToggle,
   onSelectSession,
@@ -97,6 +109,9 @@ function ChatSidebar({
   onNewChat: () => void;
   onOpenPlugins: () => void;
   onOpenSettings: () => void;
+  onArchiveSession: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
+  onRenameSession: (sessionId: string) => void;
   onQueryChange: (query: string) => void;
   onSearchToggle: () => void;
   onSelectSession: (sessionId: string) => void;
@@ -131,17 +146,20 @@ function ChatSidebar({
         <div className="runtime-sidebar-chat-list">
           {filteredSessions.length ? (
             filteredSessions.map((session) => (
-              <button
-                type="button"
+              <div
                 className={session.session_id === activeSessionId ? "runtime-sidebar-chat selected" : "runtime-sidebar-chat"}
                 key={session.session_id}
-                onClick={() => onSelectSession(session.session_id)}
               >
-                <span>
+                <button type="button" className="runtime-sidebar-chat-main" onClick={() => onSelectSession(session.session_id)}>
                   <strong>{sessionTitle(session)}</strong>
+                  <time>{formatSessionTime(session.updated_at || session.created_at)}</time>
+                </button>
+                <span className="runtime-sidebar-chat-actions" aria-label="Действия чата">
+                  <button type="button" onClick={() => onRenameSession(session.session_id)}>Переименовать</button>
+                  <button type="button" onClick={() => onArchiveSession(session.session_id)}>Архив</button>
+                  <button type="button" onClick={() => onDeleteSession(session.session_id)}>Удалить</button>
                 </span>
-                <time>{formatSessionTime(session.updated_at || session.created_at)}</time>
-              </button>
+              </div>
             ))
           ) : (
             <p className="runtime-sidebar-empty">Чаты появятся после первого сообщения.</p>

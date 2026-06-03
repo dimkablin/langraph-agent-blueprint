@@ -87,6 +87,42 @@ def test_chat_endpoint_creates_and_appends_user_scoped_conversation_history(tmp_
     assert client.get(f"/conversations/{conversation_id}", headers={"X-User-Id": "user-b"}).status_code == 404
 
 
+def test_chat_endpoint_uses_conversation_thread_identity_instead_of_client_thread_id(tmp_path):
+    app = create_app(AppConfig(storage_dir=tmp_path / ".storage", project_root=tmp_path, cwd=tmp_path))
+    dependencies = app.state.runtime.dependencies
+
+    class RuntimeWithConversationDependencies:
+        def __init__(self) -> None:
+            self.dependencies = dependencies
+            self.calls: list[dict[str, Any]] = []
+
+        def invoke(self, input_text: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append({"input_text": input_text, **kwargs})
+            return {
+                "session_id": kwargs["session_id"],
+                "thread_id": kwargs["thread_id"],
+                "final_response": "assistant answer",
+                "ui_events": [],
+                "usage": {},
+            }
+
+    runtime = RuntimeWithConversationDependencies()
+    app.state.runtime = runtime
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        headers={"X-User-Id": "user-a"},
+        json={"message": "hello", "thread_id": "client_generated_thread"},
+    )
+
+    assert response.status_code == 200
+    conversation_id = response.json()["conversation_id"]
+    assert runtime.calls[0]["session_id"] == conversation_id
+    assert runtime.calls[0]["thread_id"] == conversation_id
+    assert response.json()["thread_id"] == conversation_id
+
+
 def test_chat_stream_endpoint_creates_and_persists_conversation_history(tmp_path):
     app = create_app(AppConfig(storage_dir=tmp_path / ".storage", project_root=tmp_path, cwd=tmp_path))
     dependencies = app.state.runtime.dependencies
@@ -113,11 +149,16 @@ def test_chat_stream_endpoint_creates_and_persists_conversation_history(tmp_path
     app.state.runtime = runtime
     client = TestClient(app)
 
-    response = client.post("/chat/stream", headers={"X-User-Id": "user-a"}, json={"message": "stream hello"})
+    response = client.post(
+        "/chat/stream",
+        headers={"X-User-Id": "user-a"},
+        json={"message": "stream hello", "thread_id": "client_generated_thread"},
+    )
 
     assert response.status_code == 200
     conversation_id = runtime.calls[0]["session_id"]
     assert runtime.calls[0]["thread_id"] == conversation_id
+    assert f'"thread_id":"{conversation_id}"' in response.text
     detail = client.get(f"/conversations/{conversation_id}", headers={"X-User-Id": "user-a"}).json()
     assert [(message["role"], message["content"]) for message in detail["messages"]] == [
         ("user", "stream hello"),

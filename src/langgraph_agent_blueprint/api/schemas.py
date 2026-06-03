@@ -41,6 +41,7 @@ class StreamFrame(BaseModel):
     event: RuntimeEventDTO | None = None
     session_id: str | None = None
     thread_id: str | None = None
+    conversation_id: str | None = None
     final_response: str | None = None
     error: str | None = None
 
@@ -72,6 +73,7 @@ class ChatResponse(BaseModel):
 
     session_id: str
     thread_id: str
+    conversation_id: str | None = None
     final_response: str | None = None
     events: list[RuntimeEventDTO]
     usage: dict[str, Any] = Field(default_factory=dict)

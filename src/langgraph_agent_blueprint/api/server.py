@@ -12,7 +12,6 @@ from langgraph_agent_blueprint.models.conversations import ConversationCreate, M
 from langgraph_agent_blueprint.services.conversation_service import ConversationAccessError, event_creates_from_runtime, title_from_message
 from langgraph_agent_blueprint.services.workspace_service import WorkspaceNotFoundError, WorkspacePathError
 
-from .schemas import ApprovalRequest, ChatRequest, ChatResponse
 from .routes_chat import router as chat_router
 from .routes_commands import router as commands_router
 from .routes_conversations import router as conversations_router
@@ -22,6 +21,7 @@ from .routes_skills import router as skills_router
 from .routes_status import router as status_router
 from .routes_tools import router as tools_router
 from .routes_workspaces import router as workspaces_router
+from .schemas import ApprovalRequest, ChatRequest, ChatResponse
 from .serializers import runtime_event_dtos
 
 
@@ -62,7 +62,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                     ConversationCreate(title=title_from_message(request.message), project_id=request.project_id),
                 )
         session_id = conversation.session_id if conversation is not None else request.session_id
-        thread_id = (request.thread_id or conversation.thread_id) if conversation is not None else request.thread_id
+        thread_id = conversation.thread_id if conversation is not None else request.thread_id
         attachments = [item.model_dump(mode="json", exclude_none=True) for item in request.attachments]
         try:
             result = runtime.invoke(
@@ -94,6 +94,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         return ChatResponse(
             session_id=result["session_id"],
             thread_id=result["thread_id"],
+            conversation_id=conversation.conversation_id if conversation is not None else result.get("session_id"),
             final_response=result.get("final_response"),
             events=runtime_event_dtos(
                 result.get("ui_events", []),
