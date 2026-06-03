@@ -30,7 +30,10 @@ def normalize_input_node(state: dict, deps: AppDependencies) -> dict:
         "attachments": attachments,
         "context_references": context_references,
         "metadata": metadata,
-        "ui_events": [event("node_finished", node="normalize_input")],
+        "ui_events": [
+            event("user_message", node="normalize_input", content=state.get("input_text", "")),
+            event("node_finished", node="normalize_input"),
+        ],
     }
     hook_update = run_hook_point(deps, state_with_update(state, update), "user_prompt")
     return merge_updates(update, hook_update)

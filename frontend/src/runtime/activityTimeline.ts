@@ -21,6 +21,8 @@ export type ActivityTimelineEntry = {
   terminal: ActivityTerminalBlock | null;
   debugPayload: unknown;
   isCommand: boolean;
+  isSubagent: boolean;
+  subagentName: string;
   detailStatusLabel: string;
 };
 
@@ -29,6 +31,9 @@ const TERMINAL_OUTPUT_LIMIT = 1600;
 export function buildActivityEntries(activities: ActivityItem[]): ActivityTimelineEntry[] {
   const buckets: { key: string; activity: ActivityItem; activities: ActivityItem[] }[] = [];
   for (const activity of activities) {
+    if (isLowSignalSubagentActivity(activity)) {
+      continue;
+    }
     const key = activityGroupingKey(activity);
     const bucket = buckets.find((item) => item.key === key);
     if (!bucket) {
@@ -78,6 +83,35 @@ export function activityStatusLabel(status: ActivityItem["status"]): string {
   return "Info";
 }
 
+export function activityTimelineGroupTitle(entries: ActivityTimelineEntry[]): string {
+  const subagentEntries = entries.filter((entry) => entry.isSubagent);
+  if (subagentEntries.length === 1) {
+    return `Subagent ${subagentEntries[0].subagentName || "activity"}`;
+  }
+  if (subagentEntries.length > 1) {
+    return `${subagentEntries.length} subagents`;
+  }
+  const commandEntries = entries.filter((entry) => Boolean(entry.terminal));
+  if (commandEntries.length > 0 && commandEntries.length === entries.length) {
+    return `Ran ${commandEntries.length} ${commandEntries.length === 1 ? "command" : "commands"}`;
+  }
+  const toolEntries = entries.filter(isToolTimelineEntry);
+  if (toolEntries.length === 1 && entries.length === 1) {
+    return toolEntries[0].title;
+  }
+  if (toolEntries.length > 0 && toolEntries.length === entries.length) {
+    return `Ran ${toolEntries.length} ${toolEntries.length === 1 ? "tool" : "tools"}`;
+  }
+  if (entries.length === 1) {
+    return entries[0].title || "1 activity";
+  }
+  return `${entries.length} activities`;
+}
+
+function isToolTimelineEntry(entry: ActivityTimelineEntry): boolean {
+  return ["tool", "verification", "mcp"].includes(entry.kind) || ["tool", "verification", "mcp"].includes(entry.category);
+}
+
 function activityTimelineEntry(activity: ActivityItem, activities: ActivityItem[]): ActivityTimelineEntry {
   const relatedActivities = expandRelatedActivities(activities);
   const terminal = terminalBlock(activity);
@@ -97,6 +131,8 @@ function activityTimelineEntry(activity: ActivityItem, activities: ActivityItem[
     terminal,
     debugPayload: relatedActivities.length > 1 ? relatedActivities.map(debugPayloadForActivity) : debugPayloadForActivity(activity),
     isCommand: Boolean(terminal),
+    isSubagent: isSubagentActivity(activity),
+    subagentName: subagentName(activity),
     detailStatusLabel: activityStatusLabel(activity.status),
   };
 }
@@ -122,6 +158,7 @@ function mergeActivity(previous: ActivityItem, activity: ActivityItem): Activity
     ...activity,
     id: previous.id,
     kind,
+    status: preferredActivityStatus(previous, activity),
     label: activity.label || previous.label,
     summary: activity.summary || previous.summary,
     category,
@@ -130,7 +167,18 @@ function mergeActivity(previous: ActivityItem, activity: ActivityItem): Activity
   };
 }
 
+function preferredActivityStatus(previous: ActivityItem, activity: ActivityItem): ActivityItem["status"] {
+  if (isSubagentActivity(previous) && activity.eventType === "subagent_event" && activity.status === "info") {
+    return previous.status;
+  }
+  return activity.status;
+}
+
 function activityGroupingKey(activity: ActivityItem): string {
+  const childRunId = stringValue(activity.data.child_run_id);
+  if (childRunId && activity.kind === "subagent") {
+    return `subagent:${childRunId}`;
+  }
   const toolCallId = stringValue(activity.data.tool_call_id);
   if (toolCallId && isToolLifecycleActivity(activity)) {
     return `tool-call:${toolCallId}`;
@@ -183,11 +231,33 @@ function preferredActivityCategory(previous: ActivityItem, activity: ActivityIte
 function compactTitle(activity: ActivityItem): string {
   const permissionTitle = permissionActivityTitle(activity);
   if (permissionTitle) return permissionTitle;
+  const subagentTitle = subagentActivityTitle(activity);
+  if (subagentTitle) return subagentTitle;
   const skillTitle = skillActivityTitle(activity);
   if (skillTitle) return skillTitle;
   const operationTitle = operationActivityTitle(activity);
   if (operationTitle) return operationTitle;
   return activity.label || activity.eventType;
+}
+
+function isLowSignalSubagentActivity(activity: ActivityItem): boolean {
+  if (activity.kind !== "subagent" && activity.category !== "subagent") {
+    return false;
+  }
+  if (activity.eventType !== "subagent_event") {
+    return false;
+  }
+  const childEventType = stringValue(activity.data.child_event_type);
+  return [
+    "node_started",
+    "node_finished",
+    "usage_updated",
+    "session_persisted",
+    "runtime_metrics",
+    "context_resolution_started",
+    "context_budget_applied",
+    "user_message",
+  ].includes(childEventType);
 }
 
 function compactSummary(activity: ActivityItem): string {
@@ -264,6 +334,34 @@ function permissionActivityTitle(activity: ActivityItem): string | null {
     return target ? `Approved: ${target}` : "Approved";
   }
   return activity.label || "Permission event";
+}
+
+function subagentActivityTitle(activity: ActivityItem): string | null {
+  if (!isSubagentActivity(activity)) {
+    return null;
+  }
+  const name = subagentName(activity);
+  return name ? `Subagent ${name}` : "Subagent activity";
+}
+
+function subagentName(activity: ActivityItem): string {
+  const latest = latestMeaningfulSubagentActivity(activity);
+  return stringValue(latest.data.name, activity.data.name, latest.data.child_run_id, activity.data.child_run_id);
+}
+
+function isSubagentActivity(activity: ActivityItem): boolean {
+  return activity.kind === "subagent" || activity.category === "subagent";
+}
+
+export function latestMeaningfulSubagentActivity(activity: ActivityItem): ActivityItem {
+  const related = activity.relatedActivities?.length ? activity.relatedActivities : [activity];
+  for (let index = related.length - 1; index >= 0; index -= 1) {
+    const item = related[index];
+    if (!isLowSignalSubagentActivity(item)) {
+      return item;
+    }
+  }
+  return activity;
 }
 
 function skillActivityTitle(activity: ActivityItem): string | null {

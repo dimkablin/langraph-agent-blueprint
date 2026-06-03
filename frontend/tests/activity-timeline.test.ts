@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildActivityEntries, formatTerminalBlock } from "../src/runtime/activityTimeline.ts";
+import { activityTimelineGroupTitle, buildActivityEntries, formatTerminalBlock } from "../src/runtime/activityTimeline.ts";
 import type { ActivityItem } from "../src/runtime/reducer.ts";
 
 function activity(overrides: Partial<ActivityItem> & { eventType: string }): ActivityItem {
@@ -180,6 +180,28 @@ test("command activity entries expose compact row metadata and detail-only statu
   assert.equal("expandedByDefault" in entries[1], false);
 });
 
+test("activity group title describes non-terminal tool calls instead of generic activity", () => {
+  const entries = buildActivityEntries([
+    activity({
+      eventType: "tool.write_file.completed",
+      kind: "tool",
+      category: "tool",
+      label: "Write file completed",
+      summary: "Wrote common/CONTRACT.md.",
+      status: "success",
+      data: {
+        tool_call_id: "write_contract",
+        tool_name: "write_file",
+        operation: "file.write",
+        path: "common/CONTRACT.md",
+      },
+    }),
+  ]);
+
+  assert.equal(entries[0].title, "Wrote CONTRACT.md");
+  assert.equal(activityTimelineGroupTitle(entries), "Wrote CONTRACT.md");
+});
+
 test("activity entries hide redundant generic status summaries", () => {
   const [entry] = buildActivityEntries([
     activity({
@@ -262,4 +284,96 @@ test("non-command error and blocked activity details are collapsed by the view b
   assert.equal(entries[1].terminal, null);
   assert.equal(entries[1].status, "blocked");
   assert.equal("expandedByDefault" in entries[1], false);
+});
+
+test("subagent activity hides low-signal child node events and groups one child run", () => {
+  const entries = buildActivityEntries([
+    activity({
+      id: "subagent_backend_started",
+      eventType: "subagent_started",
+      kind: "subagent",
+      category: "subagent",
+      label: "subagent_started: backend-agent",
+      status: "running",
+      data: { child_run_id: "child_backend", name: "backend-agent" },
+    }),
+    activity({
+      id: "subagent_backend_node_started",
+      eventType: "subagent_event",
+      kind: "subagent",
+      category: "subagent",
+      label: "subagent_event",
+      status: "info",
+      data: {
+        child_run_id: "child_backend",
+        child_event_type: "node_started",
+        child_event: { type: "node_started", data: { node: "model_call" } },
+      },
+    }),
+    activity({
+      id: "subagent_backend_model_message",
+      eventType: "subagent_event",
+      kind: "subagent",
+      category: "subagent",
+      label: "subagent_event",
+      status: "info",
+      data: {
+        child_run_id: "child_backend",
+        child_event_type: "model_message",
+        child_event: { type: "model_message", data: { content: "Implemented backend API." } },
+      },
+    }),
+    activity({
+      id: "subagent_backend_finished",
+      eventType: "subagent_finished",
+      kind: "subagent",
+      category: "subagent",
+      label: "subagent_finished: backend-agent",
+      summary: "Backend complete.",
+      status: "success",
+      data: { child_run_id: "child_backend", name: "backend-agent", summary: "Backend complete." },
+    }),
+  ]);
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].title, "Subagent backend-agent");
+  assert.equal(entries[0].status, "success");
+  assert.equal(entries[0].isSubagent, true);
+  assert.equal(entries[0].subagentName, "backend-agent");
+  assert.deepEqual(
+    entries[0].activities.map((item) => item.eventType),
+    ["subagent_started", "subagent_event", "subagent_finished"],
+  );
+  assert.doesNotMatch(JSON.stringify(entries[0].debugPayload), /node_started/);
+});
+
+test("subagent activity stays running while child events stream", () => {
+  const entries = buildActivityEntries([
+    activity({
+      id: "subagent_frontend_started",
+      eventType: "subagent_started",
+      kind: "subagent",
+      category: "subagent",
+      status: "running",
+      data: { child_run_id: "child_frontend", name: "frontend-agent" },
+    }),
+    activity({
+      id: "subagent_frontend_model_message",
+      eventType: "subagent_event",
+      kind: "subagent",
+      category: "subagent",
+      status: "info",
+      data: {
+        child_run_id: "child_frontend",
+        child_event_type: "model_message",
+        child_event: { type: "model_message", data: { content: "Building UI." } },
+      },
+    }),
+  ]);
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].title, "Subagent frontend-agent");
+  assert.equal(entries[0].status, "running");
+  assert.equal(entries[0].detailStatusLabel, "Running");
+  assert.equal(entries[0].isSubagent, true);
 });

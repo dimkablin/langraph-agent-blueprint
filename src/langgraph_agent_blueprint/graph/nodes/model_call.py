@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from time import perf_counter
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langgraph.config import get_stream_writer
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
@@ -48,6 +48,7 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
     context_usage = _current_context_usage(request, deps.config.context_max_tokens, tool_schema_payload_chars)
     model_start = perf_counter()
     response = _generate_model_response(current, deps, request)
+    response = _repair_missing_subagent_tool_calls(current, deps, request, response)
     model_provider_duration_ms = duration_ms(model_start)
     cancelled = cancellation_update(current, deps, node="model_call")
     if cancelled is not None:
@@ -103,6 +104,112 @@ def _generate_model_response(state: dict, deps: AppDependencies, request: ModelR
     if cancelled:
         return ModelResponse()
     return response or deps.model_provider.generate(request)
+
+
+def _repair_missing_subagent_tool_calls(
+    state: dict,
+    deps: AppDependencies,
+    request: ModelRequest,
+    response: ModelResponse,
+) -> ModelResponse:
+    """Retry once when the model promises subagents but emits no agent tool calls."""
+
+    tool_calls = validate_list(ToolCall, response.tool_calls)
+    if tool_calls or not _needs_subagent_tool_repair(state, request, response):
+        return response
+
+    repair_request = request.model_copy(
+        update={
+            "messages": [
+                *request.messages,
+                AIMessage(content=response.content),
+                SystemMessage(content=_SUBAGENT_TOOL_REPAIR_PROMPT),
+            ]
+        }
+    )
+    repaired = deps.model_provider.generate(repair_request)
+    repaired_calls = validate_list(ToolCall, repaired.tool_calls)
+    if not repaired_calls:
+        return response
+
+    first_usage = response.usage.model_dump(mode="json")
+    repaired_usage = repaired.usage.model_dump(mode="json")
+    usage = deps.usage_service.merge(first_usage, repaired_usage)
+    content = response.content if response.content else repaired.content
+    if response.content and repaired.content and repaired.content not in response.content:
+        content = f"{response.content}\n\n{repaired.content}"
+    return ModelResponse(
+        content=content,
+        tool_calls=[dump_model(call) for call in repaired_calls],
+        usage=usage,
+        raw=repaired.raw,
+    )
+
+
+_SUBAGENT_TOOL_REPAIR_PROMPT = (
+    "The previous assistant message said subagents would be created, but it emitted no `agent` tool calls. "
+    "This violates the tool-use contract. Continue now by calling the `agent` tool once for each requested "
+    "child agent, for example backend and frontend. Do not repeat the promise in prose. If prerequisites are "
+    "not actually complete, call the required tools; otherwise call `agent`."
+)
+
+
+def _needs_subagent_tool_repair(state: dict, request: ModelRequest, response: ModelResponse) -> bool:
+    if "agent" not in request.tools:
+        return False
+    if _agent_called_after_latest_user(request.messages):
+        return False
+    user_text = _latest_user_text(request.messages)
+    if not _has_subagent_intent(user_text):
+        return False
+    return _promises_subagent_work(response.content)
+
+
+def _agent_called_after_latest_user(messages: list[object]) -> bool:
+    for message in reversed(messages):
+        message_type = getattr(message, "type", None)
+        if message_type == "human":
+            return False
+        for call in list(getattr(message, "tool_calls", []) or []):
+            if isinstance(call, dict) and call.get("name") == "agent":
+                return True
+    return False
+
+
+def _latest_user_text(messages: list[object]) -> str:
+    for message in reversed(messages):
+        if getattr(message, "type", None) == "human":
+            return str(getattr(message, "content", "") or "")
+    return ""
+
+
+def _has_subagent_intent(text: str) -> bool:
+    normalized = text.lower()
+    if any(keyword in normalized for keyword in ("сабагент", "саб-агент", "subagent", "sub-agent")):
+        return True
+    agent_terms = ("agent", "агент")
+    split_terms = (("frontend", "backend"), ("фронт", "бек"), ("react", "fastapi"), ("реакт", "фастапи"))
+    return any(term in normalized for term in agent_terms) and any(
+        left in normalized and right in normalized for left, right in split_terms
+    )
+
+
+def _promises_subagent_work(text: str) -> bool:
+    normalized = text.lower()
+    if not any(keyword in normalized for keyword in ("сабагент", "саб-агент", "subagent", "sub-agent", "agent", "агент")):
+        return False
+    promise_terms = (
+        "созда",
+        "запущ",
+        "start",
+        "create",
+        "run",
+        "spawn",
+        "delegate",
+        "now",
+        "теперь",
+    )
+    return any(term in normalized for term in promise_terms)
 
 
 def _json_size(payload: object) -> int:

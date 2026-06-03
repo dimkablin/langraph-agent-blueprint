@@ -187,6 +187,11 @@ export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): Run
     };
   }
 
+  if (event.type === "user_message") {
+    const content = firstString(event.data.content);
+    return content ? appendUserMessageFromEvent(next, content, event.timestamp, event.id) : next;
+  }
+
   if (event.type === "model_token") {
     const token = tokenString(event.data.token);
     return token !== null ? appendAssistantToken(next, token, event.timestamp, event.id) : next;
@@ -277,6 +282,10 @@ export function applyChatResponse(state: RuntimeState, response: {
 export function applySessionDetail(state: RuntimeState, detail: SessionDetailDTO): RuntimeState {
   const visibleMessages = detail.messages.filter(isVisibleMessageDto);
   const messages = visibleMessages.map(messageFromDto);
+  const eventRestored = restoreSessionTimelineFromEvents(state, detail);
+  if (eventRestored) {
+    return eventRestored;
+  }
   const activities = uniqueActivities(detail.events.map(runtimeEventToActivity));
   return {
     ...state,
@@ -290,6 +299,43 @@ export function applySessionDetail(state: RuntimeState, detail: SessionDetailDTO
     finalResponse: lastAssistantMessage(visibleMessages),
     pendingPermission: null,
     error: null,
+    isStreaming: false,
+  };
+}
+
+function restoreSessionTimelineFromEvents(state: RuntimeState, detail: SessionDetailDTO): RuntimeState | null {
+  const hasReplayableMessageEvents = detail.events.some((event) => event.type === "model_message" || event.type === "final_response");
+  if (!hasReplayableMessageEvents) {
+    return null;
+  }
+  const hasUserMessageEvents = detail.events.some((event) => event.type === "user_message");
+  const fallbackUserMessages = hasUserMessageEvents
+    ? []
+    : detail.messages.filter(isVisibleMessageDto).filter((message) => message.role === "human" || message.role === "user").map(messageFromDto);
+  let next: RuntimeState = {
+    ...state,
+    sessionId: detail.session_id,
+    threadId: stringOrNull(detail.metadata.thread_id) || state.threadId,
+    messages: fallbackUserMessages,
+    timeline: fallbackUserMessages.map(messageTimelineItem),
+    activities: [],
+    context: contextFromDto(detail.context),
+    usage: isRecord(detail.usage) ? { ...detail.usage } : {},
+    pendingPermission: null,
+    finalResponse: null,
+    error: null,
+    isStreaming: false,
+  };
+  for (const event of detail.events) {
+    if (event.type === "model_token") {
+      continue;
+    }
+    next = applyRuntimeEvent(next, event);
+  }
+  return {
+    ...next,
+    sessionId: detail.session_id,
+    threadId: stringOrNull(detail.metadata.thread_id) || next.threadId,
     isStreaming: false,
   };
 }
@@ -365,8 +411,8 @@ function appendAssistantMessage(state: RuntimeState, content: string, timestamp:
   if (state.isStreaming && last?.role === "assistant" && isStreamingDraft(last) && content.startsWith(last.content)) {
     return replaceLastMessage(state, { ...last, id, content, timestamp });
   }
-  if (last?.role === "assistant" && last.content === content) {
-    return state;
+  if (last?.role === "assistant" && isSameRenderedAssistantContent(last.content, content)) {
+    return promoteDuplicateAssistantMessageAfterTrailingActivity(state, { ...last, id, content: last.content, timestamp });
   }
   const message: ChatMessage = {
     id,
@@ -374,11 +420,72 @@ function appendAssistantMessage(state: RuntimeState, content: string, timestamp:
     content,
     timestamp,
   };
-  const timeline = bindLatestActivityGroupToMessage([...state.timeline, messageTimelineItem(message)], message);
   return {
     ...state,
     messages: [...state.messages, message],
-    timeline,
+    timeline: [...state.timeline, messageTimelineItem(message)],
+  };
+}
+
+function promoteDuplicateAssistantMessageAfterTrailingActivity(state: RuntimeState, message: ChatMessage): RuntimeState {
+  const previousMessageId = state.messages.at(-1)?.id || message.id;
+  const messageIndex = state.messages.length - 1;
+  const messages = messageIndex >= 0
+    ? state.messages.map((item, index) => index === messageIndex ? message : item)
+    : state.messages;
+  const timelineIndex = findLastTimelineMessageItemIndex(state.timeline, previousMessageId);
+  if (timelineIndex === -1) {
+    return { ...state, messages };
+  }
+  const hasTrailingActivity = state.timeline.slice(timelineIndex + 1).some((item) => item.kind === "activity");
+  if (!hasTrailingActivity) {
+    return { ...state, messages };
+  }
+  const withoutMessage = state.timeline.filter((item, index) => index !== timelineIndex);
+  const rebound = rebindActivityGroups(withoutMessage, previousMessageId, message.id);
+  return {
+    ...state,
+    messages,
+    timeline: [...rebound, messageTimelineItem(message)],
+  };
+}
+
+function findLastTimelineMessageItemIndex(timeline: ChatTimelineItem[], messageId: string): number {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const item = timeline[index];
+    if (item.kind === "message" && item.message.id === messageId) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function isSameRenderedAssistantContent(left: string, right: string): boolean {
+  return normalizeAssistantContentForDedupe(left) === normalizeAssistantContentForDedupe(right);
+}
+
+function normalizeAssistantContentForDedupe(content: string): string {
+  return content.replace(/\r\n/g, "\n").replace(/\u200B/g, "").trim();
+}
+
+function appendUserMessageFromEvent(state: RuntimeState, content: string, timestamp: string, id: string): RuntimeState {
+  const last = state.messages.at(-1);
+  if (last?.role === "user" && last.content === content) {
+    return state;
+  }
+  if (state.messages.some((message) => message.id === id)) {
+    return state;
+  }
+  const message: ChatMessage = {
+    id,
+    role: "user",
+    content,
+    timestamp,
+  };
+  return {
+    ...state,
+    messages: [...state.messages, message],
+    timeline: [...state.timeline, messageTimelineItem(message)],
   };
 }
 
@@ -505,22 +612,6 @@ function upsertActivityTimelineItem(timeline: ChatTimelineItem[], activity: Acti
   return [...withoutExisting.slice(0, insertion.index), updated, ...withoutExisting.slice(insertion.index)];
 }
 
-function bindLatestActivityGroupToMessage(timeline: ChatTimelineItem[], message: ChatMessage): ChatTimelineItem[] {
-  if (message.role !== "assistant") return timeline;
-  const messageIndex = timeline.findIndex((item) => item.kind === "message" && item.message.id === message.id);
-  if (messageIndex <= 0) return timeline;
-  for (let index = messageIndex - 1; index >= 0; index -= 1) {
-    const item = timeline[index];
-    if (item.kind === "message" && item.message.role === "user") break;
-    if (item.kind === "activity" && !item.messageId) {
-      const next = [...timeline];
-      next[index] = { ...item, messageId: message.id };
-      return next;
-    }
-  }
-  return timeline;
-}
-
 function rebindActivityGroups(timeline: ChatTimelineItem[], oldMessageId: string, newMessageId: string): ChatTimelineItem[] {
   return timeline.map((item) => (item.kind === "activity" && item.messageId === oldMessageId ? { ...item, messageId: newMessageId } : item));
 }
@@ -547,6 +638,9 @@ function timelineFromMessagesAndActivities(messages: ChatMessage[], activities: 
 function currentActivityGroupId(timeline: ChatTimelineItem[]): string {
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
     const item = timeline[index];
+    if (item.kind === "message" && item.message.role === "assistant") {
+      return `activity-group:${item.message.id}:after`;
+    }
     if (item.kind === "message" && item.message.role === "user") {
       return `activity-group:${item.message.id}`;
     }
@@ -557,7 +651,7 @@ function currentActivityGroupId(timeline: ChatTimelineItem[]): string {
 function activityGroupInsertion(timeline: ChatTimelineItem[]): { index: number; messageId?: string } {
   const last = timeline.at(-1);
   if (last?.kind === "message" && last.message.role === "assistant") {
-    return { index: timeline.length - 1, messageId: last.message.id };
+    return { index: timeline.length };
   }
   return { index: timeline.length };
 }
@@ -573,6 +667,7 @@ function findLastTimelineMessageIndex(timeline: ChatTimelineItem[], role: ChatMe
 }
 
 function isChatVisibleActivity(event: RuntimeEvent, activity: ActivityItem): boolean {
+  if (event.type === "final_response") return false;
   if (isRecord(event.data?.activity)) return true;
   return shouldShowActivityItemInTimeline(activity);
 }

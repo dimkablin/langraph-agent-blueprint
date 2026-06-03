@@ -800,6 +800,13 @@ pre {
   gap: 18px;
 }
 
+.assistant-turn {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .message-separator {
   width: 100%;
   display: grid;
@@ -2720,6 +2727,27 @@ pre {
   transition: opacity 0.16s ease, background-color 0.16s ease, color 0.16s ease;
 }
 
+.activity-inline-status {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--activity-reference-muted) 10%, transparent);
+  color: var(--activity-reference-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 500;
+  line-height: 1;
+  padding: 3px 7px;
+}
+
+.activity-inline-status-running,
+.activity-inline-status-pending {
+  color: var(--primary);
+}
+
+.activity-inline-status-error,
+.activity-inline-status-blocked {
+  color: color-mix(in oklab, var(--danger) 74%, var(--foreground));
+}
+
 .activity-row:hover .activity-detail-toggle,
 .activity-row:focus-within .activity-detail-toggle,
 .activity-line-toggle:hover .activity-detail-toggle,
@@ -2781,6 +2809,84 @@ pre {
 
 .activity-command-details {
   margin-top: 4px;
+}
+
+.activity-subagent-details {
+  margin-top: 5px;
+}
+
+.activity-subagent-panel {
+  max-height: min(360px, 46vh);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid color-mix(in oklab, var(--activity-reference-muted) 20%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--card-elevated) 54%, transparent);
+  padding: 8px 10px;
+  overflow: auto;
+}
+
+.activity-subagent-header {
+  position: sticky;
+  top: -8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: color-mix(in oklab, var(--card-elevated) 86%, transparent);
+  color: var(--activity-reference-text);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  padding: 2px 0 6px;
+}
+
+.activity-subagent-status {
+  flex: 0 0 auto;
+  color: var(--activity-reference-muted);
+  font-weight: 500;
+}
+
+.activity-subagent-status-running,
+.activity-subagent-status-pending {
+  color: var(--primary);
+}
+
+.activity-subagent-status-error,
+.activity-subagent-status-blocked {
+  color: color-mix(in oklab, var(--danger) 74%, var(--foreground));
+}
+
+.activity-subagent-events {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.activity-subagent-event {
+  display: grid;
+  grid-template-columns: minmax(92px, max-content) minmax(0, 1fr);
+  gap: 8px;
+  color: var(--activity-reference-muted);
+  font-size: var(--font-size-caption);
+  line-height: 1.45;
+}
+
+.activity-subagent-event-title {
+  color: var(--activity-reference-text);
+  font-weight: 600;
+}
+
+.activity-subagent-event-summary {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.activity-subagent-event-error .activity-subagent-event-title,
+.activity-subagent-event-blocked .activity-subagent-event-title {
+  color: color-mix(in oklab, var(--danger) 74%, var(--foreground));
 }
 
 .activity-command-panel {

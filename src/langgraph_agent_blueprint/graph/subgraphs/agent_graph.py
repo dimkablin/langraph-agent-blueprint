@@ -84,7 +84,7 @@ def _run_agent_call(
     )
     if writer is not None:
         writer(started_event)
-    child_result, forwarded_events = _run_child_graph(deps, child_state, request, state, metadata, writer)
+    child_result, child_events, forwarded_events = _run_child_graph(deps, child_state, request, state, metadata, writer)
     metadata, result, finished_event = _summarize_child_run(state, metadata, request, child_result)
     if writer is not None:
         writer(finished_event)
@@ -120,6 +120,20 @@ def _run_agent_call(
         refs.append(metadata.child_run_id)
     next_parent_metadata["child_run_refs"] = refs
     persistence_events: list[dict[str, Any]] = []
+    try:
+        deps.session_storage.append_tool_call(state["project_root"], state["session_id"], dump_model(tool_result))
+    except Exception as exc:
+        persistence_events.append(
+            event(
+                "subagent_event",
+                session_id=state.get("session_id"),
+                severity="warning",
+                child_run_id=metadata.child_run_id,
+                child_event_type="agent_tool_result_persistence_error",
+                error_type=exc.__class__.__name__,
+                message=str(exc),
+            )
+        )
     try:
         deps.session_storage.save_child_run(
             state["project_root"],
@@ -157,7 +171,7 @@ def _run_child_graph(
     parent_state: dict[str, Any],
     metadata: ChildRunMetadata,
     writer: Any | None,
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     """Run the same compiled main graph for an isolated child state."""
 
     from langgraph_agent_blueprint.graph.builder import build_main_graph
@@ -172,14 +186,16 @@ def _run_child_graph(
         result = app.invoke(child_state, config)
         child_result = result if isinstance(result, dict) else {"final_response": str(result)}
         child_events = child_result.get("ui_events", []) if isinstance(child_result, dict) else []
-        return child_result, [_forward_child_event(parent_state, metadata, item) for item in child_events]
+        return child_result, child_events, [_forward_child_event(parent_state, metadata, item) for item in child_events]
     final_chunk: dict[str, Any] | None = None
     previous_count: int | None = None
+    child_events: list[dict[str, Any]] = []
     forwarded_events: list[dict[str, Any]] = []
     for raw_chunk in app.stream(child_state, config, stream_mode=["custom", "values"]):
         mode, chunk = raw_chunk if isinstance(raw_chunk, tuple) and len(raw_chunk) == 2 else ("values", raw_chunk)
         if mode == "custom":
             if isinstance(chunk, dict) and "type" in chunk and "data" in chunk:
+                child_events.append(chunk)
                 forwarded = _forward_child_event(parent_state, metadata, chunk)
                 forwarded_events.append(forwarded)
                 writer(forwarded)
@@ -192,11 +208,12 @@ def _run_child_graph(
             previous_count = len(events)
             continue
         for item in events[previous_count:]:
+            child_events.append(item)
             forwarded = _forward_child_event(parent_state, metadata, item)
             forwarded_events.append(forwarded)
             writer(forwarded)
         previous_count = len(events)
-    return final_chunk or {}, forwarded_events
+    return final_chunk or {}, child_events, forwarded_events
 
 
 def _forward_child_event(parent_state: dict[str, Any], metadata: ChildRunMetadata, child_event: dict[str, Any]) -> dict[str, Any]:

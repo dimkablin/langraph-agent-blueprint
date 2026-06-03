@@ -6,7 +6,9 @@ from typing import Any
 
 from langchain_core.messages import AIMessage
 
+from langgraph_agent_blueprint.api.serializers import child_run_list_item_dto, session_detail_dto
 from langgraph_agent_blueprint.models import ModelRequest, ModelResponse, ModelStreamEvent, Usage
+from langgraph_agent_blueprint.services.permission_service import PermissionService
 
 
 class StreamingTwoSubagentsModel:
@@ -48,6 +50,112 @@ class StreamingTwoSubagentsModel:
         ]
 
 
+class ContractThenTwoSubagentsModel:
+    def generate(self, request: ModelRequest) -> ModelResponse:
+        raise AssertionError("Streaming runtime must not fall back to non-streaming generation.")
+
+    def stream_generate(self, request: ModelRequest) -> list[ModelStreamEvent]:
+        text = _latest_human_text(request)
+        tool_result_count = _tool_result_count(request)
+        if text == "Build backend":
+            return _text_response("Backend subagent done.")
+        if text == "Build frontend":
+            return _text_response("Frontend subagent done.")
+        if tool_result_count >= 3:
+            return _text_response("Contract and both subagents finished.")
+        if tool_result_count >= 1:
+            tool_calls = [
+                {
+                    "id": "backend_agent_after_contract",
+                    "name": "agent",
+                    "args": {"prompt": "Build backend", "name": "backend", "max_turns": 2},
+                },
+                {
+                    "id": "frontend_agent_after_contract",
+                    "name": "agent",
+                    "args": {"prompt": "Build frontend", "name": "frontend", "max_turns": 2},
+                },
+            ]
+            return [
+                ModelStreamEvent(type="token", token="Contract updated. Now create two subagents."),
+                ModelStreamEvent(
+                    type="response",
+                    response=ModelResponse(
+                        content="Contract updated. Now create two subagents.",
+                        tool_calls=tool_calls,
+                        raw=AIMessage(content="Contract updated. Now create two subagents.", tool_calls=tool_calls),
+                        usage=Usage(input_tokens=1, output_tokens=1, total_tokens=2),
+                    ),
+                ),
+            ]
+        tool_call = {
+            "id": "contract_write",
+            "name": "write_file",
+            "args": {"path": "common/CONTRACT.md", "content": "# Contract\n\nUse POST /api/calculate.\n"},
+        }
+        return [
+            ModelStreamEvent(type="token", token="First update the frontend/backend contract."),
+            ModelStreamEvent(
+                type="response",
+                response=ModelResponse(
+                    content="First update the frontend/backend contract.",
+                    tool_calls=[tool_call],
+                    raw=AIMessage(content="First update the frontend/backend contract.", tool_calls=[tool_call]),
+                    usage=Usage(input_tokens=1, output_tokens=1, total_tokens=2),
+                ),
+            ),
+        ]
+
+
+class ChildWriteAttemptModel:
+    def __init__(self, *, request_allowed_write: bool = False) -> None:
+        self.request_allowed_write = request_allowed_write
+
+    def generate(self, request: ModelRequest) -> ModelResponse:
+        raise AssertionError("Streaming runtime must not fall back to non-streaming generation.")
+
+    def stream_generate(self, request: ModelRequest) -> list[ModelStreamEvent]:
+        text = _latest_human_text(request)
+        if _tool_result_count(request) >= 1 and text == "Write child file":
+            return _text_response("Child write attempt resolved.")
+        if _tool_result_count(request) >= 1:
+            return _text_response("Parent observed child result.")
+        if text == "Write child file":
+            tool_call = {
+                "id": "child_write",
+                "name": "write_file",
+                "args": {"path": "child.txt", "content": "child wrote this\n"},
+            }
+            return [
+                ModelStreamEvent(type="token", token="Child will try to write."),
+                ModelStreamEvent(
+                    type="response",
+                    response=ModelResponse(
+                        content="Child will try to write.",
+                        tool_calls=[tool_call],
+                        raw=AIMessage(content="Child will try to write.", tool_calls=[tool_call]),
+                        usage=Usage(input_tokens=1, output_tokens=1, total_tokens=2),
+                    ),
+                ),
+            ]
+        args = {"prompt": "Write child file", "name": "writer", "max_turns": 3}
+        if self.request_allowed_write:
+            args["allowed_tools"] = ["write_file"]
+        tool_call = {"id": "writer_agent", "name": "agent", "args": args}
+        return [
+            ModelStreamEvent(type="token", token="Parent starts writer subagent."),
+            ModelStreamEvent(
+                type="response",
+                response=ModelResponse(
+                    content="Parent starts writer subagent.",
+                    tool_calls=[tool_call],
+                    raw=AIMessage(content="Parent starts writer subagent.", tool_calls=[tool_call]),
+                    usage=Usage(input_tokens=1, output_tokens=1, total_tokens=2),
+                ),
+            ),
+        ]
+
+
 def test_stream_forwards_each_subagent_run_and_child_tokens(runtime_factory, approving_permissions, temp_project) -> None:
     runtime = runtime_factory(
         project_root=temp_project,
@@ -80,6 +188,156 @@ def test_stream_forwards_each_subagent_run_and_child_tokens(runtime_factory, app
     assert event_types.count("subagent_started") == 2
     assert event_types.count("subagent_finished") == 2
     assert any(item["type"] == "final_response" and item["data"].get("content") == "Both subagents finished." for item in events)
+
+
+def test_stream_runs_contract_tool_before_launching_two_subagents(runtime_factory, approving_permissions, temp_project) -> None:
+    runtime = runtime_factory(
+        project_root=temp_project,
+        chat_model=ContractThenTwoSubagentsModel(),
+        permissions=approving_permissions,
+    )
+
+    events = list(
+        runtime.stream(
+            "Create two subagents for React frontend and FastAPI backend, but fix the contract first.",
+            project_root=temp_project,
+            thread_id="thread_contract_then_subagents_123",
+            session_id="session_contract_then_subagents_123",
+        )
+    )
+
+    event_types = [item["type"] for item in events]
+    write_finished_index = next(
+        index
+        for index, item in enumerate(events)
+        if item["type"] == "tool_call_finished" and item.get("data", {}).get("name") == "write_file"
+    )
+    first_subagent_index = event_types.index("subagent_started")
+    started = [item for item in events if item["type"] == "subagent_started"]
+    finished = [item for item in events if item["type"] == "subagent_finished"]
+    parent_session = runtime.dependencies.session_storage.load_session(temp_project, "session_contract_then_subagents_123")
+
+    assert write_finished_index < first_subagent_index
+    assert [item["data"]["name"] for item in started] == ["backend", "frontend"]
+    assert [item["data"]["name"] for item in finished] == ["backend", "frontend"]
+    assert event_types.count("subagent_started") == 2
+    assert event_types.count("subagent_finished") == 2
+    assert [item["name"] for item in parent_session["tool_calls"]] == ["write_file", "agent", "agent"]
+    assert (temp_project / "common" / "CONTRACT.md").read_text(encoding="utf-8").startswith("# Contract")
+    assert any(
+        item["type"] == "final_response" and item["data"].get("content") == "Contract and both subagents finished."
+        for item in events
+    )
+
+
+def test_subagent_default_tool_scope_blocks_child_write_tool(runtime_factory, approving_permissions, temp_project) -> None:
+    runtime = runtime_factory(
+        project_root=temp_project,
+        chat_model=ChildWriteAttemptModel(),
+        permissions=approving_permissions,
+    )
+
+    events = list(
+        runtime.stream(
+            "Ask a child to write.",
+            project_root=temp_project,
+            thread_id="thread_subagent_scope_123",
+            session_id="session_subagent_scope_123",
+        )
+    )
+
+    child_event_types = [
+        item["data"].get("child_event", {}).get("type")
+        for item in events
+        if item["type"] == "subagent_event"
+    ]
+
+    assert "tool_call_error" in child_event_types
+    assert not (temp_project / "child.txt").exists()
+
+
+def test_subagent_side_effect_approval_is_reported_as_nested_approval_error(runtime_factory, temp_project) -> None:
+    runtime = runtime_factory(
+        project_root=temp_project,
+        chat_model=ChildWriteAttemptModel(request_allowed_write=True),
+        permissions=PermissionService("default"),
+    )
+
+    events = list(
+        runtime.stream(
+            "Ask a child to write with write_file allowed.",
+            project_root=temp_project,
+            thread_id="thread_subagent_nested_approval_123",
+            session_id="session_subagent_nested_approval_123",
+        )
+    )
+
+    errors = [item for item in events if item["type"] == "subagent_error"]
+
+    assert errors
+    assert "nested approval is not supported" in str(errors[-1]["data"].get("summary", "")).lower()
+    assert not (temp_project / "child.txt").exists()
+
+
+def test_stream_persists_each_child_run_with_streamed_child_events(runtime_factory, approving_permissions, temp_project) -> None:
+    runtime = runtime_factory(
+        project_root=temp_project,
+        chat_model=StreamingTwoSubagentsModel(),
+        permissions=approving_permissions,
+    )
+
+    list(
+        runtime.stream(
+            "Create backend and frontend subagents.",
+            project_root=temp_project,
+            thread_id="thread_subagent_storage_123",
+            session_id="session_subagent_storage_123",
+        )
+    )
+
+    child_runs = runtime.dependencies.session_storage.list_child_runs(temp_project, "session_subagent_storage_123")
+    parent_session = runtime.dependencies.session_storage.load_session(temp_project, "session_subagent_storage_123")
+
+    assert [item["metadata"]["name"] for item in child_runs] == ["backend", "frontend"]
+    assert [item["name"] for item in parent_session["tool_calls"]] == ["agent", "agent"]
+    detail = session_detail_dto(
+        parent_session,
+        child_runs=[child_run_list_item_dto(item["metadata"], item.get("result", {})) for item in child_runs],
+    )
+    assert [item.name for item in detail.tool_calls] == ["agent", "agent"]
+    assert [item.name for item in detail.child_runs] == ["backend", "frontend"]
+    for child_run in child_runs:
+        detail = runtime.dependencies.session_storage.load_child_run(
+            temp_project,
+            "session_subagent_storage_123",
+            child_run["metadata"]["child_run_id"],
+        )
+        event_types = [item["type"] for item in detail["events"]]
+        assert "user_message" in event_types
+        assert "model_token" in event_types
+        assert "final_response" in event_types
+
+
+def test_stream_emits_user_message_event_for_session_replay(runtime_factory, approving_permissions, temp_project) -> None:
+    runtime = runtime_factory(
+        project_root=temp_project,
+        chat_model=StreamingTwoSubagentsModel(),
+        permissions=approving_permissions,
+    )
+
+    events = list(
+        runtime.stream(
+            "Create backend and frontend subagents.",
+            project_root=temp_project,
+            thread_id="thread_user_event_123",
+            session_id="session_user_event_123",
+        )
+    )
+
+    user_events = [item for item in events if item["type"] == "user_message"]
+
+    assert len(user_events) == 1
+    assert user_events[0]["data"]["content"] == "Create backend and frontend subagents."
 
 
 def _text_response(content: str) -> list[ModelStreamEvent]:

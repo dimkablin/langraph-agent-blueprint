@@ -4,6 +4,7 @@ import { Spinner } from "../common/Spinner.tsx";
 import { EventTimeline } from "../events/EventTimeline.tsx";
 import { IconFileText } from "../../icons.ts";
 import { MessageBubble } from "./MessageBubble.tsx";
+import { buildChatPresentationItems, isLastAssistantMessageInTurn } from "../../runtime/turnPresentation.ts";
 import type { ChatMessage, ChatTimelineItem } from "../../runtime/reducer.ts";
 
 export function MessageList({
@@ -19,6 +20,7 @@ export function MessageList({
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
   const timelineItems: ChatTimelineItem[] = items ?? messages.map((message) => ({ kind: "message", message }));
+  const presentationItems = buildChatPresentationItems(timelineItems);
   const activeMessageId = isStreaming ? latestAssistantMessageId(timelineItems) : undefined;
 
   useEffect(() => {
@@ -33,23 +35,15 @@ export function MessageList({
 
   return (
     <div className="message-list">
-      {timelineItems.map((item) => {
-        if (item.kind === "separator") {
-          return <MessageSeparator key={item.id} item={item} />;
-        }
-        if (item.kind === "activity") {
-          const activeActivity = isStreaming && (!item.messageId || item.messageId === activeMessageId);
-          return (
-            <EventTimeline
-              key={item.id}
-              activities={item.activities}
-              variant="inline"
-              compactCommands={!activeActivity}
-            />
-          );
-        }
-        return <MessageBubble key={item.message.id} hideMeta={isStreaming} message={item.message} />;
-      })}
+      {presentationItems.map((item) => item.kind === "assistantTurn" ? (
+        <section className="assistant-turn" key={item.id}>
+          {item.items.map((turnItem, index) => renderTimelineItem(turnItem, {
+            activeMessageId,
+            forceHideAssistantMeta: !isLastAssistantMessageInTurn(item.items, index),
+            isStreaming,
+          }))}
+        </section>
+      ) : renderTimelineItem(item.item, { activeMessageId, forceHideAssistantMeta: false, isStreaming }))}
       {isStreaming ? (
         <div className="streaming-row">
           <Spinner />
@@ -59,6 +53,32 @@ export function MessageList({
       <div ref={endRef} aria-hidden="true" />
     </div>
   );
+}
+
+function renderTimelineItem(
+  item: ChatTimelineItem,
+  options: { activeMessageId?: string; forceHideAssistantMeta: boolean; isStreaming: boolean },
+) {
+  if (item.kind === "separator") {
+    return <MessageSeparator key={item.id} item={item} />;
+  }
+  if (item.kind === "activity") {
+    const activeActivity = options.isStreaming && (!item.messageId || item.messageId === options.activeMessageId || hasRunningActivity(item));
+    return (
+      <EventTimeline
+        key={item.id}
+        activities={item.activities}
+        variant="inline"
+        compactCommands={!activeActivity}
+      />
+    );
+  }
+  const hideMeta = options.isStreaming || (item.message.role === "assistant" && options.forceHideAssistantMeta);
+  return <MessageBubble key={item.message.id} hideMeta={hideMeta} message={item.message} />;
+}
+
+function hasRunningActivity(item: Extract<ChatTimelineItem, { kind: "activity" }>): boolean {
+  return item.activities.some((activity) => activity.status === "running" || activity.status === "pending");
 }
 
 function latestAssistantMessageId(items: ChatTimelineItem[]): string | undefined {

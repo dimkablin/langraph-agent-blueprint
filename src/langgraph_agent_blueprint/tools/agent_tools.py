@@ -15,17 +15,49 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput
 class AgentInput(BaseModel):
     """Pydantic input schema for the agent operation."""
 
-    prompt: str
-    name: str | None = None
-    purpose: str | None = None
-    allowed_tools: list[str] = Field(default_factory=list)
-    max_turns: int = 8
-    timeout_seconds: float | None = 300.0
-    inherit_memory: bool = True
-    inherit_todos: bool = False
-    inherit_context: bool = True
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    agent_type: str = "default"
+    prompt: str = Field(
+        description="Concrete task for the child subagent, including relevant context, constraints, and acceptance criteria."
+    )
+    name: str | None = Field(
+        default=None,
+        description="Short visible subagent name, for example 'backend', 'frontend', or 'reviewer'.",
+    )
+    purpose: str | None = Field(
+        default=None,
+        description="One-sentence reason this subagent is being delegated a separate workstream.",
+    )
+    allowed_tools: list[str] = Field(
+        default_factory=list,
+        description="Optional allow-list of tool names available to the child subagent. Leave empty for the default safe scope.",
+    )
+    max_turns: int = Field(
+        default=8,
+        description="Maximum ReAct turns the child subagent may run before stopping.",
+    )
+    timeout_seconds: float | None = Field(
+        default=300.0,
+        description="Maximum wall-clock seconds allowed for the child subagent run.",
+    )
+    inherit_memory: bool = Field(
+        default=True,
+        description="Whether the child subagent receives parent memory context.",
+    )
+    inherit_todos: bool = Field(
+        default=False,
+        description="Whether the child subagent receives parent todo state.",
+    )
+    inherit_context: bool = Field(
+        default=True,
+        description="Whether the child subagent receives parent runtime context.",
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Optional structured metadata for observability and child-run bookkeeping.",
+    )
+    agent_type: str = Field(
+        default="default",
+        description="Child agent implementation type. Use 'default' unless a specific runtime agent type is required.",
+    )
 
     def to_request(self) -> SubagentRequest:
         """Convert tool input into the typed subagent request boundary."""
@@ -52,8 +84,15 @@ class AgentOutput(ToolOutput):
 
 class AgentTool(BaseTool[AgentInput, AgentOutput]):
     """Model-callable tool that delegates a prompt to the subagent service."""
+
     name = "agent"
-    description = "Run a child graph/subagent and merge its result into parent state."
+    description = (
+        "Delegate work to a child subagent and merge its result into parent state. "
+        "Use this tool whenever the user asks to create, run, spawn, or delegate subagents/agents, "
+        "split work across frontend/backend or parallel workers, or start named child agents. "
+        "Calling this tool is the action that starts a subagent; writing text such as "
+        "'I will create subagents' does not start them."
+    )
     input_schema = AgentInput
     output_schema = AgentOutput
     permission = ToolPermissionMetadata(action="agent", risk="medium", requires_permission=False, allowed_in_plan_mode=True)

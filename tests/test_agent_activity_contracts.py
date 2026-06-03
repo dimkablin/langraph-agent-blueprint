@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any
 
 from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, ToolActivitySpec
+from langgraph_agent_blueprint.models.prompts import BASE_SYSTEM_PROMPT
+from langgraph_agent_blueprint.services import AgentService
+from langgraph_agent_blueprint.tools.agent_tools import AgentTool
 
 
 def test_activity_event_type_is_open_namespaced_string() -> None:
@@ -41,6 +44,31 @@ def test_tool_activity_spec_is_part_of_tool_metadata_contract() -> None:
     assert spec.category == "tool"
     assert spec.started_type == "custom.probe.started"
     assert spec.completed_type == "custom.probe.completed"
+
+
+def test_agent_tool_metadata_tells_models_to_start_subagents_with_tool_calls() -> None:
+    metadata = AgentTool(AgentService()).metadata()
+    description = metadata["description"].lower()
+    input_schema = metadata["input_schema"]
+
+    assert "create" in description
+    assert "delegate" in description
+    assert "subagent" in description
+    assert "does not start" in description
+    assert input_schema["properties"]["prompt"]["description"]
+    assert "frontend" in input_schema["properties"]["name"]["description"]
+    assert "backend" in input_schema["properties"]["name"]["description"]
+
+
+def test_system_prompt_requires_agent_tool_calls_for_subagent_requests() -> None:
+    prompt = BASE_SYSTEM_PROMPT.lower()
+
+    assert "сабагент" in prompt
+    assert "саб-агент" in prompt
+    assert "sub-agent" in prompt
+    assert "frontend/backend" in prompt
+    assert "call the `agent` tool once" in prompt
+    assert "final answer is allowed only after required tool calls" in prompt
 
 
 def test_tool_executor_does_not_map_tool_names_to_activity_types() -> None:

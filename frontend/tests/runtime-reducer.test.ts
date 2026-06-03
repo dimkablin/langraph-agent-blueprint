@@ -601,7 +601,7 @@ test("activity events do not replace final response chat messages", () => {
   assert.equal(state.finalResponse, "Final answer text");
 });
 
-test("structured activity is rendered in the chat timeline before the bound assistant message", () => {
+test("structured activity stays after the assistant message that initiated the tool call", () => {
   let state = appendUserMessage(createInitialRuntimeState(), "Run checks");
   state = applyRuntimeEvent(state, event("model_token", { token: "Thinking" }, "token_1"));
   state = applyRuntimeEvent(
@@ -647,7 +647,7 @@ test("structured activity is rendered in the chat timeline before the bound assi
   );
   const activityItem = state.timeline[2];
   assert.equal(activityItem.kind, "activity");
-  assert.equal(activityItem.messageId, "final_1");
+  assert.equal(activityItem.messageId, undefined);
   assert.equal(activityItem.activities[0].eventType, "tool.bash.started");
   assert.equal(state.timeline[3].kind, "message");
   if (state.timeline[3].kind === "message") {
@@ -702,6 +702,156 @@ test("session detail restores persisted activity above the final assistant messa
   }
 });
 
+test("multiple ReAct cycles keep tool groups after their own assistant messages", () => {
+  const state = applyFrames([
+    eventFrame("user_message", { content: "Build calculator" }, "user_1"),
+    eventFrame("model_message", { content: "First I will write the contract." }, "assistant_contract"),
+    eventFrame("tool_call_finished", {
+      activity: {
+        id: "activity_contract",
+        type: "tool.write_file.completed",
+        source: { kind: "tool", name: "write_file" },
+        category: "tool",
+        status: "success",
+        title: "Wrote contract",
+        summary: "Contract written.",
+        data: { tool_call_id: "write_contract", tool_name: "write_file", operation: "file.write", path: "CONTRACT.md" },
+        refs: [],
+      },
+    }, "event_contract"),
+    eventFrame("model_message", { content: "Now I will create the backend subagent." }, "assistant_backend"),
+    eventFrame("subagent_started", { child_run_id: "child_backend", name: "backend", status: "running" }, "event_backend_start"),
+    eventFrame("subagent_finished", { child_run_id: "child_backend", name: "backend", status: "completed", summary: "Backend done" }, "event_backend_done"),
+    eventFrame("final_response", { content: "Done." }, "final_done"),
+  ]);
+
+  assert.deepEqual(
+    state.timeline.map((item) => item.kind),
+    ["message", "message", "activity", "message", "activity", "message"],
+  );
+  const firstActivity = state.timeline[2];
+  const secondActivity = state.timeline[4];
+  assert.equal(firstActivity.kind, "activity");
+  assert.equal(secondActivity.kind, "activity");
+  if (firstActivity.kind === "activity" && secondActivity.kind === "activity") {
+    assert.deepEqual(firstActivity.activities.map((activity) => activity.eventType), ["tool.write_file.completed"]);
+    assert.deepEqual(secondActivity.activities.map((activity) => activity.eventType), ["subagent_finished"]);
+  }
+});
+
+test("contract-first ReAct stream keeps two subagent calls visible after the launch message", () => {
+  const state = applyFrames([
+    eventFrame("user_message", { content: "Create frontend and backend subagents, but fix the contract first" }, "user_contract"),
+    eventFrame("model_message", { content: "First I will update the contract." }, "assistant_contract"),
+    eventFrame("tool_call_finished", {
+      activity: {
+        id: "activity_contract",
+        type: "tool.write_file.completed",
+        source: { kind: "tool", name: "write_file" },
+        category: "tool",
+        status: "success",
+        title: "Wrote contract",
+        summary: "Contract written.",
+        data: { tool_call_id: "write_contract", tool_name: "write_file", operation: "file.write", path: "common/CONTRACT.md" },
+      },
+    }, "event_contract"),
+    eventFrame("model_message", { content: "Contract updated. Now create two subagents." }, "assistant_launch"),
+    eventFrame("subagent_started", { child_run_id: "child_backend", name: "backend", status: "running" }, "event_backend_start"),
+    eventFrame("subagent_finished", { child_run_id: "child_backend", name: "backend", status: "completed", summary: "Backend done" }, "event_backend_done"),
+    eventFrame("subagent_started", { child_run_id: "child_frontend", name: "frontend", status: "running" }, "event_frontend_start"),
+    eventFrame("subagent_finished", { child_run_id: "child_frontend", name: "frontend", status: "completed", summary: "Frontend done" }, "event_frontend_done"),
+    eventFrame("final_response", { content: "Contract and both subagents finished." }, "final_contract_subagents"),
+  ]);
+
+  assert.deepEqual(
+    state.timeline.map((item) => item.kind),
+    ["message", "message", "activity", "message", "activity", "message"],
+  );
+  const subagentActivity = state.timeline[4];
+  assert.equal(subagentActivity.kind, "activity");
+  if (subagentActivity.kind === "activity") {
+    const entries = buildActivityEntries(subagentActivity.activities);
+    assert.deepEqual(entries.map((entry) => entry.title), ["Subagent backend", "Subagent frontend"]);
+    assert.deepEqual(entries.map((entry) => entry.status), ["success", "success"]);
+  }
+});
+
+test("session detail replays persisted ReAct events in chat order after reload", () => {
+  const state = applySessionDetail(createInitialRuntimeState(), {
+    session_id: "session_react",
+    title: "react session",
+    messages: [
+      { id: "human_1", role: "human", type: "HumanMessage", content: "Create two agents", tool_calls: [] },
+      { id: "ai_stored_final", role: "ai", type: "AIMessage", content: "Agents created.", tool_calls: [] },
+    ],
+    events: [
+      event("user_message", { content: "Create two agents" }, "user_event_1"),
+      event("model_message", { content: "First define the contract." }, "msg_contract"),
+      event("tool_call_finished", {
+        activity: {
+          id: "activity_write_spec",
+          type: "tool.write_file.completed",
+          source: { kind: "tool", name: "write_file" },
+          category: "tool",
+          status: "success",
+          title: "Wrote api-spec.yaml",
+          summary: "Spec saved.",
+          data: { tool_call_id: "write_spec", tool_name: "write_file", operation: "file.write", path: "api-spec.yaml" },
+          refs: [],
+        },
+      }, "event_write_spec"),
+      event("model_message", { content: "Contract saved. Now launch the agents." }, "msg_launch"),
+      event("subagent_started", { child_run_id: "child_backend", name: "backend", status: "running" }, "event_backend_start"),
+      event("subagent_finished", { child_run_id: "child_backend", name: "backend", status: "completed", summary: "Backend done" }, "event_backend_done"),
+      event("final_response", { content: "Agents created." }, "event_final"),
+    ],
+    tool_calls: [],
+    todos: [],
+    memory: {},
+    usage: {},
+    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    child_runs: [],
+    metadata: {},
+  });
+
+  assert.deepEqual(state.messages.map((message) => message.content), [
+    "Create two agents",
+    "First define the contract.",
+    "Contract saved. Now launch the agents.",
+    "Agents created.",
+  ]);
+  assert.deepEqual(
+    state.timeline.map((item) => item.kind),
+    ["message", "message", "activity", "message", "activity", "message"],
+  );
+  assert.equal(state.timeline.filter((item) => item.kind === "activity").length, 2);
+});
+
+test("legacy session detail without user_message event keeps persisted human prompt before ReAct replay", () => {
+  const state = applySessionDetail(createInitialRuntimeState(), {
+    session_id: "session_legacy_react",
+    title: "legacy react session",
+    messages: [
+      { id: "human_legacy", role: "human", type: "HumanMessage", content: "Legacy prompt", tool_calls: [] },
+      { id: "ai_legacy", role: "ai", type: "AIMessage", content: "Legacy final", tool_calls: [] },
+    ],
+    events: [
+      event("model_message", { content: "Legacy preface" }, "legacy_preface"),
+      event("final_response", { content: "Legacy final" }, "legacy_final"),
+    ],
+    tool_calls: [],
+    todos: [],
+    memory: {},
+    usage: {},
+    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    child_runs: [],
+    metadata: {},
+  });
+
+  assert.deepEqual(state.messages.map((message) => message.content), ["Legacy prompt", "Legacy preface", "Legacy final"]);
+  assert.deepEqual(state.timeline.map((item) => item.kind), ["message", "message", "message"]);
+});
+
 test("done stream frame updates active session and final response", () => {
   const state = applyStreamFrame(createInitialRuntimeState(), {
     type: "done",
@@ -729,6 +879,34 @@ test("text stream frames merge tokens, final events, and done frame without dupl
   assert.equal(state.sessionId, "session_1");
   assert.equal(state.finalResponse, "Fake response: hello");
   assert.equal(state.isStreaming, false);
+});
+
+test("visually identical final response does not duplicate the last assistant message after activity", () => {
+  const state = applyFrames([
+    eventFrame("model_message", { content: "Folders:\r\n\n1. calculator\n" }, "assistant_list"),
+    eventFrame("tool_call_finished", {
+      activity: {
+        id: "activity_ls",
+        type: "tool.bash.completed",
+        source: { kind: "tool", name: "bash" },
+        category: "tool",
+        status: "success",
+        title: "Listed folders",
+        summary: "Command exited with code 0.",
+        data: { tool_call_id: "call_ls", tool_name: "bash", operation: "shell.run", command: "ls", exit_code: 0 },
+      },
+    }, "event_ls"),
+    eventFrame("final_response", { content: "Folders:\n\n1. calculator" }, "final_list"),
+    { type: "done", session_id: "session_1", final_response: "Folders:\n\n1. calculator" },
+  ]);
+
+  assert.deepEqual(state.messages.map((message) => message.content), ["Folders:\r\n\n1. calculator\n"]);
+  assert.deepEqual(
+    state.timeline.map((item) => item.kind),
+    ["activity", "message"],
+  );
+  assert.equal(state.messages[0].id, "final_list");
+  assert.equal(state.finalResponse, "Folders:\n\n1. calculator");
 });
 
 test("tool stream frames keep the tool preface and tool result as separate assistant messages", () => {
@@ -780,6 +958,25 @@ test("subagent stream frames create visible timeline activities", () => {
     ["subagent_started", "subagent_event", "subagent_finished"],
   );
   assert.ok(state.timeline.some((item) => item.kind === "activity" && item.activities.some((activity) => activity.kind === "subagent")));
+});
+
+test("running subagent activity group keeps running status even when bound to the previous assistant message", () => {
+  let state = applyFrames([
+    eventFrame("model_token", { token: "Starting subagents" }, "token_1"),
+    eventFrame("model_message", { content: "Starting subagents" }),
+    eventFrame("subagent_started", { child_run_id: "child_1", name: "backend", status: "running" }),
+  ]);
+
+  const activityBeforeNextDraft = state.timeline.find((item) => item.kind === "activity");
+
+  state = applyRuntimeEvent(state, event("model_token", { token: "More text after activity" }, "token_2"));
+
+  assert.equal(activityBeforeNextDraft?.kind, "activity");
+  if (activityBeforeNextDraft?.kind === "activity") {
+    assert.equal(activityBeforeNextDraft.messageId, undefined);
+    assert.equal(activityBeforeNextDraft.activities[0].status, "running");
+  }
+  assert.ok(state.timeline.some((item) => item.kind === "activity" && item.activities.some((activity) => activity.status === "running")));
 });
 
 test("permission stream frames leave the pending permission open without inventing a final answer", () => {

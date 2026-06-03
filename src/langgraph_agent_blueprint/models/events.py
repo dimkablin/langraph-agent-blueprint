@@ -18,6 +18,7 @@ EventType = Literal[
     "node_finished",
     "command_started",
     "command_finished",
+    "user_message",
     "model_token",
     "model_message",
     "usage_updated",

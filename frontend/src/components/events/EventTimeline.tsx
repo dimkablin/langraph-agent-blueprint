@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { IconCheck, IconChevronRight, IconCopy } from "../../icons.ts";
-import { buildActivityEntries, formatTerminalBlock, type ActivityTimelineEntry } from "../../runtime/activityTimeline.ts";
+import { activityTimelineGroupTitle, buildActivityEntries, formatTerminalBlock, type ActivityTimelineEntry } from "../../runtime/activityTimeline.ts";
 import { safeJson } from "../../runtime/events.ts";
 import type { ActivityItem } from "../../runtime/reducer.ts";
 
@@ -16,19 +16,20 @@ export function EventTimeline({
   variant?: "panel" | "inline";
   compactCommands?: boolean;
 }) {
-  const [open, setOpen] = useState(() => !compactCommands);
   const entries = buildActivityEntries(activities);
+  const shouldOpenActivityGroup = !compactCommands || entries.some((entry) => entry.isSubagent);
+  const [open, setOpen] = useState(() => shouldOpenActivityGroup);
   const visible = variant === "inline" ? entries.slice(-24) : entries.slice(-80).reverse();
 
   useEffect(() => {
-    setOpen(!compactCommands);
-  }, [compactCommands]);
+    setOpen(shouldOpenActivityGroup);
+  }, [shouldOpenActivityGroup]);
 
   if (visible.length === 0) {
     return null;
   }
 
-  const title = variant === "inline" ? activityGroupTitle(entries) : "Activity";
+  const title = variant === "inline" ? activityTimelineGroupTitle(entries) : "Activity";
   const className = variant === "inline" ? "activity-timeline activity-timeline-inline" : "activity-timeline";
   return (
     <section className={className} aria-label="Agent activity">
@@ -65,13 +66,15 @@ function ActivityEntryRow({ compactCommands, entry }: { compactCommands: boolean
               <strong className="activity-title-lead">{entry.titleLead}</strong>
               {entry.titleRest ? <span className="activity-title-rest">{entry.titleRest}</span> : null}
             </span>
+            {entry.isSubagent ? <span className={`activity-inline-status activity-inline-status-${entry.status}`}>{entry.detailStatusLabel}</span> : null}
             <span className="activity-detail-toggle" aria-hidden="true">
               <IconChevronRight size={14} className={expanded ? "rotated" : ""} />
             </span>
           </span>
         </button>
         {expanded && entry.terminal ? <CommandActivityDetails entry={entry} /> : null}
-        {expanded && !entry.terminal ? <div className="activity-debug-details">
+        {expanded && entry.isSubagent ? <SubagentActivityDetails entry={entry} /> : null}
+        {expanded && !entry.terminal && !entry.isSubagent ? <div className="activity-debug-details">
           <pre>{truncateActivityText(safeJson(entry.debugPayload), 3600)}</pre>
           <div className="activity-detail-footer">
             <span className="activity-status-detail">{entry.detailStatusLabel}</span>
@@ -80,6 +83,76 @@ function ActivityEntryRow({ compactCommands, entry }: { compactCommands: boolean
       </div>
     </article>
   );
+}
+
+function SubagentActivityDetails({ entry }: { entry: ActivityTimelineEntry }) {
+  const rows = entry.activities.map(subagentDetailRow);
+  return (
+    <div className="activity-debug-details activity-subagent-details">
+      <div className="activity-subagent-panel">
+        <div className="activity-subagent-header">
+          <span>{entry.subagentName || "subagent"}</span>
+          <span className={`activity-subagent-status activity-subagent-status-${entry.status}`}>{entry.detailStatusLabel}</span>
+        </div>
+        <div className="activity-subagent-events">
+          {rows.map((row) => (
+            <div className={`activity-subagent-event activity-subagent-event-${row.status}`} key={row.id}>
+              <span className="activity-subagent-event-title">{row.title}</span>
+              {row.summary ? <span className="activity-subagent-event-summary">{row.summary}</span> : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function subagentDetailRow(activity: ActivityItem): { id: string; title: string; summary: string; status: ActivityItem["status"] } {
+  const childEvent = recordValue(activity.data.child_event);
+  const childData = recordValue(childEvent.data);
+  const childType = stringValue(activity.data.child_event_type, childEvent.type);
+  if (activity.eventType === "subagent_started") {
+    return { id: activity.id, title: "Started", summary: stringValue(activity.summary, activity.data.name), status: activity.status };
+  }
+  if (activity.eventType === "subagent_finished") {
+    return { id: activity.id, title: "Finished", summary: stringValue(activity.summary, activity.data.summary), status: activity.status };
+  }
+  if (activity.eventType === "subagent_error") {
+    return { id: activity.id, title: "Failed", summary: stringValue(activity.summary, activity.data.error, activity.data.message), status: activity.status };
+  }
+  if (childType === "model_message" || childType === "final_response") {
+    return { id: activity.id, title: "Message", summary: stringValue(childData.content, activity.summary), status: activity.status };
+  }
+  if (childType === "tool_call_started" || childType === "tool_call_finished" || childType === "tool_call_error") {
+    return { id: activity.id, title: toolEventTitle(childType), summary: stringValue(childData.name, childData.tool_name, activity.summary), status: activity.status };
+  }
+  if (childType === "permission_required" || childType === "permission_resolved") {
+    return { id: activity.id, title: permissionEventTitle(childType), summary: stringValue(childData.tool_name, childData.command, activity.summary), status: activity.status };
+  }
+  return { id: activity.id, title: activity.label || childType || activity.eventType, summary: activity.summary, status: activity.status };
+}
+
+function toolEventTitle(childType: string): string {
+  if (childType === "tool_call_started") return "Tool started";
+  if (childType === "tool_call_finished") return "Tool finished";
+  return "Tool failed";
+}
+
+function permissionEventTitle(childType: string): string {
+  return childType === "permission_required" ? "Permission required" : "Permission resolved";
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringValue(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
 }
 
 function CommandActivityDetails({ entry }: { entry: ActivityTimelineEntry }) {
@@ -136,12 +209,4 @@ function activityCommandStatusLabel(status: ActivityTimelineEntry["status"]): st
 function truncateActivityText(value: string, limit = 280): string {
   if (value.length <= limit) return value;
   return `${value.slice(0, Math.max(0, limit - 14))}...<truncated>`;
-}
-
-function activityGroupTitle(entries: ActivityTimelineEntry[]): string {
-  const commandCount = entries.filter((entry) => Boolean(entry.terminal)).length;
-  if (commandCount > 0) {
-    return `Ran ${commandCount} ${commandCount === 1 ? "command" : "commands"}`;
-  }
-  return `${entries.length} ${entries.length === 1 ? "activity" : "activities"}`;
 }

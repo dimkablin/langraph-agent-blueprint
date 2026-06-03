@@ -135,6 +135,17 @@ test("backend frontend contract still exposes typed streaming, sessions, and sta
   assert.doesNotMatch(server, /@api\.get\("\/(commands|skills|tools)"\)/);
 });
 
+test("subagent activity groups stay expanded and named in the chat timeline", () => {
+  const timeline = readFileSync(join(srcRoot, "components", "events", "EventTimeline.tsx"), "utf8");
+  const activityTimeline = readFileSync(join(srcRoot, "runtime", "activityTimeline.ts"), "utf8");
+
+  assert.match(timeline, /shouldOpenActivityGroup\s*=\s*!compactCommands\s*\|\|\s*entries\.some\(\(entry\) => entry\.isSubagent\)/);
+  assert.match(timeline, /activityTimelineGroupTitle\(entries\)/);
+  assert.match(activityTimeline, /Subagent \$\{subagentEntries\[0\]\.subagentName/);
+  assert.match(activityTimeline, /isSubagent:\s*isSubagentActivity\(activity\)/);
+  assert.match(activityTimeline, /subagentName:\s*subagentName\(activity\)/);
+});
+
 test("chat controls are icon-triggered and message avatars are removed", () => {
   const app = readFileSync(join(srcRoot, "App.tsx"), "utf8");
   const header = readFileSync(join(srcRoot, "components", "layout", "StatusHeader.tsx"), "utf8");
@@ -231,7 +242,9 @@ test("message metadata renders outside the message block and appears on hover", 
   assert.match(bubble, /navigator\.clipboard\.writeText/);
   assert.match(bubble, /const messageClass = isUser/);
   assert.match(bubble, /!hideMeta \? <MessageMeta/);
-  assert.match(messageList, /hideMeta=\{isStreaming\}/);
+  assert.match(messageList, /buildChatPresentationItems/);
+  assert.match(messageList, /forceHideAssistantMeta: !isLastAssistantMessageInTurn/);
+  assert.match(messageList, /const hideMeta = options\.isStreaming \|\| \(item\.message\.role === "assistant" && options\.forceHideAssistantMeta\)/);
   assert.match(messageList, /latestAssistantMessageId/);
   assert.doesNotMatch(styles, /\.message-card time/);
   assert.match(styles, /\.message-meta\s*\{[^}]*opacity:\s*0/);
@@ -384,11 +397,12 @@ test("completed command activity rows render compactly without inline success ch
   assert.match(eventTimeline, /import \{ useEffect, useState \} from "react"/);
   assert.match(eventTimeline, /IconCheck, IconChevronRight, IconCopy/);
   assert.match(messageList, /const activeMessageId = isStreaming \? latestAssistantMessageId\(timelineItems\) : undefined/);
-  assert.match(messageList, /const activeActivity = isStreaming && \(!item\.messageId \|\| item\.messageId === activeMessageId\)/);
+  assert.match(messageList, /const activeActivity = options\.isStreaming && \(!item\.messageId \|\| item\.messageId === options\.activeMessageId \|\| hasRunningActivity\(item\)\)/);
+  assert.match(messageList, /function hasRunningActivity\(item: Extract<ChatTimelineItem, \{ kind: "activity" \}>\): boolean/);
   assert.match(messageList, /compactCommands=\{!activeActivity\}/);
   assert.match(eventTimeline, /compactCommands\?: boolean/);
-  assert.match(eventTimeline, /useState\(\(\) => !compactCommands\)/);
-  assert.match(eventTimeline, /setOpen\(!compactCommands\)/);
+  assert.match(eventTimeline, /useState\(\(\) => shouldOpenActivityGroup\)/);
+  assert.match(eventTimeline, /setOpen\(shouldOpenActivityGroup\)/);
   assert.match(eventTimeline, /const isCompactCommand = compactCommands && entry\.isCommand/);
   assert.match(eventTimeline, /const \[expanded, setExpanded\] = useState\(false\)/);
   assert.match(eventTimeline, /<h2>\{title\}<\/h2>\s*<IconChevronRight size=\{16\}/);
