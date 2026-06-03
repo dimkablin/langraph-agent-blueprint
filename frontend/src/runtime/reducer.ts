@@ -578,7 +578,7 @@ function isChatVisibleActivity(event: RuntimeEvent, activity: ActivityItem): boo
 }
 
 function shouldShowActivityItemInTimeline(activity: ActivityItem): boolean {
-  return ["tool", "permission", "skill", "verification", "runtime", "workspace", "git", "error"].includes(activity.kind);
+  return ["tool", "permission", "skill", "verification", "runtime", "workspace", "git", "subagent", "error"].includes(activity.kind);
 }
 
 function permissionFromEvent(event: RuntimeEvent): PermissionRequest {

@@ -356,6 +356,7 @@ class AssistantGraphRuntime:
             state["metadata"] = {**state.get("metadata", {}), "streaming_enabled": True}
             final_chunk: dict[str, Any] | None = None
             previous_count: int | None = None
+            yielded_event_ids: set[str] = set()
             trace_context = self._trace_context(state)
             stream_context = trace_context
             self.dependencies.run_control_service.start_run(state["thread_id"], session_id=state["session_id"])
@@ -376,6 +377,11 @@ class AssistantGraphRuntime:
                         mode, chunk = raw_chunk if isinstance(raw_chunk, tuple) and len(raw_chunk) == 2 else ("values", raw_chunk)
                         if mode == "custom":
                             if isinstance(chunk, dict) and "type" in chunk and "data" in chunk:
+                                event_id = str(chunk.get("id") or "")
+                                if event_id and event_id in yielded_event_ids:
+                                    continue
+                                if event_id:
+                                    yielded_event_ids.add(event_id)
                                 trace.record_runtime_event(chunk, stream_context)
                                 yield chunk
                             continue
@@ -391,6 +397,11 @@ class AssistantGraphRuntime:
                             previous_count = len(events)
                             continue
                         for item in events[previous_count:]:
+                            event_id = str(item.get("id") or "")
+                            if event_id and event_id in yielded_event_ids:
+                                continue
+                            if event_id:
+                                yielded_event_ids.add(event_id)
                             trace.record_runtime_event(item, context)
                             yield item
                         previous_count = len(events)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
@@ -27,17 +28,47 @@ def _agent_node(state: dict[str, Any], deps: AppDependencies) -> dict[str, Any]:
     calls = validate_list(ToolCall, state.get("pending_tool_calls", []))
     if not calls:
         return {}
-    call = calls[0]
+    writer = _stream_writer(state)
+    metadata = dict(state.get("metadata", {}))
+    child_runs: list[dict[str, Any]] = []
+    tool_results: list[dict[str, Any]] = []
+    messages: list[Any] = []
+    ui_events: list[dict[str, Any]] = []
+    for call in calls:
+        update = _run_agent_call(state, deps, call, metadata, writer)
+        metadata = dict(update.get("metadata", metadata))
+        child_runs.extend(update.get("child_runs", []))
+        tool_results.extend(update.get("tool_results", []))
+        messages.extend(update.get("messages", []))
+        ui_events.extend(update.get("ui_events", []))
+    return {
+        "metadata": metadata,
+        "child_runs": child_runs,
+        "pending_tool_calls": [],
+        "tool_results": tool_results,
+        "messages": messages,
+        "ui_events": ui_events,
+    }
+
+
+def _run_agent_call(
+    state: dict[str, Any],
+    deps: AppDependencies,
+    call: ToolCall,
+    parent_metadata: dict[str, Any],
+    writer: Any | None,
+) -> dict[str, Any]:
     try:
         request = AgentInput.model_validate(call.args).to_request()
     except Exception as exc:
         return _tool_error(call, f"Invalid subagent request: {exc}", "SubagentRequestError")
-    depth = int((state.get("metadata") or {}).get("subagent_depth", 0))
+    depth = int(parent_metadata.get("subagent_depth", 0))
     if depth >= deps.agent_service.max_depth:
         return _tool_error(call, "Subagent recursion depth exceeded.", "SubagentDepthExceeded")
     try:
-        metadata = deps.agent_service.create_child_metadata(state, request)
-        child_state = deps.agent_service.create_child_state(state, request, metadata, deps.tool_registry)
+        current_state = {**state, "metadata": parent_metadata}
+        metadata = deps.agent_service.create_child_metadata(current_state, request)
+        child_state = deps.agent_service.create_child_state(current_state, request, metadata, deps.tool_registry)
     except Exception as exc:
         return _tool_error(call, f"Could not create subagent state: {exc}", "SubagentStateError")
     started_event = event(
@@ -51,19 +82,12 @@ def _agent_node(state: dict[str, Any], deps: AppDependencies) -> dict[str, Any]:
         purpose=metadata.purpose,
         status="running",
     )
-    child_result = _run_child_graph(deps, child_state, request)
+    if writer is not None:
+        writer(started_event)
+    child_result, forwarded_events = _run_child_graph(deps, child_state, request, state, metadata, writer)
     metadata, result, finished_event = _summarize_child_run(state, metadata, request, child_result)
-    child_events = child_result.get("ui_events", []) if isinstance(child_result, dict) else []
-    forwarded_events = [
-        event(
-            "subagent_event",
-            session_id=state.get("session_id"),
-            child_run_id=metadata.child_run_id,
-            child_event_type=item.get("type"),
-            child_event=item,
-        )
-        for item in child_events
-    ]
+    if writer is not None:
+        writer(finished_event)
     metadata_payload = dump_model(metadata)
     result_payload = dump_model(result)
     child_record = {
@@ -90,11 +114,11 @@ def _agent_node(state: dict[str, Any], deps: AppDependencies) -> dict[str, Any]:
         output={"metadata": metadata_payload, "result": result_payload},
         error=result.errors[0] if result.errors else None,
     )
-    parent_metadata = dict(state.get("metadata", {}))
+    next_parent_metadata = dict(parent_metadata)
     refs = list(parent_metadata.get("child_run_refs", []))
     if metadata.child_run_id not in refs:
         refs.append(metadata.child_run_id)
-    parent_metadata["child_run_refs"] = refs
+    next_parent_metadata["child_run_refs"] = refs
     persistence_events: list[dict[str, Any]] = []
     try:
         deps.session_storage.save_child_run(
@@ -117,7 +141,7 @@ def _agent_node(state: dict[str, Any], deps: AppDependencies) -> dict[str, Any]:
             )
         )
     return {
-        "metadata": parent_metadata,
+        "metadata": next_parent_metadata,
         "child_runs": [child_record],
         "pending_tool_calls": [],
         "tool_results": [dump_model(tool_result)],
@@ -126,7 +150,14 @@ def _agent_node(state: dict[str, Any], deps: AppDependencies) -> dict[str, Any]:
     }
 
 
-def _run_child_graph(deps: AppDependencies, child_state: dict[str, Any], request: SubagentRequest) -> dict[str, Any]:
+def _run_child_graph(
+    deps: AppDependencies,
+    child_state: dict[str, Any],
+    request: SubagentRequest,
+    parent_state: dict[str, Any],
+    metadata: ChildRunMetadata,
+    writer: Any | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Run the same compiled main graph for an isolated child state."""
 
     from langgraph_agent_blueprint.graph.builder import build_main_graph
@@ -137,8 +168,54 @@ def _run_child_graph(deps: AppDependencies, child_state: dict[str, Any], request
         "configurable": {"thread_id": child_state["thread_id"]},
         "recursion_limit": max(12, request.max_turns * 8),
     }
-    result = app.invoke(child_state, config)
-    return result if isinstance(result, dict) else {"final_response": str(result)}
+    if writer is None:
+        result = app.invoke(child_state, config)
+        child_result = result if isinstance(result, dict) else {"final_response": str(result)}
+        child_events = child_result.get("ui_events", []) if isinstance(child_result, dict) else []
+        return child_result, [_forward_child_event(parent_state, metadata, item) for item in child_events]
+    final_chunk: dict[str, Any] | None = None
+    previous_count: int | None = None
+    forwarded_events: list[dict[str, Any]] = []
+    for raw_chunk in app.stream(child_state, config, stream_mode=["custom", "values"]):
+        mode, chunk = raw_chunk if isinstance(raw_chunk, tuple) and len(raw_chunk) == 2 else ("values", raw_chunk)
+        if mode == "custom":
+            if isinstance(chunk, dict) and "type" in chunk and "data" in chunk:
+                forwarded = _forward_child_event(parent_state, metadata, chunk)
+                forwarded_events.append(forwarded)
+                writer(forwarded)
+            continue
+        if not isinstance(chunk, dict):
+            continue
+        final_chunk = chunk
+        events = chunk.get("ui_events", [])
+        if previous_count is None:
+            previous_count = len(events)
+            continue
+        for item in events[previous_count:]:
+            forwarded = _forward_child_event(parent_state, metadata, item)
+            forwarded_events.append(forwarded)
+            writer(forwarded)
+        previous_count = len(events)
+    return final_chunk or {}, forwarded_events
+
+
+def _forward_child_event(parent_state: dict[str, Any], metadata: ChildRunMetadata, child_event: dict[str, Any]) -> dict[str, Any]:
+    return event(
+        "subagent_event",
+        session_id=parent_state.get("session_id"),
+        child_run_id=metadata.child_run_id,
+        child_event_type=child_event.get("type"),
+        child_event=child_event,
+    )
+
+
+def _stream_writer(state: dict[str, Any]) -> Any | None:
+    if not state.get("metadata", {}).get("streaming_enabled"):
+        return None
+    try:
+        return get_stream_writer()
+    except RuntimeError:
+        return None
 
 
 def _summarize_child_run(

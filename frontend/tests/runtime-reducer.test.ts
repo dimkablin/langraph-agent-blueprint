@@ -760,6 +760,28 @@ test("tool stream frames keep the tool preface and tool result as separate assis
   assert.equal(state.isStreaming, false);
 });
 
+test("subagent stream frames create visible timeline activities", () => {
+  const state = applyFrames([
+    eventFrame("model_token", { token: "Starting subagents" }, "token_1"),
+    eventFrame("model_message", { content: "Starting subagents" }),
+    eventFrame("subagent_started", { child_run_id: "child_1", name: "backend", status: "running" }),
+    eventFrame("subagent_event", {
+      child_run_id: "child_1",
+      child_event_type: "model_token",
+      child_event: { type: "model_token", data: { token: "Backend done" } },
+    }),
+    eventFrame("subagent_finished", { child_run_id: "child_1", name: "backend", status: "completed", summary: "Backend done" }),
+  ]);
+
+  const subagentActivities = state.activities.filter((activity) => activity.kind === "subagent");
+
+  assert.deepEqual(
+    subagentActivities.map((activity) => activity.eventType),
+    ["subagent_started", "subagent_event", "subagent_finished"],
+  );
+  assert.ok(state.timeline.some((item) => item.kind === "activity" && item.activities.some((activity) => activity.kind === "subagent")));
+});
+
 test("permission stream frames leave the pending permission open without inventing a final answer", () => {
   const state = applyFrames([
     eventFrame("model_token", { token: "Calling" }, "token_1"),

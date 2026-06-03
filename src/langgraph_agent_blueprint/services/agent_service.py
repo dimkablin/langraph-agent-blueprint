@@ -62,6 +62,7 @@ class AgentService:
         allowed_tools = self.resolve_allowed_tools(parent_state, request, tool_registry)
         child_state["metadata"] = {
             "is_subagent": True,
+            "streaming_enabled": bool(parent_metadata.get("streaming_enabled")),
             "subagent_depth": int(parent_metadata.get("subagent_depth", 0)) + 1,
             "child_run_id": metadata.child_run_id,
             "parent_session_id": metadata.parent_session_id,

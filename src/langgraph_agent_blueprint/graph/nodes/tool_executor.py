@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from time import perf_counter
+from typing import Any
+
+from langgraph.config import get_stream_writer
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point, state_with_update
@@ -30,6 +33,7 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
     todos = state.get("todos", [])
     child_runs = []
     metadata = dict(state.get("metadata", {}))
+    writer = _stream_writer(state)
     messages = []
     tool_durations = []
     recoverable_error_count = int(metadata.get("recoverable_tool_error_count", 0) or 0)
@@ -39,17 +43,18 @@ def tool_executor_node(state: dict, deps: AppDependencies) -> dict:
         is_mcp = tool.runtime.kind == "mcp" or tool.runtime.route == "mcp_graph"
         mcp_metadata = tool.metadata().get("mcp", {}) if is_mcp else {}
         if is_mcp:
-            events.append(
-                event(
-                    "mcp_tool_call_started",
-                    id=call.id,
-                    name=call.name,
-                    server_name=mcp_metadata.get("server_name"),
-                    tool_name=mcp_metadata.get("tool_name"),
-                )
+            mcp_started_event = event(
+                "mcp_tool_call_started",
+                id=call.id,
+                name=call.name,
+                server_name=mcp_metadata.get("server_name"),
+                tool_name=mcp_metadata.get("tool_name"),
             )
+            events.append(mcp_started_event)
+            if writer is not None:
+                writer(mcp_started_event)
         tool_start = perf_counter()
-        record, activity_events = deps.tool_execution_service.execute_with_activity(call_payload, state)
+        record, activity_events = deps.tool_execution_service.execute_with_activity(call_payload, state, on_event=writer)
         tool_duration_ms = duration_ms(tool_start)
         tool_durations.append({"id": call.id, "name": call.name, "duration_ms": tool_duration_ms})
         _attach_tool_duration(activity_events, call.id, tool_duration_ms)
@@ -147,3 +152,12 @@ def _append_file_snapshot(current: object, snapshot: dict) -> list[dict]:
     if snapshot_id and all(item.get("snapshot_id") != snapshot_id for item in snapshots if isinstance(item, dict)):
         snapshots.append(snapshot)
     return snapshots
+
+
+def _stream_writer(state: dict[str, Any]) -> Any | None:
+    if not state.get("metadata", {}).get("streaming_enabled"):
+        return None
+    try:
+        return get_stream_writer()
+    except RuntimeError:
+        return None

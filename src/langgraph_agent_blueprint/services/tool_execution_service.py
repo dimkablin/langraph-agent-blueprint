@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -48,7 +49,13 @@ class ToolExecutionService:
         except (ValidationError, Exception) as exc:
             return self._error_record(call, tool, exc)
 
-    def execute_with_activity(self, tool_call: dict[str, Any], state: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    def execute_with_activity(
+        self,
+        tool_call: dict[str, Any],
+        state: dict[str, Any],
+        *,
+        on_event: Callable[[dict[str, Any]], None] | None = None,
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         """Execute one tool call and return its regular record plus public activity events."""
 
         call = ToolCall.model_validate(tool_call)
@@ -58,14 +65,15 @@ class ToolExecutionService:
         events: list[dict[str, Any]] = []
         try:
             parsed = tool.parse_input(call.args)
-            events.append(
-                _runtime_event_with_activity(
-                    "tool_call_started",
-                    tool.build_activity_started_event(tool_call=call, data=parsed, context=context),
-                    id=call.id,
-                    name=call.name,
-                )
+            started_event = _runtime_event_with_activity(
+                "tool_call_started",
+                tool.build_activity_started_event(tool_call=call, data=parsed, context=context),
+                id=call.id,
+                name=call.name,
             )
+            events.append(started_event)
+            if on_event is not None:
+                on_event(started_event)
             snapshot = self._capture_file_snapshot(tool, parsed, call, context)
             output = tool.run(parsed, context)
             record = self._record_for_output(call, tool, output)
