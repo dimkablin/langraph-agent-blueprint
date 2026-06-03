@@ -4,6 +4,7 @@ from .base import FrozenRuntimeModel, RuntimeModel, dump_model, validate_list
 from .activity import AgentActivityEvent, AgentActivityRef, AgentActivitySource
 from .commands import CommandResult, CommandType, ParsedCommand
 from .config import ConfigDiagnostic, ConfigSource, ConfigValueOrigin, EffectiveConfigReport
+from .conversations import ConversationCreate, ConversationDetail, ConversationListItem, ConversationRecord, MessageCreate, MessageRecord, StreamEventCreate, StreamEventRecord
 from .context import (
     AttachmentContent,
     AttachmentRef,
@@ -68,6 +69,10 @@ __all__ = [
     "ConfigDiagnostic",
     "ConfigSource",
     "ConfigValueOrigin",
+    "ConversationCreate",
+    "ConversationDetail",
+    "ConversationListItem",
+    "ConversationRecord",
     "ContextBudgetReport",
     "ContextFragment",
     "ContextReference",
@@ -102,6 +107,8 @@ __all__ = [
     "MCPToolContribution",
     "ModelRequest",
     "ModelResponse",
+    "MessageCreate",
+    "MessageRecord",
     "ModelStreamEvent",
     "ObservabilityEvent",
     "ParsedCommand",
@@ -128,6 +135,8 @@ __all__ = [
     "RuntimeEvent",
     "RuntimeModel",
     "SessionMetadata",
+    "StreamEventCreate",
+    "StreamEventRecord",
     "StreamEvent",
     "SubagentRequest",
     "SubagentResult",

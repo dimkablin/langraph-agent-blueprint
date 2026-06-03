@@ -6,6 +6,7 @@ on tool registries stay imported from their concrete modules to avoid cycles.
 
 from .agent_service import AgentService
 from .command_service import CommandService
+from .conversation_service import ConversationService
 from .compaction_service import CompactionService
 from .diagnostics_service import DiagnosticsService
 from .export_service import ExportService
@@ -33,6 +34,7 @@ from .workspace_service import WorkspaceService
 __all__ = [
     "AgentService",
     "CommandService",
+    "ConversationService",
     "CompactionService",
     "DiagnosticsService",
     "ExportService",
