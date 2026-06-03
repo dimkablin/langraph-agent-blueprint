@@ -58,9 +58,6 @@ export function ComposerPermissionModePicker({
         aria-haspopup="menu"
         aria-expanded={open}
         data-permission-mode={mode}
-        data-tooltip={`Разрешения: ${selected.label}`}
-        data-tooltip-placement="top"
-        data-tooltip-align="start"
       >
         <SelectedModeIcon size={14} />
         <span>{selected.label}</span>

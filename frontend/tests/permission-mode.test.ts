@@ -56,6 +56,8 @@ test("permission mode picker renders only icons, labels, and selected checkmark"
   assert.match(picker, /\{isSelected \? <IconCheck size=\{16\} \/> : null\}/);
   const permissionStyles = styles.slice(styles.indexOf(".composer-permission-control"), styles.indexOf(".send-button"));
 
+  assert.doesNotMatch(picker, /data-tooltip/);
+  assert.match(permissionStyles, /width:\s*min\(252px,\s*calc\(100vw - 32px\)\)/);
   assert.doesNotMatch(picker, /permission-mode-option-selected|composer-permission-button-elevated/);
   assert.doesNotMatch(permissionStyles, /permission-mode-option-selected|composer-permission-button-elevated|\[aria-expanded="true"\]/);
 });
