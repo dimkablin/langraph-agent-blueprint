@@ -16,6 +16,7 @@ import type { RuntimeContextState } from "../../runtime/reducer.ts";
 type ContextWindowOverlayProps = {
   open: boolean;
   context: RuntimeContextState;
+  usage?: Record<string, unknown>;
   modelName: string;
   configuredMaxTokens?: number | null;
   onClose: () => void;
@@ -54,7 +55,7 @@ const SECTION_COPY: Record<ContextWindowSectionKind, SectionCopy> = {
   },
 };
 
-export function ContextWindowOverlay({ open, context, modelName, configuredMaxTokens, onClose }: ContextWindowOverlayProps) {
+export function ContextWindowOverlay({ open, context, usage, modelName, configuredMaxTokens, onClose }: ContextWindowOverlayProps) {
   const [expandedRecords, setExpandedRecords] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -72,7 +73,7 @@ export function ContextWindowOverlay({ open, context, modelName, configuredMaxTo
 
   if (!open) return null;
 
-  const view = buildContextWindowView(context, configuredMaxTokens);
+  const view = buildContextWindowView(context, configuredMaxTokens, usage);
   const budget = view.budget;
   const toggleRecord = (recordKey: string) => {
     setExpandedRecords((current) => {

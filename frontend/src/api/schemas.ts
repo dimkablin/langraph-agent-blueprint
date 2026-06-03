@@ -114,6 +114,7 @@ export type ChatResponse = {
   thread_id: string;
   final_response?: string | null;
   events: RuntimeEvent[];
+  usage?: Record<string, unknown>;
   permission_required?: PermissionRequest | null;
 };
 

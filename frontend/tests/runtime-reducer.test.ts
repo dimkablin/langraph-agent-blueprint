@@ -158,6 +158,52 @@ test("context events populate runtime context state", () => {
   assert.equal(state.context.errors.length, 1);
 });
 
+test("usage events and chat responses update runtime usage without clearing prior values", () => {
+  let state = applyRuntimeEvent(createInitialRuntimeState(), event("usage_updated", { usage: { context_used: 200, context_max: 1000, context_percent: 20 } }));
+
+  assert.deepEqual(state.usage, { context_used: 200, context_max: 1000, context_percent: 20 });
+
+  state = applyChatResponse(state, {
+    session_id: "session_1",
+    thread_id: "thread_1",
+    final_response: null,
+    events: [],
+  });
+
+  assert.equal(state.usage.context_used, 200);
+
+  state = applyChatResponse(state, {
+    session_id: "session_1",
+    thread_id: "thread_1",
+    final_response: null,
+    events: [event("model_message", { content: "done", usage: { context_used: 260, context_percent: 26 } })],
+    usage: { provider: "test" },
+  });
+
+  assert.equal(state.usage.provider, "test");
+  assert.equal(state.usage.context_used, 260);
+  assert.equal(state.usage.context_max, 1000);
+  assert.equal(state.usage.context_percent, 26);
+});
+
+test("session detail copies persisted usage into runtime state", () => {
+  const state = applySessionDetail(createInitialRuntimeState(), {
+    session_id: "session_usage",
+    title: "usage",
+    messages: [],
+    events: [],
+    tool_calls: [],
+    todos: [],
+    memory: {},
+    usage: { context_used: 321, context_max: 1000, context_percent: 32.1 },
+    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    child_runs: [],
+    metadata: {},
+  });
+
+  assert.deepEqual(state.usage, { context_used: 321, context_max: 1000, context_percent: 32.1 });
+});
+
 test("compact_started creates a running non-message timeline separator", () => {
   const state = applyRuntimeEvent(createInitialRuntimeState(), event("compact_started", { reason: "message_threshold" }));
 

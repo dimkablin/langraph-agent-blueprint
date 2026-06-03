@@ -26,6 +26,7 @@ export function ChatComposer({
   commands,
   context,
   contextMaxTokens,
+  usage,
   disabled,
   intelligenceLevel,
   isStreaming,
@@ -47,6 +48,7 @@ export function ChatComposer({
   commands: RegistryMap;
   context: RuntimeContextState;
   contextMaxTokens?: number | null;
+  usage?: Record<string, unknown>;
   disabled?: boolean;
   intelligenceLevel: ModelIntelligenceLevel;
   isStreaming: boolean;
@@ -136,7 +138,7 @@ export function ChatComposer({
               />
             </div>
             <div className="composer-footer-right">
-              <ComposerContextMeter context={context} configuredMaxTokens={contextMaxTokens} onOpenContextWindow={onOpenContextWindow} />
+              <ComposerContextMeter context={context} configuredMaxTokens={contextMaxTokens} usage={usage} onOpenContextWindow={onOpenContextWindow} />
               <ComposerIntelligencePicker
                 level={intelligenceLevel}
                 open={intelligenceOpen}

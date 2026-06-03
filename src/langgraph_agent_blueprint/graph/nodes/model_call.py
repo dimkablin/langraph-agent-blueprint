@@ -56,6 +56,7 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
     events = [event("node_started", node="model_call")]
     if response.content:
         events.append(event("model_message", content=response.content))
+    events.append(event("usage_updated", usage=usage))
     message = AIMessage(
         content=response.content,
         tool_calls=[{"id": call.id, "name": call.name, "args": call.args} for call in tool_calls],

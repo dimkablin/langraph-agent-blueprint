@@ -4,13 +4,15 @@ import type { RuntimeContextState } from "../../runtime/reducer.ts";
 export function ComposerContextMeter({
   context,
   configuredMaxTokens,
+  usage,
   onOpenContextWindow,
 }: {
   context: RuntimeContextState;
   configuredMaxTokens?: number | null;
+  usage?: Record<string, unknown>;
   onOpenContextWindow?: () => void;
 }) {
-  const { budget } = buildContextWindowView(context, configuredMaxTokens);
+  const { budget } = buildContextWindowView(context, configuredMaxTokens, usage);
   const percent = budget.percent ?? 0;
   const hasErrors = context.errors.length > 0;
   const radius = 6;
@@ -19,7 +21,13 @@ export function ComposerContextMeter({
 
   return (
     <div className={hasErrors ? "composer-context-control composer-context-warning" : "composer-context-control"}>
-      <button className="composer-context-icon" type="button" onClick={onOpenContextWindow} aria-label={`Контекст заполнен на ${percent}%`}>
+      <button
+        className="composer-context-icon"
+        type="button"
+        onClick={onOpenContextWindow}
+        disabled={!onOpenContextWindow}
+        aria-label={`Контекст сессии заполнен на ${percent}%`}
+      >
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <circle className="context-ring-track" cx="8" cy="8" r={radius} />
           <circle
@@ -33,7 +41,7 @@ export function ComposerContextMeter({
         </svg>
       </button>
       <div className="composer-context-popover" role="tooltip">
-        <strong>Контекстное окно</strong>
+        <strong>Контекст сессии</strong>
         <span>{percent}% заполнено</span>
         <span>
           Использовано {formatContextTokenCount(budget.usedTokens)} / {formatContextTokenCount(budget.maxTokens)} tokens

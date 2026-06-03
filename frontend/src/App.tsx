@@ -138,6 +138,7 @@ export default function App() {
                     commands={commands}
                     context={runtimeState.context}
                     contextMaxTokens={contextMaxTokens}
+                    usage={runtimeState.usage}
                     disabled={busy && !runtimeState.isStreaming}
                     intelligenceLevel={modelIntelligenceLevel}
                     permissionMode={permissionMode}
@@ -184,6 +185,7 @@ export default function App() {
                       commands={commands}
                       context={runtimeState.context}
                       contextMaxTokens={contextMaxTokens}
+                      usage={runtimeState.usage}
                       disabled={busy && !runtimeState.isStreaming}
                       intelligenceLevel={modelIntelligenceLevel}
                       permissionMode={permissionMode}
@@ -214,6 +216,7 @@ export default function App() {
       <ContextWindowOverlay
         open={contextWindowOpen}
         context={runtimeState.context}
+        usage={runtimeState.usage}
         modelName={modelName}
         configuredMaxTokens={contextMaxTokens}
         onClose={() => setContextWindowOpen(false)}

@@ -20,6 +20,7 @@ EventType = Literal[
     "command_finished",
     "model_token",
     "model_message",
+    "usage_updated",
     "tool_call_started",
     "tool_call_finished",
     "tool_call_error",

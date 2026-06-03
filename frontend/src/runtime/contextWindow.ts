@@ -34,7 +34,11 @@ const TEXT_KEYS = ["content", "preview", "text", "snippet", "body", "summary", "
 const TITLE_KEYS = ["title", "name", "path", "uri", "reference", "id"];
 const TYPE_KEYS = ["kind", "type", "source", "provider", "trust", "trust_level"];
 
-export function buildContextWindowView(context: RuntimeContextState, configuredMaxTokens?: number | null): ContextWindowView {
+export function buildContextWindowView(
+  context: RuntimeContextState,
+  configuredMaxTokens?: number | null,
+  usage?: Record<string, unknown> | null,
+): ContextWindowView {
   const sections: ContextWindowSectionView[] = [
     { kind: "fragments", items: records(context.fragments, "Фрагмент") },
     { kind: "references", items: records(context.references, "Ссылка") },
@@ -42,9 +46,9 @@ export function buildContextWindowView(context: RuntimeContextState, configuredM
     { kind: "errors", items: records(context.errors, "Ошибка") },
   ];
   return {
-    budget: budgetView(context.budget, configuredMaxTokens),
+    budget: budgetView(context.budget, configuredMaxTokens, usage),
     sections,
-    hasContext: sections.some((section) => section.items.length > 0) || Boolean(context.budget),
+    hasContext: sections.some((section) => section.items.length > 0) || Boolean(context.budget) || hasUsageBudget(usage),
   };
 }
 
@@ -70,7 +74,14 @@ export function contextRecordPreview(item: ContextWindowRecordView, expanded: bo
   return `${item.preview.slice(0, COLLAPSED_RECORD_PREVIEW_CHARS).trimEnd()}...`;
 }
 
-function budgetView(budget: Record<string, unknown> | null, configuredMaxTokens?: number | null): ContextBudgetView {
+function budgetView(
+  budget: Record<string, unknown> | null,
+  configuredMaxTokens?: number | null,
+  usage?: Record<string, unknown> | null,
+): ContextBudgetView {
+  const usageBudget = usageBudgetView(usage, configuredMaxTokens ?? numberValue(budget?.max_tokens));
+  if (usageBudget) return usageBudget;
+
   const maxTokens = numberValue(budget?.max_tokens) ?? configuredMaxTokens ?? null;
   const usedTokens = numberValue(budget?.used_tokens) ?? numberValue(budget?.total_tokens) ?? numberValue(budget?.tokens) ?? (maxTokens != null ? 0 : null);
   const remainingTokens = numberValue(budget?.remaining_tokens) ?? (usedTokens != null && maxTokens != null ? Math.max(maxTokens - usedTokens, 0) : null);
@@ -78,6 +89,46 @@ function budgetView(budget: Record<string, unknown> | null, configuredMaxTokens?
     usedTokens != null && maxTokens != null && maxTokens > 0 ? Math.min(100, Math.max(0, Math.round((usedTokens / maxTokens) * 100))) : null;
 
   return { usedTokens, maxTokens, remainingTokens, percent };
+}
+
+function usageBudgetView(usage?: Record<string, unknown> | null, fallbackMaxTokens?: number | null): ContextBudgetView | null {
+  if (!usage || !hasUsageBudget(usage)) return null;
+  const usedTokens =
+    numberValue(usage.context_used) ??
+    sumNumbers(numberValue(usage.input_tokens), numberValue(usage.output_tokens)) ??
+    numberValue(usage.total_tokens) ??
+    numberValue(usage.total);
+  const maxTokens = numberValue(usage.context_max) ?? fallbackMaxTokens ?? null;
+  const rawPercent = numberValue(usage.context_percent);
+  const percent =
+    rawPercent != null
+      ? normalizePercent(rawPercent)
+      : usedTokens != null && maxTokens != null && maxTokens > 0
+        ? normalizePercent((usedTokens / maxTokens) * 100)
+        : null;
+  const remainingTokens = usedTokens != null && maxTokens != null ? Math.max(maxTokens - usedTokens, 0) : null;
+  return { usedTokens, maxTokens, remainingTokens, percent };
+}
+
+function hasUsageBudget(usage?: Record<string, unknown> | null): boolean {
+  return Boolean(
+    usage &&
+      (numberValue(usage.context_used) != null ||
+        numberValue(usage.input_tokens) != null ||
+        numberValue(usage.output_tokens) != null ||
+        numberValue(usage.total_tokens) != null ||
+        numberValue(usage.total) != null ||
+        numberValue(usage.context_percent) != null),
+  );
+}
+
+function sumNumbers(...values: Array<number | null>): number | null {
+  const present = values.filter((value): value is number => value != null);
+  return present.length > 0 ? present.reduce((total, value) => total + value, 0) : null;
+}
+
+function normalizePercent(value: number): number {
+  return Math.min(100, Math.max(0, Math.round(value <= 1 ? value * 100 : value)));
 }
 
 function records(items: Record<string, unknown>[], fallbackTitle: string): ContextWindowRecordView[] {

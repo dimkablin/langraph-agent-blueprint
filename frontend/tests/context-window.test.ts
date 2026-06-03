@@ -39,6 +39,31 @@ test("context window budget reports remaining tokens from backend budget values"
   assert.equal(formatContextBudgetLine(view.budget, "gpt-4.1"), "Контекст gpt-4.1: 32 / 100 токенов");
 });
 
+test("context window budget prefers live Hermes-style usage over context-reference budget", () => {
+  const view = buildContextWindowView(
+    context({
+      budget: { max_tokens: 100, used_tokens: 12 },
+    }),
+    8000,
+    { context_used: 4096, context_max: 16384, context_percent: 25 },
+  );
+
+  assert.equal(view.budget.usedTokens, 4096);
+  assert.equal(view.budget.maxTokens, 16384);
+  assert.equal(view.budget.remainingTokens, 12288);
+  assert.equal(view.budget.percent, 25);
+});
+
+test("context window budget derives live usage from token totals when context fields are absent", () => {
+  const view = buildContextWindowView(context(), 1000, { input_tokens: 120, output_tokens: 30 });
+
+  assert.equal(view.budget.usedTokens, 150);
+  assert.equal(view.budget.maxTokens, 1000);
+  assert.equal(view.budget.remainingTokens, 850);
+  assert.equal(view.budget.percent, 15);
+  assert.equal(view.hasContext, true);
+});
+
 test("context window fragment section exposes preview text and token counts", () => {
   const view = buildContextWindowView(
     context({

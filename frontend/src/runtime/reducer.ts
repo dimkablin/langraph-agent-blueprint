@@ -80,6 +80,7 @@ export type RuntimeState = {
   timeline: ChatTimelineItem[];
   activities: ActivityItem[];
   context: RuntimeContextState;
+  usage: Record<string, unknown>;
   pendingPermission: PermissionRequest | null;
   finalResponse: string | null;
   error: string | null;
@@ -106,6 +107,7 @@ export function createInitialRuntimeState(): RuntimeState {
       budget: null,
       errors: [],
     },
+    usage: {},
     pendingPermission: null,
     finalResponse: null,
     error: null,
@@ -172,6 +174,8 @@ export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): Run
     ...state,
     sessionId: event.session_id && event.session_id !== "unknown" ? event.session_id : state.sessionId,
   };
+
+  next = applyUsageFromRuntimeEvent(next, event);
 
   if (event.type === "final_response") {
     const content = firstString(event.data.content);
@@ -247,6 +251,7 @@ export function applyChatResponse(state: RuntimeState, response: {
   thread_id: string;
   final_response?: string | null;
   events?: RuntimeEvent[];
+  usage?: Record<string, unknown>;
   permission_required?: PermissionRequest | null;
 }): RuntimeState {
   const hasPermissionField = Object.prototype.hasOwnProperty.call(response, "permission_required");
@@ -256,6 +261,9 @@ export function applyChatResponse(state: RuntimeState, response: {
     threadId: response.thread_id,
     pendingPermission: hasPermissionField ? response.permission_required ?? null : state.pendingPermission,
   };
+  if (isRecord(response.usage)) {
+    next = { ...next, usage: mergeUsage(next.usage, response.usage) };
+  }
   for (const event of response.events || []) {
     next = applyRuntimeEvent(next, event);
   }
@@ -278,6 +286,7 @@ export function applySessionDetail(state: RuntimeState, detail: SessionDetailDTO
     timeline: timelineFromMessagesAndActivities(messages, activities),
     activities,
     context: contextFromDto(detail.context),
+    usage: isRecord(detail.usage) ? { ...detail.usage } : {},
     finalResponse: lastAssistantMessage(visibleMessages),
     pendingPermission: null,
     error: null,
@@ -317,6 +326,15 @@ export function runtimeEventToActivity(event: RuntimeEvent): ActivityItem {
 function appendActivity(state: RuntimeState, event: RuntimeEvent): RuntimeState {
   const activity = runtimeEventToActivity(event);
   return appendActivityItem(state, activity, isChatVisibleActivity(event, activity));
+}
+
+function applyUsageFromRuntimeEvent(state: RuntimeState, event: RuntimeEvent): RuntimeState {
+  const usage = isRecord(event.data?.usage) ? event.data.usage : event.type === "usage_updated" ? event.data : null;
+  return usage ? { ...state, usage: mergeUsage(state.usage, usage) } : state;
+}
+
+function mergeUsage(existing: Record<string, unknown>, update: Record<string, unknown>): Record<string, unknown> {
+  return { ...(existing || {}), ...update };
 }
 
 function appendActivityItem(state: RuntimeState, activity: ActivityItem, showInTimeline = true): RuntimeState {
