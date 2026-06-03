@@ -43,6 +43,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     @api.post("/chat", response_model=ChatResponse)
     def chat(request: ChatRequest) -> ChatResponse:
+        runtime = api.state.runtime
         attachments = [item.model_dump(mode="json", exclude_none=True) for item in request.attachments]
         try:
             result = runtime.invoke(
@@ -70,11 +71,13 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 result.get("ui_events", []),
                 redactor=runtime.dependencies.observability_service.redact_payload,
             ),
+            usage=result.get("usage", {}) or {},
             permission_required=permission_required,
         )
 
     @api.post("/approval", response_model=ChatResponse)
     def approval(request: ApprovalRequest) -> ChatResponse:
+        runtime = api.state.runtime
         result = runtime.resume(request.thread_id, request.decision_payload(), session_id=request.session_id)
         return ChatResponse(
             session_id=result["session_id"],
@@ -84,6 +87,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 result.get("ui_events", []),
                 redactor=runtime.dependencies.observability_service.redact_payload,
             ),
+            usage=result.get("usage", {}) or {},
             permission_required=None,
         )
 

@@ -45,6 +45,7 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
             "model_intelligence": current.get("metadata", {}).get("model_intelligence"),
         },
     )
+    context_usage = _current_context_usage(request, deps.config.context_max_tokens, tool_schema_payload_chars)
     model_start = perf_counter()
     response = _generate_model_response(current, deps, request)
     model_provider_duration_ms = duration_ms(model_start)
@@ -52,7 +53,10 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
     if cancelled is not None:
         return merge_updates(pre_update, cancelled)
     tool_calls = validate_list(ToolCall, response.tool_calls)
-    usage = deps.usage_service.merge(current.get("usage", {}), response.usage.model_dump(mode="json"))
+    usage = {
+        **deps.usage_service.merge(current.get("usage", {}), response.usage.model_dump(mode="json")),
+        **context_usage,
+    }
     events = [event("node_started", node="model_call")]
     if response.content:
         events.append(event("model_message", content=response.content))
@@ -112,3 +116,35 @@ def _json_size(payload: object) -> int:
 
 def _rough_token_estimate(chars: int) -> int:
     return max(1, (chars + 3) // 4) if chars else 0
+
+
+def _current_context_usage(request: ModelRequest, context_max_tokens: int, tool_schema_payload_chars: int) -> dict[str, int | float]:
+    """Estimate the current model request's context-window occupancy."""
+
+    message_chars = sum(_message_content_chars(message) for message in request.messages)
+    system_context_chars = _text_payload_chars(request.system_context)
+    metadata_chars = _json_size(request.metadata) if request.metadata else 0
+    context_used = _rough_token_estimate(message_chars + system_context_chars + tool_schema_payload_chars + metadata_chars)
+    context_max = max(int(context_max_tokens or 0), 0)
+    context_percent = round(min(100.0, max(0.0, (context_used / context_max) * 100)), 2) if context_max else 0
+    return {
+        "context_used": context_used,
+        "context_max": context_max,
+        "context_percent": context_percent,
+    }
+
+
+def _message_content_chars(message: object) -> int:
+    return _text_payload_chars(getattr(message, "content", ""))
+
+
+def _text_payload_chars(payload: object) -> int:
+    if payload is None:
+        return 0
+    if isinstance(payload, str):
+        return len(payload)
+    if isinstance(payload, bytes):
+        return len(payload.decode("utf-8", errors="replace"))
+    if isinstance(payload, (list, tuple, dict)):
+        return _json_size(payload)
+    return len(str(payload))

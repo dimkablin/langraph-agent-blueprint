@@ -73,6 +73,7 @@ class ChatResponse(BaseModel):
     thread_id: str
     final_response: str | None = None
     events: list[RuntimeEventDTO]
+    usage: dict[str, Any] = Field(default_factory=dict)
     permission_required: PermissionRequest | None = None
 
 

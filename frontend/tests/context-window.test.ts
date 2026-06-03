@@ -54,13 +54,13 @@ test("context window budget prefers live Hermes-style usage over context-referen
   assert.equal(view.budget.percent, 25);
 });
 
-test("context window budget derives live usage from token totals when context fields are absent", () => {
-  const view = buildContextWindowView(context(), 1000, { input_tokens: 120, output_tokens: 30 });
+test("context window budget ignores cumulative token totals when live context fields are absent", () => {
+  const view = buildContextWindowView(context({ budget: { max_tokens: 500, used_tokens: 40 } }), 1000, { input_tokens: 120, output_tokens: 30, total_tokens: 150 });
 
-  assert.equal(view.budget.usedTokens, 150);
-  assert.equal(view.budget.maxTokens, 1000);
-  assert.equal(view.budget.remainingTokens, 850);
-  assert.equal(view.budget.percent, 15);
+  assert.equal(view.budget.usedTokens, 40);
+  assert.equal(view.budget.maxTokens, 500);
+  assert.equal(view.budget.remainingTokens, 460);
+  assert.equal(view.budget.percent, 8);
   assert.equal(view.hasContext, true);
 });
 

@@ -93,11 +93,7 @@ function budgetView(
 
 function usageBudgetView(usage?: Record<string, unknown> | null, fallbackMaxTokens?: number | null): ContextBudgetView | null {
   if (!usage || !hasUsageBudget(usage)) return null;
-  const usedTokens =
-    numberValue(usage.context_used) ??
-    sumNumbers(numberValue(usage.input_tokens), numberValue(usage.output_tokens)) ??
-    numberValue(usage.total_tokens) ??
-    numberValue(usage.total);
+  const usedTokens = numberValue(usage.context_used);
   const maxTokens = numberValue(usage.context_max) ?? fallbackMaxTokens ?? null;
   const rawPercent = numberValue(usage.context_percent);
   const percent =
@@ -114,17 +110,9 @@ function hasUsageBudget(usage?: Record<string, unknown> | null): boolean {
   return Boolean(
     usage &&
       (numberValue(usage.context_used) != null ||
-        numberValue(usage.input_tokens) != null ||
-        numberValue(usage.output_tokens) != null ||
-        numberValue(usage.total_tokens) != null ||
-        numberValue(usage.total) != null ||
+        numberValue(usage.context_max) != null ||
         numberValue(usage.context_percent) != null),
   );
-}
-
-function sumNumbers(...values: Array<number | null>): number | null {
-  const present = values.filter((value): value is number => value != null);
-  return present.length > 0 ? present.reduce((total, value) => total + value, 0) : null;
 }
 
 function normalizePercent(value: number): number {
