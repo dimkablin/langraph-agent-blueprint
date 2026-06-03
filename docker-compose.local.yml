@@ -67,7 +67,7 @@ services:
       LANGFUSE_INCLUDE_PROJECT_PATHS: "false"
       LANGFUSE_RUNTIME_EVENTS_MODE: high_signal
     ports:
-      - "127.0.0.1:8010:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - app_storage:/app/.storage
       - type: bind
@@ -88,7 +88,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile.local
       args:
-        VITE_API_BASE_URL: http://127.0.0.1:8010
+        VITE_API_BASE_URL: http://127.0.0.1:8000
     image: langgraph-agent-blueprint-frontend:local
     ports:
       - "127.0.0.1:5173:80"
