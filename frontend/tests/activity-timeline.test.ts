@@ -202,6 +202,36 @@ test("activity group title describes non-terminal tool calls instead of generic 
   assert.equal(activityTimelineGroupTitle(entries), "Wrote CONTRACT.md");
 });
 
+test("activity group title shows parallel running subagents explicitly", () => {
+  const entries = buildActivityEntries([
+    {
+      id: "backend_start",
+      kind: "subagent",
+      label: "subagent_started",
+      summary: "running",
+      status: "running",
+      timestamp: "2026-06-04T00:00:00Z",
+      eventType: "subagent_started",
+      category: "subagent",
+      data: { child_run_id: "child_backend", name: "backend", status: "running" },
+    },
+    {
+      id: "frontend_start",
+      kind: "subagent",
+      label: "subagent_started",
+      summary: "running",
+      status: "running",
+      timestamp: "2026-06-04T00:00:00Z",
+      eventType: "subagent_started",
+      category: "subagent",
+      data: { child_run_id: "child_frontend", name: "frontend", status: "running" },
+    },
+  ]);
+
+  assert.equal(activityTimelineGroupTitle(entries), "2/2 parallel subagents running");
+  assert.deepEqual(entries.map((entry) => entry.title), ["Subagent backend", "Subagent frontend"]);
+});
+
 test("activity entries hide redundant generic status summaries", () => {
   const [entry] = buildActivityEntries([
     activity({

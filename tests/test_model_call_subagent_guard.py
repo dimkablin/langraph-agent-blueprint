@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from langgraph_agent_blueprint.config import AppConfig
 from langgraph_agent_blueprint.dependencies import build_dependencies
@@ -75,6 +75,53 @@ def test_model_call_does_not_repair_plain_final_text(tmp_path: Path) -> None:
     assert len(provider.requests) == 1
     assert update["final_response"] == "Готово."
     assert update["pending_tool_calls"] == []
+
+
+def test_model_call_trims_old_history_before_provider_request(tmp_path: Path) -> None:
+    deps = build_dependencies(
+        AppConfig(
+            llm_provider="fake",
+            storage_dir=tmp_path / "storage",
+            project_root=tmp_path,
+            cwd=tmp_path,
+            plugin_paths=[],
+            skills_paths=[],
+            context_max_tokens=120,
+        )
+    )
+    provider = PlainTextProvider()
+    deps.model_provider = provider  # type: ignore[assignment]
+    state = {
+        **_state(tmp_path),
+        "messages": [
+            HumanMessage(content="old user " + ("x" * 1200)),
+            AIMessage(content="old assistant " + ("y" * 1200)),
+            HumanMessage(content="current question"),
+        ],
+        "available_tools": {},
+        "context_status": {"system_context": "short system"},
+    }
+
+    update = model_call_node(state, deps)
+
+    assert [message.content for message in provider.requests[0].messages] == ["current question"]
+    usage = update["usage"]
+    assert usage["context_used"] <= usage["context_max"]
+    assert usage["context_truncated"] is True
+    model_context = update["metadata"]["model_context"]
+    assert model_context["truncated"] is True
+    message_parts = [part for part in model_context["parts"] if part["kind"] == "messages"]
+    assert message_parts == [
+        {
+            "kind": "messages",
+            "title": "Message 1",
+            "content": "current question",
+            "token_estimate": 4,
+            "included": True,
+            "truncated": False,
+            "metadata": {"role": "human"},
+        }
+    ]
 
 
 def _config(tmp_path: Path) -> AppConfig:

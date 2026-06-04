@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SessionListItemDTO } from "../../api/schemas.ts";
-import { IconBlocks, IconMessages, IconPlus, IconSearch, IconSettings } from "../../icons.ts";
+import { IconBlocks, IconMessages, IconMoreHorizontal, IconPlus, IconSearch, IconSettings } from "../../icons.ts";
 import { formatSessionTime } from "../../runtime/sessionTime.ts";
 import type { SettingsTab } from "../../runtime/settingsPage.ts";
 import { SettingsTabs } from "../settings/SettingsTabs.tsx";
@@ -154,11 +154,12 @@ function ChatSidebar({
                   <strong>{sessionTitle(session)}</strong>
                   <time>{formatSessionTime(session.updated_at || session.created_at)}</time>
                 </button>
-                <span className="runtime-sidebar-chat-actions" aria-label="Действия чата">
-                  <button type="button" onClick={() => onRenameSession(session.session_id)}>Переименовать</button>
-                  <button type="button" onClick={() => onArchiveSession(session.session_id)}>Архив</button>
-                  <button type="button" onClick={() => onDeleteSession(session.session_id)}>Удалить</button>
-                </span>
+                <ChatSessionActionsMenu
+                  sessionId={session.session_id}
+                  onArchiveSession={onArchiveSession}
+                  onDeleteSession={onDeleteSession}
+                  onRenameSession={onRenameSession}
+                />
               </div>
             ))
           ) : (
@@ -173,6 +174,67 @@ function ChatSidebar({
         </button>
       </div>
     </>
+  );
+}
+
+function ChatSessionActionsMenu({
+  sessionId,
+  onArchiveSession,
+  onDeleteSession,
+  onRenameSession,
+}: {
+  sessionId: string;
+  onArchiveSession: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
+  onRenameSession: (sessionId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  function runAction(action: (sessionId: string) => void) {
+    setOpen(false);
+    action(sessionId);
+  }
+
+  return (
+    <div className={open ? "runtime-sidebar-chat-actions runtime-sidebar-chat-actions-open" : "runtime-sidebar-chat-actions"} ref={menuRef}>
+      <button
+        type="button"
+        className="runtime-sidebar-chat-actions-trigger"
+        aria-label="Действия чата"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <IconMoreHorizontal size={16} />
+      </button>
+      {open ? (
+        <div className="runtime-sidebar-chat-actions-menu" role="menu" aria-label="Действия чата">
+          <button type="button" role="menuitem" onClick={() => runAction(onRenameSession)}>Переименовать</button>
+          <button type="button" role="menuitem" onClick={() => runAction(onArchiveSession)}>Архив</button>
+          <button type="button" role="menuitem" onClick={() => runAction(onDeleteSession)}>Удалить</button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

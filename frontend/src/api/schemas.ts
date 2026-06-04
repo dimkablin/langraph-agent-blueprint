@@ -247,6 +247,7 @@ export type ContextStateDTO = {
   fragments: Record<string, unknown>[];
   attachments: Record<string, unknown>[];
   budget: Record<string, unknown>;
+  model_context?: Record<string, unknown>;
   errors: Record<string, unknown>[];
 };
 

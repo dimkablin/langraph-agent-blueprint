@@ -22,6 +22,7 @@ from .observability_service import ObservabilityService
 from .permission_service import PermissionService
 from .plugin_service import PluginService
 from .run_control_service import RunControlService
+from .run_event_stream_service import RunEventStreamService
 from .search_service import SearchService
 from .session_service import SessionService
 from .shell_service import ShellService
@@ -50,6 +51,7 @@ __all__ = [
     "PermissionService",
     "PluginService",
     "RunControlService",
+    "RunEventStreamService",
     "SearchService",
     "SessionService",
     "ShellService",

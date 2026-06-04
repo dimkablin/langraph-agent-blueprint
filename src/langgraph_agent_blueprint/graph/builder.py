@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from queue import Queue
+from threading import Thread
 from time import perf_counter
 from typing import Any, Iterable
 
@@ -11,7 +13,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models import AgentRunInput, AgentRunOutput, AttachmentRef, FileSnapshotRecord, RunCancellationResult, TraceContext, TraceMetadata, WorkspaceInfo, dump_model
+from langgraph_agent_blueprint.models import AgentRunInput, AgentRunOutput, AttachmentRef, FileSnapshotRecord, RunCancellationResult, TraceContext, TraceMetadata, WorkspaceInfo, dump_model, event
 from langgraph_agent_blueprint.utils.ids import new_id, validate_session_id, validate_thread_id
 
 from .checkpoints import default_checkpointer
@@ -418,7 +420,42 @@ class AssistantGraphRuntime:
             finally:
                 self.dependencies.run_control_service.finish_run(state["thread_id"])
 
-        return generator()
+        return self._queued_stream(generator(), thread_id=thread_id)
+
+    def _queued_stream(self, events: Iterable[dict[str, Any]], *, thread_id: str | None) -> Iterable[dict[str, Any]]:
+        """Bridge blocking graph iteration and direct node progress events into one live stream."""
+
+        output_queue: Queue[Any] = Queue()
+        sentinel = object()
+        self.dependencies.run_event_stream_service.attach(thread_id, output_queue)
+
+        def produce() -> None:
+            try:
+                for item in events:
+                    output_queue.put(item)
+            except Exception as exc:
+                output_queue.put(event("error", severity="error", error=str(exc)))
+            finally:
+                output_queue.put(sentinel)
+
+        producer = Thread(target=produce, name=f"runtime-stream-{thread_id or 'unknown'}", daemon=True)
+        producer.start()
+        yielded_event_ids: set[str] = set()
+        try:
+            while True:
+                item = output_queue.get()
+                if item is sentinel:
+                    break
+                if not isinstance(item, dict):
+                    continue
+                event_id = str(item.get("id") or "")
+                if event_id and event_id in yielded_event_ids:
+                    continue
+                if event_id:
+                    yielded_event_ids.add(event_id)
+                yield item
+        finally:
+            self.dependencies.run_event_stream_service.detach(thread_id)
 
     def _hydrate_session_state(self, state: dict[str, Any]) -> None:
         """Mutate initial state with persisted session messages, todos, memory, usage, and metadata."""

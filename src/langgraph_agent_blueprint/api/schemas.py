@@ -237,6 +237,7 @@ class ContextStateDTO(BaseModel):
     fragments: list[dict[str, Any]] = Field(default_factory=list)
     attachments: list[dict[str, Any]] = Field(default_factory=list)
     budget: dict[str, Any] = Field(default_factory=dict)
+    model_context: dict[str, Any] = Field(default_factory=dict)
     errors: list[dict[str, Any]] = Field(default_factory=list)
 
 

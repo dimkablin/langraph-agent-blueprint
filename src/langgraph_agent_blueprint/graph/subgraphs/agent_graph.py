@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from queue import Empty, Queue
+from threading import Lock
 from typing import Any
 
 from langgraph.config import get_stream_writer
@@ -24,12 +28,33 @@ from langgraph_agent_blueprint.models import (
 from langgraph_agent_blueprint.tools import AgentInput
 
 
+MAX_PARALLEL_SUBAGENT_RUNS = 4
+SUBAGENT_EVENT_DRAIN_INTERVAL_SECONDS = 0.05
+
+
+@dataclass(frozen=True)
+class _PreparedAgentCall:
+    call: ToolCall
+    request: SubagentRequest
+    metadata: ChildRunMetadata
+    child_state: dict[str, Any]
+    started_event: dict[str, Any]
+
+
+class _AgentCallPreparationError(Exception):
+    def __init__(self, message: str, error_type: str) -> None:
+        super().__init__(message)
+        self.error_type = error_type
+
+
 def _agent_node(state: dict[str, Any], deps: AppDependencies) -> dict[str, Any]:
     calls = validate_list(ToolCall, state.get("pending_tool_calls", []))
     if not calls:
         return {}
     writer = _stream_writer(state)
     metadata = dict(state.get("metadata", {}))
+    if len(calls) > 1:
+        return _run_agent_calls_concurrently(state, deps, calls, metadata, writer)
     child_runs: list[dict[str, Any]] = []
     tool_results: list[dict[str, Any]] = []
     messages: list[Any] = []
@@ -51,26 +76,135 @@ def _agent_node(state: dict[str, Any], deps: AppDependencies) -> dict[str, Any]:
     }
 
 
-def _run_agent_call(
+def _run_agent_calls_concurrently(
+    state: dict[str, Any],
+    deps: AppDependencies,
+    calls: list[ToolCall],
+    metadata: dict[str, Any],
+    writer: Any | None,
+) -> dict[str, Any]:
+    event_queue: Queue[dict[str, Any]] = Queue()
+    streamed_events: list[dict[str, Any]] = []
+    streamed_event_ids: set[str] = set()
+    persistence_lock = Lock()
+    thread_writer = event_queue.put if writer is not None else None
+    results: dict[int, dict[str, Any]] = {}
+    prepared_calls: list[tuple[int, _PreparedAgentCall]] = []
+
+    def emit_event(item: dict[str, Any]) -> None:
+        streamed_events.append(item)
+        event_id = str(item.get("id") or "")
+        if event_id:
+            streamed_event_ids.add(event_id)
+        deps.run_event_stream_service.publish(state.get("thread_id"), item)
+        writer(item)
+
+    for index, call in enumerate(calls):
+        try:
+            prepared_calls.append((index, _prepare_agent_call(state, deps, call, metadata)))
+        except _AgentCallPreparationError as exc:
+            update = _tool_error(call, str(exc), exc.error_type)
+            results[index] = update
+            if writer is not None:
+                for item in update.get("ui_events", []):
+                    emit_event(item)
+
+    if writer is not None:
+        for _, prepared in prepared_calls:
+            emit_event(prepared.started_event)
+
+    def drain_events() -> None:
+        if writer is None:
+            return
+        while True:
+            try:
+                item = event_queue.get_nowait()
+            except Empty:
+                break
+            emit_event(item)
+
+    if prepared_calls:
+        max_workers = min(len(prepared_calls), MAX_PARALLEL_SUBAGENT_RUNS)
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="subagent") as executor:
+            futures: dict[Future[dict[str, Any]], tuple[int, ToolCall]] = {
+                executor.submit(
+                    _run_prepared_agent_call,
+                    state,
+                    deps,
+                    prepared,
+                    metadata,
+                    thread_writer,
+                    persistence_lock,
+                    False,
+                    False,
+                ): (index, prepared.call)
+                for index, prepared in prepared_calls
+            }
+            while futures:
+                done, _ = wait(
+                    futures,
+                    timeout=SUBAGENT_EVENT_DRAIN_INTERVAL_SECONDS,
+                    return_when=FIRST_COMPLETED,
+                )
+                drain_events()
+                for future in done:
+                    index, call = futures.pop(future)
+                    try:
+                        results[index] = future.result()
+                    except Exception as exc:
+                        results[index] = _tool_error(call, f"Subagent run failed: {exc}", exc.__class__.__name__)
+            drain_events()
+
+    ordered_results = [results[index] for index in range(len(calls)) if index in results]
+    child_runs: list[dict[str, Any]] = []
+    tool_results: list[dict[str, Any]] = []
+    messages: list[Any] = []
+    non_streamed_events: list[dict[str, Any]] = []
+    child_run_refs = list(metadata.get("child_run_refs", []))
+    for update in ordered_results:
+        child_runs.extend(update.get("child_runs", []))
+        tool_results.extend(update.get("tool_results", []))
+        messages.extend(update.get("messages", []))
+        for child_run in update.get("child_runs", []):
+            child_run_id = child_run.get("id")
+            if child_run_id and child_run_id not in child_run_refs:
+                child_run_refs.append(child_run_id)
+        for item in update.get("ui_events", []):
+            event_id = str(item.get("id") or "")
+            if event_id and event_id in streamed_event_ids:
+                continue
+            non_streamed_events.append(item)
+    next_metadata = dict(metadata)
+    next_metadata["child_run_refs"] = child_run_refs
+    return {
+        "metadata": next_metadata,
+        "child_runs": child_runs,
+        "pending_tool_calls": [],
+        "tool_results": tool_results,
+        "messages": messages,
+        "ui_events": [*streamed_events, *non_streamed_events],
+    }
+
+
+def _prepare_agent_call(
     state: dict[str, Any],
     deps: AppDependencies,
     call: ToolCall,
     parent_metadata: dict[str, Any],
-    writer: Any | None,
-) -> dict[str, Any]:
+) -> _PreparedAgentCall:
     try:
         request = AgentInput.model_validate(call.args).to_request()
     except Exception as exc:
-        return _tool_error(call, f"Invalid subagent request: {exc}", "SubagentRequestError")
+        raise _AgentCallPreparationError(f"Invalid subagent request: {exc}", "SubagentRequestError") from exc
     depth = int(parent_metadata.get("subagent_depth", 0))
     if depth >= deps.agent_service.max_depth:
-        return _tool_error(call, "Subagent recursion depth exceeded.", "SubagentDepthExceeded")
+        raise _AgentCallPreparationError("Subagent recursion depth exceeded.", "SubagentDepthExceeded")
     try:
         current_state = {**state, "metadata": parent_metadata}
         metadata = deps.agent_service.create_child_metadata(current_state, request)
         child_state = deps.agent_service.create_child_state(current_state, request, metadata, deps.tool_registry)
     except Exception as exc:
-        return _tool_error(call, f"Could not create subagent state: {exc}", "SubagentStateError")
+        raise _AgentCallPreparationError(f"Could not create subagent state: {exc}", "SubagentStateError") from exc
     started_event = event(
         "subagent_started",
         session_id=state.get("session_id"),
@@ -78,16 +212,73 @@ def _run_agent_call(
         parent_session_id=metadata.parent_session_id,
         child_session_id=metadata.child_session_id,
         child_thread_id=metadata.child_thread_id,
+        agent_call_id=call.id,
         name=metadata.name,
         purpose=metadata.purpose,
         status="running",
     )
-    if writer is not None:
-        writer(started_event)
-    child_result, child_events, forwarded_events = _run_child_graph(deps, child_state, request, state, metadata, writer)
+    return _PreparedAgentCall(
+        call=call,
+        request=request,
+        metadata=metadata,
+        child_state=child_state,
+        started_event=started_event,
+    )
+
+
+def _run_agent_call(
+    state: dict[str, Any],
+    deps: AppDependencies,
+    call: ToolCall,
+    parent_metadata: dict[str, Any],
+    writer: Any | None,
+    persistence_lock: Lock | None = None,
+    publish_direct: bool = True,
+) -> dict[str, Any]:
+    try:
+        prepared = _prepare_agent_call(state, deps, call, parent_metadata)
+    except _AgentCallPreparationError as exc:
+        return _tool_error(call, str(exc), exc.error_type)
+    return _run_prepared_agent_call(
+        state,
+        deps,
+        prepared,
+        parent_metadata,
+        writer,
+        persistence_lock,
+        publish_direct,
+        True,
+    )
+
+
+def _run_prepared_agent_call(
+    state: dict[str, Any],
+    deps: AppDependencies,
+    prepared: _PreparedAgentCall,
+    parent_metadata: dict[str, Any],
+    writer: Any | None,
+    persistence_lock: Lock | None = None,
+    publish_direct: bool = True,
+    emit_started: bool = True,
+) -> dict[str, Any]:
+    call = prepared.call
+    request = prepared.request
+    metadata = prepared.metadata
+    child_state = prepared.child_state
+    started_event = prepared.started_event
+
+    def emit_stream_event(item: dict[str, Any]) -> None:
+        if publish_direct:
+            deps.run_event_stream_service.publish(state.get("thread_id"), item)
+        if writer is not None:
+            writer(item)
+
+    if emit_started:
+        emit_stream_event(started_event)
+    child_writer = emit_stream_event if writer is not None or bool(parent_metadata.get("streaming_enabled")) else None
+    child_result, child_events, forwarded_events = _run_child_graph(deps, child_state, request, state, metadata, child_writer)
     metadata, result, finished_event = _summarize_child_run(state, metadata, request, child_result)
-    if writer is not None:
-        writer(finished_event)
+    emit_stream_event(finished_event)
     metadata_payload = dump_model(metadata)
     result_payload = dump_model(result)
     child_record = {
@@ -121,7 +312,8 @@ def _run_agent_call(
     next_parent_metadata["child_run_refs"] = refs
     persistence_events: list[dict[str, Any]] = []
     try:
-        deps.session_storage.append_tool_call(state["project_root"], state["session_id"], dump_model(tool_result))
+        with _optional_lock(persistence_lock):
+            deps.session_storage.append_tool_call(state["project_root"], state["session_id"], dump_model(tool_result))
     except Exception as exc:
         persistence_events.append(
             event(
@@ -135,13 +327,14 @@ def _run_agent_call(
             )
         )
     try:
-        deps.session_storage.save_child_run(
-            state["project_root"],
-            state["session_id"],
-            metadata_payload,
-            result_payload,
-            child_events,
-        )
+        with _optional_lock(persistence_lock):
+            deps.session_storage.save_child_run(
+                state["project_root"],
+                state["session_id"],
+                metadata_payload,
+                result_payload,
+                child_events,
+            )
     except Exception as exc:
         persistence_events.append(
             event(
@@ -162,6 +355,19 @@ def _run_agent_call(
         "messages": [tool_result_to_tool_message(tool_result)],
         "ui_events": [started_event, *forwarded_events, *persistence_events, finished_event],
     }
+
+
+class _optional_lock:
+    def __init__(self, lock: Lock | None) -> None:
+        self.lock = lock
+
+    def __enter__(self) -> None:
+        if self.lock is not None:
+            self.lock.acquire()
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        if self.lock is not None:
+            self.lock.release()
 
 
 def _run_child_graph(

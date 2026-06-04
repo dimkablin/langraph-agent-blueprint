@@ -89,7 +89,11 @@ export function activityTimelineGroupTitle(entries: ActivityTimelineEntry[]): st
     return `Subagent ${subagentEntries[0].subagentName || "activity"}`;
   }
   if (subagentEntries.length > 1) {
-    return `${subagentEntries.length} subagents`;
+    const runningCount = subagentEntries.filter((entry) => isRunning(entry.activity)).length;
+    if (runningCount > 0) {
+      return `${runningCount}/${subagentEntries.length} parallel subagents running`;
+    }
+    return `Ran ${subagentEntries.length} parallel subagents`;
   }
   const commandEntries = entries.filter((entry) => Boolean(entry.terminal));
   if (commandEntries.length > 0 && commandEntries.length === entries.length) {

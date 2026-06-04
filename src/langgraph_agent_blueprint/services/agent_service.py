@@ -63,6 +63,7 @@ class AgentService:
         child_state["metadata"] = {
             "is_subagent": True,
             "streaming_enabled": bool(parent_metadata.get("streaming_enabled")),
+            "permission_mode": parent_metadata.get("permission_mode"),
             "subagent_depth": int(parent_metadata.get("subagent_depth", 0)) + 1,
             "child_run_id": metadata.child_run_id,
             "parent_session_id": metadata.parent_session_id,

@@ -158,6 +158,21 @@ test("context events populate runtime context state", () => {
   assert.equal(state.context.errors.length, 1);
 });
 
+test("model_context_prepared populates live model-facing context state", () => {
+  const modelContext = {
+    max_tokens: 1000,
+    used_tokens: 120,
+    remaining_tokens: 880,
+    percent: 12,
+    truncated: false,
+    parts: [{ kind: "messages", title: "Message 1", content: "current question", token_estimate: 4 }],
+  };
+
+  const state = applyRuntimeEvent(createInitialRuntimeState(), event("model_context_prepared", { model_context: modelContext }));
+
+  assert.deepEqual(state.context.modelContext, modelContext);
+});
+
 test("usage events and chat responses update runtime usage without clearing prior values", () => {
   let state = applyRuntimeEvent(createInitialRuntimeState(), event("usage_updated", { usage: { context_used: 200, context_max: 1000, context_percent: 20 } }));
 
@@ -196,7 +211,7 @@ test("session detail copies persisted usage into runtime state", () => {
     todos: [],
     memory: {},
     usage: { context_used: 321, context_max: 1000, context_percent: 32.1 },
-    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    context: { references: [], fragments: [], attachments: [], budget: {}, model_context: {}, errors: [] },
     child_runs: [],
     metadata: {},
   });
@@ -281,7 +296,7 @@ test("session detail hides internal compaction summary messages", () => {
     todos: [],
     memory: {},
     usage: {},
-    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    context: { references: [], fragments: [], attachments: [], budget: {}, model_context: {}, errors: [] },
     child_runs: [],
     metadata: {},
   });
@@ -336,7 +351,7 @@ test("session detail hides persisted tool result messages from chat history", ()
     todos: [],
     memory: {},
     usage: {},
-    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    context: { references: [], fragments: [], attachments: [], budget: {}, model_context: {}, errors: [] },
     child_runs: [],
     metadata: {},
   });
@@ -686,7 +701,7 @@ test("session detail restores persisted activity above the final assistant messa
     todos: [],
     memory: {},
     usage: {},
-    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    context: { references: [], fragments: [], attachments: [], budget: {}, model_context: {}, errors: [] },
     child_runs: [],
     metadata: {},
   });
@@ -809,7 +824,7 @@ test("session detail replays persisted ReAct events in chat order after reload",
     todos: [],
     memory: {},
     usage: {},
-    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    context: { references: [], fragments: [], attachments: [], budget: {}, model_context: {}, errors: [] },
     child_runs: [],
     metadata: {},
   });
@@ -843,7 +858,7 @@ test("legacy session detail without user_message event keeps persisted human pro
     todos: [],
     memory: {},
     usage: {},
-    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    context: { references: [], fragments: [], attachments: [], budget: {}, model_context: {}, errors: [] },
     child_runs: [],
     metadata: {},
   });

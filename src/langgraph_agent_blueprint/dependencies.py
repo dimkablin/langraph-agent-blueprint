@@ -25,6 +25,7 @@ from langgraph_agent_blueprint.services import (
     PermissionService,
     PluginService,
     RunControlService,
+    RunEventStreamService,
     SessionService,
     SkillInvocationService,
     TaskService,
@@ -67,6 +68,7 @@ class AppDependencies:
     usage_service: UsageService
     observability_service: ObservabilityService
     run_control_service: RunControlService
+    run_event_stream_service: RunEventStreamService
     context_provider_service: ContextProviderService
     context_budget_service: ContextBudgetService
     workspace_service: WorkspaceService
@@ -169,6 +171,7 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         usage_service=UsageService(),
         observability_service=ObservabilityService(config.langfuse),
         run_control_service=RunControlService(),
+        run_event_stream_service=RunEventStreamService(),
         context_provider_service=context_provider_service,
         context_budget_service=ContextBudgetService(config.context_max_tokens),
         workspace_service=workspace_service,

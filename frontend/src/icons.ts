@@ -60,6 +60,11 @@ export const IconBlocks = makeIcon([
   { x: 14, y: 3, width: 7, height: 7, rx: 1 },
   { d: "M10 21V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H3" },
 ]);
+export const IconMoreHorizontal = makeIcon([
+  { cx: 12, cy: 12, r: 1 },
+  { cx: 19, cy: 12, r: 1 },
+  { cx: 5, cy: 12, r: 1 },
+]);
 export const IconCheck = makeIcon([{ d: "M20 6 9 17l-5-5" }]);
 export const IconChevronDown = makeIcon([{ d: "m6 9 6 6 6-6" }]);
 export const IconChevronRight = makeIcon([{ d: "m9 18 6-6-6-6" }]);

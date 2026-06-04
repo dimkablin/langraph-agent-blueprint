@@ -70,6 +70,7 @@ export type RuntimeContextState = {
   fragments: Record<string, unknown>[];
   attachments: Record<string, unknown>[];
   budget: Record<string, unknown> | null;
+  modelContext: Record<string, unknown> | null;
   errors: Record<string, unknown>[];
 };
 
@@ -105,6 +106,7 @@ export function createInitialRuntimeState(): RuntimeState {
       fragments: [],
       attachments: [],
       budget: null,
+      modelContext: null,
       errors: [],
     },
     usage: {},
@@ -226,6 +228,14 @@ export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): Run
       context: {
         ...next.context,
         budget: event.data,
+      },
+    };
+  } else if (event.type === "model_context_prepared") {
+    next = {
+      ...next,
+      context: {
+        ...next.context,
+        modelContext: isRecord(event.data.model_context) ? event.data.model_context : null,
       },
     };
   } else if (event.type === "context_resolution_error") {
@@ -778,6 +788,7 @@ function contextFromDto(context: ContextStateDTO): RuntimeContextState {
     fragments: context.fragments || [],
     attachments: context.attachments || [],
     budget: context.budget || null,
+    modelContext: isRecord(context.model_context) ? context.model_context : null,
     errors: context.errors || [],
   };
 }

@@ -48,6 +48,7 @@ EventType = Literal[
     "context_fragment_added",
     "context_resolution_error",
     "context_budget_applied",
+    "model_context_prepared",
     "subagent_started",
     "subagent_finished",
     "subagent_error",

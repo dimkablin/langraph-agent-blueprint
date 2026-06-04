@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from time import monotonic, sleep
 from typing import Any
 
 from langchain_core.messages import AIMessage
@@ -48,6 +49,22 @@ class StreamingTwoSubagentsModel:
                 ),
             ),
         ]
+
+
+class SlowConcurrentTwoSubagentsModel(StreamingTwoSubagentsModel):
+    def stream_generate(self, request: ModelRequest) -> list[ModelStreamEvent]:
+        text = _latest_human_text(request)
+        if text == "Build backend":
+            sleep(0.2)
+        return super().stream_generate(request)
+
+
+class VerySlowConcurrentTwoSubagentsModel(StreamingTwoSubagentsModel):
+    def stream_generate(self, request: ModelRequest) -> list[ModelStreamEvent]:
+        text = _latest_human_text(request)
+        if text == "Build backend":
+            sleep(0.6)
+        return super().stream_generate(request)
 
 
 class ContractThenTwoSubagentsModel:
@@ -183,11 +200,111 @@ def test_stream_forwards_each_subagent_run_and_child_tokens(runtime_factory, app
 
     assert event_types.index("model_token") < event_types.index("subagent_started")
     assert [item["data"]["name"] for item in started] == ["backend", "frontend"]
-    assert [item["data"]["name"] for item in finished] == ["backend", "frontend"]
+    assert sorted(item["data"]["name"] for item in finished) == ["backend", "frontend"]
     assert len(child_token_events) >= 2
     assert event_types.count("subagent_started") == 2
     assert event_types.count("subagent_finished") == 2
     assert any(item["type"] == "final_response" and item["data"].get("content") == "Both subagents finished." for item in events)
+
+
+def test_stream_starts_multiple_subagents_before_first_child_finishes(runtime_factory, approving_permissions, temp_project) -> None:
+    runtime = runtime_factory(
+        project_root=temp_project,
+        chat_model=SlowConcurrentTwoSubagentsModel(),
+        permissions=approving_permissions,
+    )
+
+    events = list(
+        runtime.stream(
+            "Create backend and frontend subagents.",
+            project_root=temp_project,
+            thread_id="thread_subagent_parallel_123",
+            session_id="session_subagent_parallel_123",
+        )
+    )
+
+    first_finish_index = next(index for index, item in enumerate(events) if item["type"] == "subagent_finished")
+    started_before_first_finish = [
+        item["data"]["name"]
+        for item in events[:first_finish_index]
+        if item["type"] == "subagent_started"
+    ]
+
+    assert started_before_first_finish == ["backend", "frontend"]
+
+
+def test_stream_yields_subagent_started_before_slow_child_finishes(runtime_factory, approving_permissions, temp_project) -> None:
+    runtime = runtime_factory(
+        project_root=temp_project,
+        chat_model=VerySlowConcurrentTwoSubagentsModel(),
+        permissions=approving_permissions,
+    )
+    stream = runtime.stream(
+        "Create backend and frontend subagents.",
+        project_root=temp_project,
+        thread_id="thread_subagent_live_start_123",
+        session_id="session_subagent_live_start_123",
+    )
+    started_at = monotonic()
+    first_started_elapsed: float | None = None
+    try:
+        for item in stream:
+            if item["type"] == "subagent_started":
+                first_started_elapsed = monotonic() - started_at
+                break
+    finally:
+        close = getattr(stream, "close", None)
+        if close is not None:
+            close()
+
+    assert first_started_elapsed is not None
+    assert first_started_elapsed < 0.4
+
+
+def test_stream_emits_parallel_subagent_start_batch_before_child_events(
+    runtime_factory,
+    approving_permissions,
+    temp_project,
+    monkeypatch,
+) -> None:
+    runtime = runtime_factory(
+        project_root=temp_project,
+        chat_model=StreamingTwoSubagentsModel(),
+        permissions=approving_permissions,
+    )
+    original_create_child_state = runtime.dependencies.agent_service.create_child_state
+
+    def delayed_create_child_state(parent_state, request, metadata, tool_registry):
+        if request.name == "frontend":
+            sleep(0.15)
+        return original_create_child_state(parent_state, request, metadata, tool_registry)
+
+    monkeypatch.setattr(runtime.dependencies.agent_service, "create_child_state", delayed_create_child_state)
+    stream = runtime.stream(
+        "Create backend and frontend subagents.",
+        project_root=temp_project,
+        thread_id="thread_subagent_start_batch_123",
+        session_id="session_subagent_start_batch_123",
+    )
+    events: list[dict[str, Any]] = []
+    try:
+        for item in stream:
+            events.append(item)
+            if item["type"] == "subagent_event":
+                break
+    finally:
+        close = getattr(stream, "close", None)
+        if close is not None:
+            close()
+
+    first_child_event_index = next(index for index, item in enumerate(events) if item["type"] == "subagent_event")
+    started_before_child_events = [
+        item["data"]["name"]
+        for item in events[:first_child_event_index]
+        if item["type"] == "subagent_started"
+    ]
+
+    assert started_before_child_events == ["backend", "frontend"]
 
 
 def test_stream_runs_contract_tool_before_launching_two_subagents(runtime_factory, approving_permissions, temp_project) -> None:
@@ -219,7 +336,7 @@ def test_stream_runs_contract_tool_before_launching_two_subagents(runtime_factor
 
     assert write_finished_index < first_subagent_index
     assert [item["data"]["name"] for item in started] == ["backend", "frontend"]
-    assert [item["data"]["name"] for item in finished] == ["backend", "frontend"]
+    assert sorted(item["data"]["name"] for item in finished) == ["backend", "frontend"]
     assert event_types.count("subagent_started") == 2
     assert event_types.count("subagent_finished") == 2
     assert [item["name"] for item in parent_session["tool_calls"]] == ["write_file", "agent", "agent"]
@@ -277,6 +394,31 @@ def test_subagent_side_effect_approval_is_reported_as_nested_approval_error(runt
     assert errors
     assert "nested approval is not supported" in str(errors[-1]["data"].get("summary", "")).lower()
     assert not (temp_project / "child.txt").exists()
+
+
+def test_subagent_inherits_runtime_permission_mode_for_allowed_side_effects(runtime_factory, temp_project) -> None:
+    runtime = runtime_factory(
+        project_root=temp_project,
+        chat_model=ChildWriteAttemptModel(request_allowed_write=True),
+        permissions=PermissionService("default"),
+    )
+
+    events = list(
+        runtime.stream(
+            "Ask a child to write with full access.",
+            project_root=temp_project,
+            thread_id="thread_subagent_full_access_123",
+            session_id="session_subagent_full_access_123",
+            permission_mode="bypass_read_only",
+        )
+    )
+
+    errors = [item for item in events if item["type"] == "subagent_error"]
+    finished = [item for item in events if item["type"] == "subagent_finished"]
+
+    assert errors == []
+    assert finished
+    assert (temp_project / "child.txt").read_text(encoding="utf-8") == "child wrote this\n"
 
 
 def test_stream_persists_each_child_run_with_streamed_child_events(runtime_factory, approving_permissions, temp_project) -> None:

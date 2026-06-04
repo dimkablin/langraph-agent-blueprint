@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from langgraph_agent_blueprint.models import SubagentRequest, ToolPermissionMetadata, ToolRuntimeMetadata
+from langgraph_agent_blueprint.models import RuntimeModel, SubagentRequest, ToolPermissionMetadata, ToolRuntimeMetadata
 from langgraph_agent_blueprint.services import AgentService
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
-class AgentInput(BaseModel):
+class AgentInput(RuntimeModel):
     """Pydantic input schema for the agent operation."""
 
     prompt: str = Field(
@@ -28,7 +28,11 @@ class AgentInput(BaseModel):
     )
     allowed_tools: list[str] = Field(
         default_factory=list,
-        description="Optional allow-list of tool names available to the child subagent. Leave empty for the default safe scope.",
+        description=(
+            "Optional snake_case allow-list of exact tool names available to the child subagent. "
+            "Use the field name `allowed_tools`, never `allowedTools`. Leave empty only for the default read-only safe scope. "
+            "This narrows child tool visibility; it does not bypass permission policy."
+        ),
     )
     max_turns: int = Field(
         default=8,
@@ -90,6 +94,8 @@ class AgentTool(BaseTool[AgentInput, AgentOutput]):
         "Delegate work to a child subagent and merge its result into parent state. "
         "Use this tool whenever the user asks to create, run, spawn, or delegate subagents/agents, "
         "split work across frontend/backend or parallel workers, or start named child agents. "
+        "If the child must edit files, write files, or run shell commands, pass a minimal `allowed_tools` list "
+        "with exact tool names such as read_file, glob, grep, write_file, edit_file, bash, or powershell. "
         "Calling this tool is the action that starts a subagent; writing text such as "
         "'I will create subagents' does not start them."
     )

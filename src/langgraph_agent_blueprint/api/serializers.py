@@ -130,6 +130,7 @@ def context_state_dto(snapshot: dict[str, Any], *, redactor: Any | None = None) 
         fragments=_as_list(metadata.get("resolved_context") or context_status.get("context_fragments")),
         attachments=_as_list(metadata.get("attachments")),
         budget=metadata.get("context_budget") if isinstance(metadata.get("context_budget"), dict) else {},
+        model_context=metadata.get("model_context") if isinstance(metadata.get("model_context"), dict) else {},
         errors=_as_list(metadata.get("context_errors") or context_status.get("context_errors")),
     )
     if redactor is None:

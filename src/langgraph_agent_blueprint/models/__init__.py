@@ -11,6 +11,8 @@ from .context import (
     ContextBudgetReport,
     ContextFragment,
     ContextReference,
+    ModelContextPart,
+    ModelContextReport,
     ResolvedContextItem,
 )
 from .evals import EvalExpectations, EvalReport, EvalRunResult, EvalScenario, EvalStep
@@ -107,6 +109,8 @@ __all__ = [
     "MCPToolContribution",
     "ModelRequest",
     "ModelResponse",
+    "ModelContextPart",
+    "ModelContextReport",
     "MessageCreate",
     "MessageRecord",
     "ModelStreamEvent",

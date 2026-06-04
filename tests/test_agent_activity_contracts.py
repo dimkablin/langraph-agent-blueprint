@@ -6,10 +6,13 @@ import ast
 from pathlib import Path
 from typing import Any
 
+import pytest
+from pydantic import ValidationError
+
 from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, ToolActivitySpec
 from langgraph_agent_blueprint.models.prompts import BASE_SYSTEM_PROMPT
 from langgraph_agent_blueprint.services import AgentService
-from langgraph_agent_blueprint.tools.agent_tools import AgentTool
+from langgraph_agent_blueprint.tools.agent_tools import AgentInput, AgentTool
 
 
 def test_activity_event_type_is_open_namespaced_string() -> None:
@@ -58,6 +61,13 @@ def test_agent_tool_metadata_tells_models_to_start_subagents_with_tool_calls() -
     assert input_schema["properties"]["prompt"]["description"]
     assert "frontend" in input_schema["properties"]["name"]["description"]
     assert "backend" in input_schema["properties"]["name"]["description"]
+    assert "allowed_tools" in input_schema["properties"]
+    assert "allowedTools" in input_schema["properties"]["allowed_tools"]["description"]
+
+
+def test_agent_input_rejects_camel_case_allowed_tools_payload() -> None:
+    with pytest.raises(ValidationError):
+        AgentInput.model_validate({"prompt": "Build frontend", "allowedTools": ["write_file"]})
 
 
 def test_system_prompt_requires_agent_tool_calls_for_subagent_requests() -> None:
@@ -67,6 +77,8 @@ def test_system_prompt_requires_agent_tool_calls_for_subagent_requests() -> None
     assert "саб-агент" in prompt
     assert "sub-agent" in prompt
     assert "frontend/backend" in prompt
+    assert "allowed_tools" in prompt
+    assert "allowedtools" in prompt
     assert "call the `agent` tool once" in prompt
     assert "final answer is allowed only after required tool calls" in prompt
 

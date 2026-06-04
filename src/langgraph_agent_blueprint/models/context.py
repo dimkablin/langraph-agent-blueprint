@@ -86,6 +86,32 @@ class ContextBudgetReport(FrozenRuntimeModel):
     included: list[str] = Field(default_factory=list)
 
 
+ModelContextPartKind = Literal["system", "messages", "tools", "metadata"]
+
+
+class ModelContextPart(FrozenRuntimeModel):
+    """One model-facing prompt/input part after context-window enforcement."""
+
+    kind: ModelContextPartKind
+    title: str
+    content: str
+    token_estimate: int = 0
+    included: bool = True
+    truncated: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ModelContextReport(FrozenRuntimeModel):
+    """Summary of the actual ModelRequest payload sent to the provider."""
+
+    max_tokens: int
+    used_tokens: int
+    remaining_tokens: int
+    percent: float
+    truncated: bool = False
+    parts: list[ModelContextPart] = Field(default_factory=list)
+
+
 class ResolvedContextItem(FrozenRuntimeModel):
     """Provider result for one reference or attachment."""
 

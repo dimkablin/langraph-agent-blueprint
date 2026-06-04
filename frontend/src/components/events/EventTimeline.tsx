@@ -4,6 +4,7 @@ import { IconCheck, IconChevronRight, IconCopy } from "../../icons.ts";
 import { activityTimelineGroupTitle, buildActivityEntries, formatTerminalBlock, type ActivityTimelineEntry } from "../../runtime/activityTimeline.ts";
 import { safeJson } from "../../runtime/events.ts";
 import type { ActivityItem } from "../../runtime/reducer.ts";
+import { buildSubagentTimelineRows } from "../../runtime/subagentTimeline.ts";
 
 const SHELL_ACTIVITY_LABEL = "Shell";
 
@@ -86,7 +87,7 @@ function ActivityEntryRow({ compactCommands, entry }: { compactCommands: boolean
 }
 
 function SubagentActivityDetails({ entry }: { entry: ActivityTimelineEntry }) {
-  const rows = entry.activities.map(subagentDetailRow);
+  const rows = buildSubagentTimelineRows(entry.activities);
   return (
     <div className="activity-debug-details activity-subagent-details">
       <div className="activity-subagent-panel">
@@ -95,64 +96,58 @@ function SubagentActivityDetails({ entry }: { entry: ActivityTimelineEntry }) {
           <span className={`activity-subagent-status activity-subagent-status-${entry.status}`}>{entry.detailStatusLabel}</span>
         </div>
         <div className="activity-subagent-events">
-          {rows.map((row) => (
-            <div className={`activity-subagent-event activity-subagent-event-${row.status}`} key={row.id}>
-              <span className="activity-subagent-event-title">{row.title}</span>
-              {row.summary ? <span className="activity-subagent-event-summary">{row.summary}</span> : null}
-            </div>
-          ))}
+          {rows.map((row) => <SubagentTimelineRowItem row={row} key={row.id} />)}
         </div>
       </div>
     </div>
   );
 }
 
-function subagentDetailRow(activity: ActivityItem): { id: string; title: string; summary: string; status: ActivityItem["status"] } {
-  const childEvent = recordValue(activity.data.child_event);
-  const childData = recordValue(childEvent.data);
-  const childType = stringValue(activity.data.child_event_type, childEvent.type);
-  if (activity.eventType === "subagent_started") {
-    return { id: activity.id, title: "Started", summary: stringValue(activity.summary, activity.data.name), status: activity.status };
-  }
-  if (activity.eventType === "subagent_finished") {
-    return { id: activity.id, title: "Finished", summary: stringValue(activity.summary, activity.data.summary), status: activity.status };
-  }
-  if (activity.eventType === "subagent_error") {
-    return { id: activity.id, title: "Failed", summary: stringValue(activity.summary, activity.data.error, activity.data.message), status: activity.status };
-  }
-  if (childType === "model_message" || childType === "final_response") {
-    return { id: activity.id, title: "Message", summary: stringValue(childData.content, activity.summary), status: activity.status };
-  }
-  if (childType === "tool_call_started" || childType === "tool_call_finished" || childType === "tool_call_error") {
-    return { id: activity.id, title: toolEventTitle(childType), summary: stringValue(childData.name, childData.tool_name, activity.summary), status: activity.status };
-  }
-  if (childType === "permission_required" || childType === "permission_resolved") {
-    return { id: activity.id, title: permissionEventTitle(childType), summary: stringValue(childData.tool_name, childData.command, activity.summary), status: activity.status };
-  }
-  return { id: activity.id, title: activity.label || childType || activity.eventType, summary: activity.summary, status: activity.status };
-}
+function SubagentTimelineRowItem({ row }: { row: ReturnType<typeof buildSubagentTimelineRows>[number] }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasDetails = Boolean(row.content || row.summary);
+  const isCollapsibleTool = row.kind === "tool" && hasDetails;
+  const className = `activity-subagent-event activity-subagent-event-${row.status} activity-subagent-event-${row.kind}`;
 
-function toolEventTitle(childType: string): string {
-  if (childType === "tool_call_started") return "Tool started";
-  if (childType === "tool_call_finished") return "Tool finished";
-  return "Tool failed";
-}
-
-function permissionEventTitle(childType: string): string {
-  return childType === "permission_required" ? "Permission required" : "Permission resolved";
-}
-
-function recordValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
-function stringValue(...values: unknown[]): string {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
+  if (!isCollapsibleTool) {
+    if (row.kind === "message") {
+      return (
+        <div className={className}>
+          <pre className="activity-subagent-message-text">{truncateActivityText(row.content || row.summary, 2400)}</pre>
+        </div>
+      );
     }
+    return (
+      <div className={className}>
+        <span className="activity-subagent-event-title">{row.title}</span>
+        {row.content ? <pre className="activity-subagent-event-content">{truncateActivityText(row.content, 2400)}</pre> : null}
+        {!row.content && row.summary ? <span className="activity-subagent-event-summary">{row.summary}</span> : null}
+      </div>
+    );
   }
-  return "";
+
+  return (
+    <div className={className}>
+      <button
+        type="button"
+        className="activity-subagent-event-toggle"
+        aria-label="Toggle subagent tool details"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span className="activity-subagent-event-toggle-title">{row.title}</span>
+        <span className="activity-detail-toggle" aria-hidden="true">
+          <IconChevronRight size={14} className={expanded ? "rotated" : ""} />
+        </span>
+      </button>
+      {expanded ? (
+        <div className="activity-subagent-event-details">
+          {row.content ? <pre className="activity-subagent-event-content">{truncateActivityText(row.content, 2400)}</pre> : null}
+          {row.summary ? <span className="activity-subagent-event-summary">{row.summary}</span> : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function CommandActivityDetails({ entry }: { entry: ActivityTimelineEntry }) {

@@ -76,7 +76,7 @@ export function conversationDetailToSession(detail: ConversationDetailDTO): Sess
     todos: [],
     memory: {},
     usage: {},
-    context: { references: [], fragments: [], attachments: [], budget: {}, errors: [] },
+    context: { references: [], fragments: [], attachments: [], budget: {}, model_context: {}, errors: [] },
     child_runs: [],
     metadata: { thread_id: detail.conversation.thread_id, conversation_id: detail.conversation.conversation_id },
   };
