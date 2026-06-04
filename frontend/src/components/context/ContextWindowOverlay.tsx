@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 
-import { IconFileText, IconPaperclip, IconX } from "../../icons.ts";
+import { IconFileText, IconX } from "../../icons.ts";
 import {
   buildContextWindowView,
   contextRecordPreview,
@@ -8,7 +8,6 @@ import {
   formatContextTokenCount,
   isExpandableContextRecord,
   type ContextWindowRecordView,
-  type ContextWindowSectionKind,
   type ContextWindowSectionView,
 } from "../../runtime/contextWindow.ts";
 import type { RuntimeContextState } from "../../runtime/reducer.ts";
@@ -22,37 +21,10 @@ type ContextWindowOverlayProps = {
   onClose: () => void;
 };
 
-type SectionCopy = {
-  title: string;
-  description: string;
-  emptyLabel: string;
-  tone?: "normal" | "warning";
-  itemClassName?: string;
-};
-
-const SECTION_COPY: Record<ContextWindowSectionKind, SectionCopy> = {
-  fragments: {
-    title: "Фрагменты для модели",
-    description: "Текстовые фрагменты, которые runtime передает модели.",
-    emptyLabel: "Фрагментов пока нет.",
-    itemClassName: "context-window-fragment",
-  },
-  references: {
-    title: "Ссылки",
-    description: "Context references, которые runtime разрешает перед запуском.",
-    emptyLabel: "Ссылок пока нет.",
-  },
-  attachments: {
-    title: "Вложения",
-    description: "Файлы и другие AttachmentRef, добавленные к текущему запросу.",
-    emptyLabel: "Вложений пока нет.",
-  },
-  errors: {
-    title: "Ошибки контекста",
-    description: "Проблемы разрешения context refs.",
-    emptyLabel: "Ошибок нет.",
-    tone: "warning",
-  },
+const SECTION_COPY = {
+  title: "Context manager state",
+  description: "Raw context manager snapshot currently known to the runtime.",
+  emptyLabel: "Context manager state is empty.",
 };
 
 export function ContextWindowOverlay({ open, context, usage, modelName, configuredMaxTokens, onClose }: ContextWindowOverlayProps) {
@@ -88,15 +60,15 @@ export function ContextWindowOverlay({ open, context, usage, modelName, configur
   };
 
   return (
-    <div className="context-window-overlay" role="dialog" aria-modal="true" aria-label="Контекстное окно">
-      <button className="context-window-backdrop" type="button" aria-label="Закрыть контекстное окно" onClick={onClose} />
+    <div className="context-window-overlay" role="dialog" aria-modal="true" aria-label="Context window">
+      <button className="context-window-backdrop" type="button" aria-label="Close context window" onClick={onClose} />
       <section className="context-window-page">
         <header className="context-window-header">
           <div>
             <p className="context-window-eyebrow">Runtime context</p>
-            <h2>Контекстное окно</h2>
+            <h2>Context window</h2>
           </div>
-          <button className="context-window-close" type="button" onClick={onClose} aria-label="Закрыть контекстное окно">
+          <button className="context-window-close" type="button" onClick={onClose} aria-label="Close context window">
             <IconX size={18} />
           </button>
         </header>
@@ -112,20 +84,14 @@ export function ContextWindowOverlay({ open, context, usage, modelName, configur
         {view.hasContext ? (
           <div className="context-window-content">
             {view.sections.map((section) => (
-              <ContextRecordSection
-                key={section.kind}
-                section={section}
-                icon={section.kind === "attachments" ? <IconPaperclip size={15} /> : null}
-                expandedRecords={expandedRecords}
-                onToggleRecord={toggleRecord}
-              />
+              <ContextRecordSection key={section.kind} section={section} expandedRecords={expandedRecords} onToggleRecord={toggleRecord} />
             ))}
           </div>
         ) : (
           <div className="context-window-empty">
             <IconFileText size={22} />
-            <strong>Контекст пока пуст</strong>
-            <span>Добавьте ссылку через @README.md, @glob:src/**/*.py или другое поддерживаемое context reference.</span>
+            <strong>Context is empty</strong>
+            <span>Add a context reference through @README.md, @glob:src/**/*.py, or another supported context reference.</span>
           </div>
         )}
       </section>
@@ -135,23 +101,19 @@ export function ContextWindowOverlay({ open, context, usage, modelName, configur
 
 function ContextRecordSection({
   section,
-  icon,
   expandedRecords,
   onToggleRecord,
 }: {
   section: ContextWindowSectionView;
-  icon?: ReactNode;
   expandedRecords: Set<string>;
   onToggleRecord: (recordKey: string) => void;
 }) {
-  const copy = SECTION_COPY[section.kind];
-  const tone = copy.tone ?? "normal";
   return (
-    <section className={tone === "warning" ? "context-window-section context-window-section-warning" : "context-window-section"}>
+    <section className="context-window-section">
       <header>
         <div>
-          <h3>{copy.title}</h3>
-          <p>{copy.description}</p>
+          <h3>{SECTION_COPY.title}</h3>
+          <p>{SECTION_COPY.description}</p>
         </div>
         <span className="context-window-count">{section.items.length}</span>
       </header>
@@ -161,16 +123,14 @@ function ContextRecordSection({
             <ContextRecordCard
               key={item.key}
               item={item}
-              icon={icon}
-              className={copy.itemClassName}
-              tone={tone}
+              className="context-window-fragment"
               expanded={expandedRecords.has(item.key)}
               onToggle={() => onToggleRecord(item.key)}
             />
           ))}
         </div>
       ) : (
-        <p className="context-window-section-empty">{copy.emptyLabel}</p>
+        <p className="context-window-section-empty">{SECTION_COPY.emptyLabel}</p>
       )}
     </section>
   );
@@ -180,20 +140,18 @@ function ContextRecordCard({
   item,
   icon,
   className,
-  tone,
   expanded,
   onToggle,
 }: {
   item: ContextWindowRecordView;
   icon?: ReactNode;
   className?: string;
-  tone: "normal" | "warning";
   expanded: boolean;
   onToggle: () => void;
 }) {
   const expandable = isExpandableContextRecord(item);
   return (
-    <article className={["context-window-record", className, tone === "warning" ? "context-window-record-warning" : ""].filter(Boolean).join(" ")}>
+    <article className={["context-window-record", className].filter(Boolean).join(" ")}>
       <header>
         <div className="context-window-record-title">
           {icon ? <span className="context-window-record-icon">{icon}</span> : null}

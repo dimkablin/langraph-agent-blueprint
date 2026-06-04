@@ -819,7 +819,7 @@ test("context budget is rendered inside the chat composer", () => {
   assert.match(contextWindow, /used_tokens/);
   assert.match(contextWindow, /max_tokens/);
   assert.match(contextWindow, /remaining_tokens/);
-  assert.match(contextWindow, /}к`/);
+  assert.match(contextWindow, /}k`/);
   assert.doesNotMatch(styles, /34,\s*197,\s*94|#86efac|#b7f7cb/i);
   assert.match(styles, /stroke: var\(--primary\)/);
   assert.match(styles, /\.composer-context-popover\s*\{[^}]*left:\s*50%/);

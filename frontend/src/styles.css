@@ -2476,9 +2476,10 @@ pre {
 
 .runtime-sidebar-chat {
   width: 100%;
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 4px;
   align-items: center;
   border: 0;
   border-radius: var(--control-radius);
@@ -2500,32 +2501,70 @@ pre {
 }
 
 .runtime-sidebar-chat-actions {
-  min-width: 0;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
   opacity: 0;
 }
 
 .runtime-sidebar-chat:hover .runtime-sidebar-chat-actions,
-.runtime-sidebar-chat:focus-within .runtime-sidebar-chat-actions {
+.runtime-sidebar-chat:focus-within .runtime-sidebar-chat-actions,
+.runtime-sidebar-chat-actions-open {
   opacity: 1;
 }
 
-.runtime-sidebar-chat-actions button {
+.runtime-sidebar-chat-actions-trigger {
+  width: 24px;
+  height: 24px;
+  appearance: none;
+  display: grid;
+  place-items: center;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   background: transparent;
   color: var(--muted);
-  padding: 2px 4px;
-  font-size: 10px;
+  padding: 0;
+  line-height: 0;
 }
 
-.runtime-sidebar-chat-actions button:hover,
-.runtime-sidebar-chat-actions button:focus-visible {
+.runtime-sidebar-chat-actions-trigger:hover,
+.runtime-sidebar-chat-actions-trigger:focus-visible,
+.runtime-sidebar-chat-actions-trigger[aria-expanded="true"] {
   background: var(--hover-surface);
   color: var(--foreground);
+}
+
+.runtime-sidebar-chat-actions-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 22;
+  min-width: 138px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--card-elevated);
+  color: var(--foreground);
+  padding: 4px;
+}
+
+.runtime-sidebar-chat-actions-menu button {
+  width: 100%;
+  min-height: 28px;
+  border: 0;
+  border-radius: calc(var(--control-radius) - 2px);
+  background: transparent;
+  color: var(--foreground);
+  padding: 6px 8px;
+  text-align: left;
+  font-size: var(--font-size-small);
+  font-weight: 650;
+}
+
+.runtime-sidebar-chat-actions-menu button:hover,
+.runtime-sidebar-chat-actions-menu button:focus-visible {
+  background: var(--hover-surface);
 }
 
 .runtime-sidebar-chat strong,
@@ -2915,6 +2954,76 @@ pre {
 .activity-subagent-event-summary {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.activity-subagent-event-content {
+  min-width: 0;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--activity-reference-text);
+  font: inherit;
+}
+
+.activity-subagent-event-tool {
+  display: block;
+  min-width: 0;
+}
+
+.activity-subagent-event-message {
+  display: block;
+  color: var(--activity-reference-text);
+}
+
+.activity-subagent-message-text {
+  min-width: 0;
+  margin: 2px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: inherit;
+  font: inherit;
+}
+
+.activity-subagent-event-toggle {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: calc(var(--control-radius) - 3px);
+  background: transparent;
+  color: var(--activity-reference-text);
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+}
+
+.activity-subagent-event-toggle:hover,
+.activity-subagent-event-toggle:focus-visible {
+  color: var(--foreground);
+}
+
+.activity-subagent-event-toggle-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-subagent-event-details {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 5px;
+  padding-left: 18px;
+}
+
+.activity-subagent-event-details .activity-subagent-event-summary {
+  display: block;
 }
 
 .activity-subagent-event-error .activity-subagent-event-title,
