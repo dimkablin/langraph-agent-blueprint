@@ -51,9 +51,9 @@ test("conversation history API uses user-scoped conversation endpoints", async (
 
     assert.equal(list[0].session_id, "conversation_1");
     assert.equal(detail.messages[0].id, "msg_1");
-    assert.equal(calls[0].url, "http://127.0.0.1:8010/conversations");
+    assert.equal(calls[0].url, "http://127.0.0.1:8000/conversations");
     assert.equal((calls[0].init.headers as Record<string, string>)["X-User-Id"], "dev-user");
-    assert.equal(calls[1].url, "http://127.0.0.1:8010/conversations/conversation_1");
+    assert.equal(calls[1].url, "http://127.0.0.1:8000/conversations/conversation_1");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -86,12 +86,12 @@ test("conversation history actions call rename archive and delete routes", async
     await archiveConversation("conversation_1");
     await deleteConversation("conversation_1");
 
-    assert.equal(calls[0].url, "http://127.0.0.1:8010/conversations/conversation_1");
+    assert.equal(calls[0].url, "http://127.0.0.1:8000/conversations/conversation_1");
     assert.equal(calls[0].init.method, "PATCH");
     assert.deepEqual(JSON.parse(String(calls[0].init.body)), { title: "Renamed" });
-    assert.equal(calls[1].url, "http://127.0.0.1:8010/conversations/conversation_1/archive");
+    assert.equal(calls[1].url, "http://127.0.0.1:8000/conversations/conversation_1/archive");
     assert.equal(calls[1].init.method, "POST");
-    assert.equal(calls[2].url, "http://127.0.0.1:8010/conversations/conversation_1");
+    assert.equal(calls[2].url, "http://127.0.0.1:8000/conversations/conversation_1");
     assert.equal(calls[2].init.method, "DELETE");
   } finally {
     globalThis.fetch = originalFetch;

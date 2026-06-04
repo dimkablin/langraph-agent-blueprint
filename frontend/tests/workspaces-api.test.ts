@@ -31,7 +31,7 @@ test("checkoutWorkspaceBranch posts branch checkout requests to the workspace AP
     const result = await checkoutWorkspaceBranch("project_1", { branch: "feature", confirm_dirty: true });
 
     assert.equal(result.workspace.current_branch, "feature");
-    assert.equal(calls[0].url, "http://127.0.0.1:8010/workspaces/project_1/checkout");
+    assert.equal(calls[0].url, "http://127.0.0.1:8000/workspaces/project_1/checkout");
     assert.equal(calls[0].init.method, "POST");
     assert.deepEqual(JSON.parse(String(calls[0].init.body)), { branch: "feature", confirm_dirty: true });
   } finally {

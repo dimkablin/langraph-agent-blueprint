@@ -12,9 +12,9 @@ npm install
 npm run dev
 ```
 
-The default example frontend API URL targets the local Docker Compose backend at
-`http://127.0.0.1:8010`. If you are running only the backend manually with the
-command above, set a custom backend URL before starting Vite:
+The default example frontend API URL targets the local Docker Compose backend and
+the manual backend command above at `http://127.0.0.1:8000`. If you are running a
+backend on a different port, set a custom backend URL before starting Vite:
 
 ```bash
 set VITE_API_BASE_URL=http://127.0.0.1:8000

@@ -17,8 +17,8 @@ docker compose -f docker-compose.local.yml up --build
 Wait until Compose reports the app containers as healthy or running, then open:
 
 - Frontend: http://127.0.0.1:5173
-- Backend API: http://127.0.0.1:8010
-- Backend commands endpoint: http://127.0.0.1:8010/commands
+- Backend API: http://127.0.0.1:8000
+- Backend commands endpoint: http://127.0.0.1:8000/commands
 - Langfuse UI: http://127.0.0.1:3002
 - MinIO API: http://127.0.0.1:9090
 - MinIO console: http://127.0.0.1:9091
@@ -85,14 +85,14 @@ The native OS folder picker (`POST /workspaces/pick`) is not available from the 
 
 Do not enter a Windows host path such as `C:\Users\...` from inside the Docker UI; the backend can only see mounted container paths. The system folder-picker button is still shown for non-container/manual backends, but Docker users should expect the path-entry flow to work instead.
 
-The compose frontend is built with `VITE_API_BASE_URL=http://127.0.0.1:8010`, so browser requests go to the host-mapped backend port. The root `.env.example` and `frontend/.env.example` use the same value for manual local frontend runs against this compose backend.
+The compose frontend is built with `VITE_API_BASE_URL=http://127.0.0.1:8000`, so browser requests go to the host-mapped backend port. The root `.env.example` and `frontend/.env.example` use the same value for manual local frontend runs against this compose backend.
 
 ## Smoke checks
 
 ```bash
 curl -f http://127.0.0.1:5173/
-curl -f http://127.0.0.1:8010/commands
-curl -f -X POST http://127.0.0.1:8010/chat \
+curl -f http://127.0.0.1:8000/commands
+curl -f -X POST http://127.0.0.1:8000/chat \
   -H 'Content-Type: application/json' \
   -d '{"message":"hello from local compose"}'
 curl -f http://127.0.0.1:3002/
@@ -130,7 +130,7 @@ No destructive cleanup is performed by default.
 The compose file uses stable localhost ports:
 
 - `5173` frontend
-- `8010` backend API mapped to container `8000`
+- `8000` backend API mapped to container `8000`
 - `3002` Langfuse UI mapped to container `3000`
 - `5432`, `6379`, `8123`, `9000`, `9090`, `9091` for local supporting services
 

@@ -46,10 +46,10 @@ The React API client sends `X-User-Id` on conversation, chat, stream, workspace,
 Example:
 
 ```bash
-curl -H 'X-User-Id: alice' http://127.0.0.1:8010/conversations
+curl -H 'X-User-Id: alice' http://127.0.0.1:8000/conversations
 curl -H 'X-User-Id: alice' -H 'Content-Type: application/json' \
   -d '{"message":"continue this chat","session_id":"session_..."}' \
-  http://127.0.0.1:8010/chat/stream
+  http://127.0.0.1:8000/chat/stream
 ```
 
 ## Local SQLite and production PostgreSQL path
