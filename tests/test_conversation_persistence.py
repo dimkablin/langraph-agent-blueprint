@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from langgraph_agent_blueprint.graph.checkpoints import default_checkpointer
 from langgraph_agent_blueprint.models.conversations import ConversationCreate, MessageCreate, StreamEventCreate
 from langgraph_agent_blueprint.services.conversation_service import ConversationAccessError, ConversationService
 from langgraph_agent_blueprint.storage.conversation_storage import SQLiteConversationStorage
@@ -108,3 +109,31 @@ def test_archive_soft_delete_and_search_hide_deleted_conversations(tmp_path):
         pass
     else:
         raise AssertionError("expected deleted conversation to be hidden")
+
+
+def test_checkpoints_survive_runtime_reinstantiation(tmp_path):
+    first = default_checkpointer(tmp_path / "checkpoints.sqlite3")
+    first.put(
+        {"configurable": {"thread_id": "thread_resume_123", "checkpoint_ns": ""}},
+        {
+            "id": "checkpoint_1",
+            "ts": "2026-01-01T00:00:00Z",
+            "channel_values": {"pending_confirmation": {"tool_call_id": "tool_1"}},
+            "channel_versions": {"pending_confirmation": "1"},
+            "versions_seen": {},
+        },
+        {"source": "loop", "step": 1},
+        {"pending_confirmation": "1"},
+    )
+    first.put_writes(
+        {"configurable": {"thread_id": "thread_resume_123", "checkpoint_ns": "", "checkpoint_id": "checkpoint_1"}},
+        [("pending_confirmation", {"tool_call_id": "tool_1"})],
+        "task_1",
+    )
+
+    reloaded = default_checkpointer(tmp_path / "checkpoints.sqlite3")
+
+    checkpoint = reloaded.get_tuple({"configurable": {"thread_id": "thread_resume_123"}})
+    assert checkpoint is not None
+    assert checkpoint.checkpoint["channel_values"]["pending_confirmation"] == {"tool_call_id": "tool_1"}
+    assert checkpoint.pending_writes == [("task_1", "pending_confirmation", {"tool_call_id": "tool_1"})]

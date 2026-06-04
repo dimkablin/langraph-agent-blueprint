@@ -105,12 +105,33 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         )
 
     @api.post("/approval", response_model=ChatResponse)
-    def approval(request: ApprovalRequest) -> ChatResponse:
+    def approval(request: ApprovalRequest, x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> ChatResponse:
         runtime = api.state.runtime
+        conversation_service = getattr(runtime.dependencies, "conversation_service", None)
+        user_id = _required_user_id(x_user_id)
+        conversation = None
+        if conversation_service is not None:
+            try:
+                conversation = conversation_service.get_conversation_for_thread(
+                    user_id,
+                    session_id=request.session_id,
+                    thread_id=request.thread_id,
+                ).conversation
+            except ConversationAccessError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
         result = runtime.resume(request.thread_id, request.decision_payload(), session_id=request.session_id)
+        if conversation_service is not None and conversation is not None and (result.get("final_response") is not None or result.get("ui_events")):
+            final_response = result.get("final_response")
+            conversation_service.append_turn(
+                user_id,
+                conversation.conversation_id,
+                assistant_message=MessageCreate(role="assistant", content=str(final_response or "")) if final_response is not None else None,
+                events=event_creates_from_runtime(result.get("ui_events", [])),
+            )
         return ChatResponse(
             session_id=result["session_id"],
             thread_id=result["thread_id"],
+            conversation_id=conversation.conversation_id if conversation is not None else result.get("session_id"),
             final_response=result.get("final_response"),
             events=runtime_event_dtos(
                 result.get("ui_events", []),
@@ -130,6 +151,12 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     api.include_router(status_router)
     api.include_router(workspaces_router)
     return api
+
+
+def _required_user_id(header_value: str | None) -> str:
+    if header_value is None:
+        raise HTTPException(status_code=401, detail="X-User-Id header is required")
+    return _user_id(header_value)
 
 
 def _user_id(header_value: str | None) -> str:

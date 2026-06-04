@@ -48,6 +48,15 @@ class ConversationService:
         except ConversationNotFoundError as exc:
             raise ConversationAccessError(f"Conversation not found: {conversation_id}") from exc
 
+    def get_conversation_for_thread(self, user_id: str, *, session_id: str | None = None, thread_id: str | None = None) -> ConversationDetail:
+        """Load the owned conversation that backs a runtime session/thread."""
+
+        try:
+            return self.storage.get_conversation_for_thread(self._user_id(user_id), session_id=session_id, thread_id=thread_id)
+        except ConversationNotFoundError as exc:
+            runtime_id = session_id or thread_id or "<missing>"
+            raise ConversationAccessError(f"Conversation not found: {runtime_id}") from exc
+
     def rename_conversation(self, user_id: str, conversation_id: str, title: str) -> ConversationRecord:
         try:
             return self.storage.rename_conversation(self._user_id(user_id), conversation_id, title)

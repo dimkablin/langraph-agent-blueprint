@@ -149,7 +149,7 @@ class AssistantGraphRuntime:
 
     def __init__(self, dependencies: AppDependencies) -> None:
         self.dependencies = dependencies
-        self.checkpointer = default_checkpointer()
+        self.checkpointer = default_checkpointer(dependencies.config.storage_dir / "checkpoints.sqlite3")
         self.app = build_main_graph(dependencies).compile(checkpointer=self.checkpointer)
 
     def invoke(

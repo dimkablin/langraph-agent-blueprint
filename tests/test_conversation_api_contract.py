@@ -187,3 +187,92 @@ def test_append_message_endpoint_persists_user_and_assistant_messages_idempotent
     detail = client.get(f"/conversations/{conversation_id}", headers={"X-User-Id": "user-a"}).json()
     assert [(message["role"], message["content"]) for message in detail["messages"]] == [("user", "hello"), ("assistant", "hi")]
     assert [event["event_id"] for event in detail["events"]] == ["event-1"]
+
+
+def test_approval_and_cancel_require_owned_conversation(tmp_path):
+    app = create_app(AppConfig(storage_dir=tmp_path / ".storage", project_root=tmp_path, cwd=tmp_path))
+    dependencies = app.state.runtime.dependencies
+
+    class RuntimeWithApprovalAndCancel:
+        def __init__(self) -> None:
+            self.dependencies = dependencies
+            self.resume_calls: list[dict[str, Any]] = []
+            self.cancel_calls: list[dict[str, Any]] = []
+
+        def resume(self, thread_id: str, decision: dict[str, Any], *, session_id: str | None = None) -> dict[str, Any]:
+            self.resume_calls.append({"thread_id": thread_id, "decision": decision, "session_id": session_id})
+            return {
+                "session_id": session_id or thread_id,
+                "thread_id": thread_id,
+                "final_response": "approved answer",
+                "ui_events": [
+                    {
+                        "id": "event_approval_1",
+                        "type": "final_response",
+                        "timestamp": "2026-01-01T00:00:00Z",
+                        "session_id": session_id or thread_id,
+                        "data": {"content": "approved answer"},
+                    }
+                ],
+                "usage": {},
+            }
+
+        def cancel(self, thread_id: str, *, session_id: str | None = None, reason: str | None = None) -> dict[str, Any]:
+            self.cancel_calls.append({"thread_id": thread_id, "session_id": session_id, "reason": reason})
+            return {"cancelled": True, "thread_id": thread_id, "session_id": session_id, "reason": reason}
+
+    app.state.runtime = RuntimeWithApprovalAndCancel()
+    client = TestClient(app)
+    created = client.post("/conversations", headers={"X-User-Id": "user-a"}, json={"title": "Approval"}).json()
+
+    approval_payload = {"thread_id": created["thread_id"], "session_id": created["session_id"], "decision": {"approved": True}}
+    assert client.post("/approval", json=approval_payload).status_code == 401
+    assert client.post("/approval", headers={"X-User-Id": "user-b"}, json=approval_payload).status_code == 404
+    assert client.post("/approval/events", headers={"X-User-Id": "user-b"}, json=approval_payload).status_code == 404
+    assert client.post("/chat/cancel", headers={"X-User-Id": "user-b"}, json={"thread_id": created["thread_id"], "session_id": created["session_id"]}).status_code == 404
+
+    approval = client.post("/approval", headers={"X-User-Id": "user-a"}, json=approval_payload)
+    assert approval.status_code == 200
+    cancel = client.post("/chat/cancel", headers={"X-User-Id": "user-a"}, json={"thread_id": created["thread_id"], "session_id": created["session_id"], "reason": "stop"})
+    assert cancel.status_code == 200
+
+
+def test_approval_resume_persists_answer_and_events_for_history_reload(tmp_path):
+    app = create_app(AppConfig(storage_dir=tmp_path / ".storage", project_root=tmp_path, cwd=tmp_path))
+    dependencies = app.state.runtime.dependencies
+
+    class RuntimeWithApprovalHistory:
+        def __init__(self) -> None:
+            self.dependencies = dependencies
+
+        def resume(self, thread_id: str, decision: dict[str, Any], *, session_id: str | None = None) -> dict[str, Any]:
+            return {
+                "session_id": session_id or thread_id,
+                "thread_id": thread_id,
+                "final_response": "approval final answer",
+                "ui_events": [
+                    {
+                        "id": "event_approval_history",
+                        "type": "final_response",
+                        "timestamp": "2026-01-01T00:00:00Z",
+                        "session_id": session_id or thread_id,
+                        "data": {"content": "approval final answer"},
+                    }
+                ],
+                "usage": {},
+            }
+
+    app.state.runtime = RuntimeWithApprovalHistory()
+    client = TestClient(app)
+    created = client.post("/conversations", headers={"X-User-Id": "user-a"}, json={"title": "Approval history"}).json()
+    response = client.post(
+        "/approval",
+        headers={"X-User-Id": "user-a"},
+        json={"thread_id": created["thread_id"], "session_id": created["session_id"], "decision": {"approved": True}},
+    )
+    assert response.status_code == 200
+
+    reloaded = TestClient(app).get(f"/conversations/{created['conversation_id']}", headers={"X-User-Id": "user-a"})
+    assert reloaded.status_code == 200
+    assert [(message["role"], message["content"]) for message in reloaded.json()["messages"]] == [("assistant", "approval final answer")]
+    assert [event["event_id"] for event in reloaded.json()["events"]] == ["event_approval_history"]

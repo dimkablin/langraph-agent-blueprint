@@ -8,7 +8,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from langgraph_agent_blueprint.models.conversations import ConversationCreate, MessageCreate
-from langgraph_agent_blueprint.services.conversation_service import ConversationAccessError, title_from_message
+from langgraph_agent_blueprint.services.conversation_service import ConversationAccessError, event_creates_from_runtime, title_from_message
 
 from .schemas import ApprovalRequest, ChatCancelRequest, ChatCancelResponse, ChatRequest, RuntimeEventDTO, StreamFrame
 from .serializers import runtime_event_dto
@@ -80,10 +80,17 @@ def chat_stream(request_body: ChatRequest, request: Request, x_user_id: str | No
 
 
 @router.post("/chat/cancel", response_model=ChatCancelResponse)
-def chat_cancel(request_body: ChatCancelRequest, request: Request) -> ChatCancelResponse:
-    """Request cooperative cancellation for the active graph run on a thread."""
+def chat_cancel(request_body: ChatCancelRequest, request: Request, x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> ChatCancelResponse:
+    """Request cooperative cancellation for the active graph run on an owned thread."""
 
     runtime = request.app.state.runtime
+    user_id = _required_user_id(x_user_id)
+    conversation_service = getattr(getattr(runtime, "dependencies", None), "conversation_service", None)
+    if conversation_service is not None:
+        try:
+            conversation_service.get_conversation_for_thread(user_id, session_id=request_body.session_id, thread_id=request_body.thread_id)
+        except ConversationAccessError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
     result = runtime.cancel(
         request_body.thread_id,
         session_id=request_body.session_id,
@@ -94,9 +101,29 @@ def chat_cancel(request_body: ChatCancelRequest, request: Request) -> ChatCancel
 
 
 @router.post("/approval/events", response_model=list[RuntimeEventDTO])
-def approval_events(request_body: ApprovalRequest, request: Request) -> list[RuntimeEventDTO]:
+def approval_events(request_body: ApprovalRequest, request: Request, x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> list[RuntimeEventDTO]:
     runtime = request.app.state.runtime
+    user_id = _required_user_id(x_user_id)
+    conversation_service = getattr(getattr(runtime, "dependencies", None), "conversation_service", None)
+    conversation = None
+    if conversation_service is not None:
+        try:
+            conversation = conversation_service.get_conversation_for_thread(
+                user_id,
+                session_id=request_body.session_id,
+                thread_id=request_body.thread_id,
+            ).conversation
+        except ConversationAccessError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
     result = runtime.resume(request_body.thread_id, request_body.decision_payload(), session_id=request_body.session_id)
+    if conversation_service is not None and conversation is not None and (result.get("final_response") is not None or result.get("ui_events")):
+        final_response = result.get("final_response")
+        conversation_service.append_turn(
+            user_id,
+            conversation.conversation_id,
+            assistant_message=MessageCreate(role="assistant", content=str(final_response or "")) if final_response is not None else None,
+            events=event_creates_from_runtime(result.get("ui_events", [])),
+        )
     return [
         runtime_event_dto(item, redactor=runtime.dependencies.observability_service.redact_payload)
         for item in result.get("ui_events", [])
@@ -161,6 +188,12 @@ def _stream_event_create_from_dto(event: RuntimeEventDTO):
         payload=event.data,
         metadata={"session_id": event.session_id, "node": event.node, "severity": event.severity, "timestamp": event.timestamp.isoformat()},
     )
+
+
+def _required_user_id(header_value: str | None) -> str:
+    if header_value is None:
+        raise HTTPException(status_code=401, detail="X-User-Id header is required")
+    return _user_id(header_value)
 
 
 def _user_id(header_value: str | None) -> str:

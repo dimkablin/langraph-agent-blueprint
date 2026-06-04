@@ -158,29 +158,27 @@ class SQLiteConversationStorage:
             ).fetchone()
             if conversation is None:
                 raise ConversationNotFoundError(safe_id)
-            messages = conn.execute(
-                "SELECT * FROM messages WHERE conversation_id = ? AND user_id = ? ORDER BY order_index ASC, created_at ASC",
-                (safe_id, user_id),
-            ).fetchall()
-            events = conn.execute(
-                "SELECT * FROM stream_events WHERE conversation_id = ? AND user_id = ? ORDER BY order_index ASC, created_at ASC",
-                (safe_id, user_id),
-            ).fetchall()
-            tool_calls = conn.execute(
-                "SELECT * FROM tool_calls WHERE conversation_id = ? AND user_id = ? ORDER BY order_index ASC, created_at ASC",
-                (safe_id, user_id),
-            ).fetchall()
-            artifacts = conn.execute(
-                "SELECT * FROM artifacts WHERE conversation_id = ? AND user_id = ? ORDER BY created_at ASC",
-                (safe_id, user_id),
-            ).fetchall()
-        return ConversationDetail(
-            conversation=self._conversation_from_row(conversation),
-            messages=[self._message_from_row(row) for row in messages],
-            events=[self._event_from_row(row) for row in events],
-            tool_calls=[self._json_row(row, "input_json", "output_json", "metadata_json") for row in tool_calls],
-            artifacts=[self._json_row(row, "metadata_json") for row in artifacts],
-        )
+            return self._detail_for_conversation_row(conn, user_id, conversation)
+
+    def get_conversation_for_thread(self, user_id: str, *, session_id: str | None = None, thread_id: str | None = None) -> ConversationDetail:
+        if not session_id and not thread_id:
+            raise ConversationNotFoundError("<missing>")
+        clauses = ["user_id = ?", "deleted_at IS NULL"]
+        params: list[Any] = [user_id]
+        if session_id:
+            clauses.append("session_id = ?")
+            params.append(validate_runtime_id(session_id, kind="session_id"))
+        if thread_id:
+            clauses.append("thread_id = ?")
+            params.append(validate_runtime_id(thread_id, kind="thread_id"))
+        with self._read() as conn:
+            conversation = conn.execute(
+                f"SELECT * FROM conversations WHERE {' AND '.join(clauses)}",
+                tuple(params),
+            ).fetchone()
+            if conversation is None:
+                raise ConversationNotFoundError(session_id or thread_id or "<missing>")
+            return self._detail_for_conversation_row(conn, user_id, conversation)
 
     def rename_conversation(self, user_id: str, conversation_id: str, title: str) -> ConversationRecord:
         clean_title = title.strip()[:200]
@@ -339,6 +337,32 @@ class SQLiteConversationStorage:
             ON CONFLICT(artifact_id) DO NOTHING
             """,
             (artifact_id, conversation_id, user_id, artifact.kind, artifact.uri, artifact.title, now, json.dumps(redact_secrets(artifact.metadata), ensure_ascii=False)),
+        )
+
+    def _detail_for_conversation_row(self, conn: sqlite3.Connection, user_id: str, conversation: sqlite3.Row) -> ConversationDetail:
+        conversation_id = conversation["conversation_id"]
+        messages = conn.execute(
+            "SELECT * FROM messages WHERE conversation_id = ? AND user_id = ? ORDER BY order_index ASC, created_at ASC",
+            (conversation_id, user_id),
+        ).fetchall()
+        events = conn.execute(
+            "SELECT * FROM stream_events WHERE conversation_id = ? AND user_id = ? ORDER BY order_index ASC, created_at ASC",
+            (conversation_id, user_id),
+        ).fetchall()
+        tool_calls = conn.execute(
+            "SELECT * FROM tool_calls WHERE conversation_id = ? AND user_id = ? ORDER BY order_index ASC, created_at ASC",
+            (conversation_id, user_id),
+        ).fetchall()
+        artifacts = conn.execute(
+            "SELECT * FROM artifacts WHERE conversation_id = ? AND user_id = ? ORDER BY created_at ASC",
+            (conversation_id, user_id),
+        ).fetchall()
+        return ConversationDetail(
+            conversation=self._conversation_from_row(conversation),
+            messages=[self._message_from_row(row) for row in messages],
+            events=[self._event_from_row(row) for row in events],
+            tool_calls=[self._json_row(row, "input_json", "output_json", "metadata_json") for row in tool_calls],
+            artifacts=[self._json_row(row, "metadata_json") for row in artifacts],
         )
 
     @staticmethod

@@ -55,6 +55,7 @@ def test_chat_and_approval_responses_include_top_level_usage(tmp_path: Path) -> 
     chat_response = client.post("/chat", json={"message": "hi"})
     approval_response = client.post(
         "/approval",
+        headers={"X-User-Id": "user-a"},
         json={"thread_id": "thread_usage_123", "session_id": "session_usage_123", "decision": {"approved": True}},
     )
 
@@ -73,6 +74,7 @@ def test_chat_cancel_endpoint_delegates_to_runtime_control_service() -> None:
 
     response = client.post(
         "/chat/cancel",
+        headers={"X-User-Id": "user-a"},
         json={
             "thread_id": "thread_stop_123",
             "session_id": "session_stop_123",
@@ -155,7 +157,7 @@ def test_chat_cancel_endpoint_serializes_runtime_cancellation_result() -> None:
     app.include_router(chat_router)
     client = TestClient(app)
 
-    response = client.post("/chat/cancel", json={"thread_id": "thread_probe_123"})
+    response = client.post("/chat/cancel", headers={"X-User-Id": "user-a"}, json={"thread_id": "thread_probe_123"})
 
     assert response.status_code == 200
     assert response.json() == {
