@@ -12,10 +12,12 @@ from langgraph_agent_blueprint.models import (
     AgentActivitySource,
     PermissionDecision,
     PermissionRequest,
+    PermissionStateStreamEvent,
     ToolCall,
     ToolResult,
     dump_model,
     event,
+    stream_event_payload,
     tool_result_to_tool_message,
 )
 from langgraph_agent_blueprint.utils.activity import safe_activity_data
@@ -54,6 +56,7 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
                 event(
                     "permission_resolved",
                     **record,
+                    stream_event=stream_event_payload(_permission_state_stream_event(request, record, status="approved")),
                     activity=_permission_resolution_activity(
                         request,
                         record,
@@ -89,6 +92,7 @@ def permission_gate_node(state: dict, deps: AppDependencies) -> dict:
             event(
                 "permission_resolved",
                 **record,
+                stream_event=stream_event_payload(_permission_state_stream_event(request, record, status="rejected")),
                 activity=_permission_resolution_activity(
                     request,
                     record,
@@ -157,4 +161,18 @@ def _permission_resolution_activity(
                 "reason": reason,
             }
         ),
+    )
+
+
+def _permission_state_stream_event(request: PermissionRequest, record: dict, *, status: str) -> PermissionStateStreamEvent:
+    reason = record.get("reason") or request.reason
+    return PermissionStateStreamEvent(
+        status=status,  # type: ignore[arg-type]
+        tool_call_id=request.tool_call_id,
+        tool_name=request.tool_name,
+        action=request.action,
+        risk=request.risk,
+        args_summary=request.args_summary,
+        reason=str(reason) if reason else None,
+        args=request.args or {},
     )

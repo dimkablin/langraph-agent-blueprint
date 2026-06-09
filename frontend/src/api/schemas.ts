@@ -26,6 +26,39 @@ export type AgentActivityEvent = {
   refs: AgentActivityRef[];
 };
 
+export type RuntimeStreamEvent =
+  | { kind: "assistant_delta"; message_id: string; delta: string }
+  | { kind: "assistant_final"; message_id: string; content: string }
+  | { kind: "progress"; message: string; stage?: string | null; message_id?: string | null }
+  | {
+      kind: "tool_lifecycle";
+      phase: "scheduled" | "started" | "completed" | "failed" | "blocked" | "permission_required";
+      tool_call_id: string;
+      tool_name: string;
+      title?: string | null;
+      args_summary?: string | null;
+      result_summary?: string | null;
+      command?: string | null;
+      path?: string | null;
+      exit_code?: number | null;
+      duration_ms?: number | null;
+      error?: { type: string; message: string } | null;
+      details?: Record<string, unknown>;
+    }
+  | {
+      kind: "permission_state";
+      status: "required" | "approved" | "rejected" | "blocked";
+      tool_call_id: string;
+      tool_name: string;
+      action?: string | null;
+      risk?: string | null;
+      args_summary?: string | null;
+      reason?: string | null;
+      args?: Record<string, unknown>;
+    }
+  | { kind: "error"; message: string; error_type?: string | null; recoverable?: boolean | null }
+  | { kind: "artifact"; artifact_id: string; artifact_kind: string; uri?: string | null; title?: string | null; metadata?: Record<string, unknown> };
+
 export type RuntimeEvent = {
   id: string;
   type: string;

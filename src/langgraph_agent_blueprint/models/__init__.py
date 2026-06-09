@@ -52,6 +52,18 @@ from .plugins import (
 )
 from .runtime import AgentRunInput, AgentRunOutput, FileSnapshotInfo, FileSnapshotRecord, RollbackResult, RunCancellationResult
 from .sessions import SessionMetadata
+from .stream_events import (
+    ArtifactStreamEvent,
+    AssistantDeltaStreamEvent,
+    AssistantFinalStreamEvent,
+    ErrorStreamEvent,
+    PermissionStateStreamEvent,
+    ProgressStreamEvent,
+    RuntimeStreamEvent,
+    StreamError,
+    ToolLifecycleStreamEvent,
+    stream_event_payload,
+)
 from .subagents import ChildRunMetadata, ResultMergePolicy, SubagentRequest, SubagentResult
 from .tool_metadata import ToolActivitySpec, ToolPermissionMetadata, ToolRuntimeMetadata, ToolStateEffect
 from .tools import ToolCall, ToolResult, normalize_provider_tool_calls, tool_result_to_tool_message
@@ -65,6 +77,9 @@ __all__ = [
     "AgentActivityEvent",
     "AgentActivityRef",
     "AgentActivitySource",
+    "ArtifactStreamEvent",
+    "AssistantDeltaStreamEvent",
+    "AssistantFinalStreamEvent",
     "ChildRunMetadata",
     "CommandResult",
     "CommandType",
@@ -84,6 +99,7 @@ __all__ = [
     "EvalRunResult",
     "EvalScenario",
     "EvalStep",
+    "ErrorStreamEvent",
     "FileSnapshotInfo",
     "FileSnapshotRecord",
     "FrozenRuntimeModel",
@@ -119,6 +135,7 @@ __all__ = [
     "PermissionCheck",
     "PermissionDecision",
     "PermissionRequest",
+    "PermissionStateStreamEvent",
     "PluginCommandContribution",
     "PluginContextProviderContribution",
     "PluginContribution",
@@ -132,13 +149,16 @@ __all__ = [
     "PluginSource",
     "PluginToolContribution",
     "PluginTrustPolicy",
+    "ProgressStreamEvent",
     "ResolvedContextItem",
     "ResultMergePolicy",
     "RollbackResult",
     "RunCancellationResult",
+    "RuntimeStreamEvent",
     "RuntimeEvent",
     "RuntimeModel",
     "SessionMetadata",
+    "StreamError",
     "StreamEventCreate",
     "StreamEventRecord",
     "StreamEvent",
@@ -147,6 +167,7 @@ __all__ = [
     "ToolCall",
     "ToolCallRecord",
     "ToolActivitySpec",
+    "ToolLifecycleStreamEvent",
     "ToolPermissionMetadata",
     "ToolResult",
     "ToolResultRecord",
@@ -164,4 +185,5 @@ __all__ = [
     "tool_result_to_tool_message",
     "validate_list",
     "provider_tool_schemas",
+    "stream_event_payload",
 ]

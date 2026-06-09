@@ -28,6 +28,32 @@ Important frontend note: `POST /chat/stream` now returns Server-Sent Events. Eac
 
 The terminal frame is `{"type":"done","session_id":"...","final_response":"..."}`. Runtime exceptions are emitted as `{"type":"error","error":"..."}` frames.
 
+## Typed Stream Payload
+
+Visible runtime activity now has a typed payload at `RuntimeEvent.data.stream_event`.
+The outer `RuntimeEvent.type` remains for storage and legacy compatibility, but new UI
+mapping should use `stream_event.kind` rather than event-name prefixes or tool-name
+heuristics.
+
+Current `stream_event.kind` values:
+
+| Kind | Required identity | Purpose |
+| --- | --- | --- |
+| `assistant_delta` | `message_id` | Append public assistant text deltas to one visible draft. |
+| `assistant_final` | `message_id` | Seal the final assistant answer without rendering `done.final_response` again. |
+| `progress` | optional `message_id` | Concise public narration for ReAct progress, not hidden reasoning. |
+| `tool_lifecycle` | `tool_call_id`, `tool_name`, `phase` | Tool scheduled/started/completed/failed/blocked states, with args/result summaries. |
+| `permission_state` | `tool_call_id`, `tool_name`, `status` | Permission required/approved/rejected/blocked modal and timeline state. |
+| `error` | `message` | Runtime-visible error summary. |
+| `artifact` | `artifact_id`, `artifact_kind` | Future artifact references emitted during a turn. |
+
+Frontend reducer rules:
+
+- Prefer `data.stream_event` when present and skip legacy event-specific handling for that event.
+- Link assistant deltas/final by `message_id`; do not dedupe final text by string matching as the primary mechanism.
+- Render tool activity only from structured lifecycle fields such as `phase`, `tool_call_id`, `tool_name`, `args_summary`, and `result_summary`.
+- Keep legacy `model_token`, `model_message`, `tool_call_*`, and `permission_*` fallback handling for persisted sessions and older runtimes.
+
 ## Event Taxonomy
 
 | Event type | Data shape observed | UI use | Stable? | Missing fields | Rendering suggestion |

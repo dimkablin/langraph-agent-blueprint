@@ -1,5 +1,8 @@
 import { buildActivityEntries, formatTerminalBlock } from "./activityTimeline.ts";
+import type { RuntimeEvent, RuntimeStreamEvent } from "../api/schemas.ts";
 import type { ActivityItem } from "./reducer.ts";
+import { legacyActivityKindFromStructuredCategory, legacyChildToolStatus } from "./legacyStreamFallbacks.ts";
+import { activityFromStreamEvent, runtimeStreamEvent } from "./streamEvents.ts";
 
 export type SubagentTimelineRow = {
   id: string;
@@ -76,6 +79,49 @@ export function buildSubagentTimelineRows(activities: ActivityItem[]): SubagentT
     }
     if (isLowSignalChildEvent(child.type)) {
       continue;
+    }
+    const typedChild = childStreamEvent(activity, child);
+    if (typedChild) {
+      if (typedChild.kind === "assistant_delta") {
+        flushToolRows();
+        if (!typedChild.delta) continue;
+        tokenDraft = {
+          id: tokenDraft?.id || typedChild.message_id || activity.id,
+          kind: "message",
+          title: "Message",
+          summary: "",
+          content: `${tokenDraft?.content || ""}${typedChild.delta}`,
+          status: "running",
+        };
+        continue;
+      }
+      if (typedChild.kind === "assistant_final") {
+        flushToolRows();
+        discardTokenDraftIfDuplicatedBy(typedChild.content);
+        flushTokenDraft();
+        if (typedChild.content.trim() && !isDecorativeMessage(typedChild.content)) {
+          rows.push({
+            id: typedChild.message_id || activity.id,
+            kind: "message",
+            title: "Final response",
+            summary: "",
+            content: typedChild.content.trim(),
+            status: activity.status,
+          });
+        }
+        continue;
+      }
+      const typedActivity = childTypedActivity(activity, child, typedChild);
+      if (typedActivity) {
+        flushTokenDraft();
+        if (typedActivity.kind === "tool") {
+          pendingToolActivities.push(typedActivity);
+        } else {
+          flushToolRows();
+          rows.push(typedActivityRow(typedActivity));
+        }
+        continue;
+      }
     }
     if (child.type === "agent_activity") {
       const structuredActivity = childStructuredActivity(activity, child);
@@ -216,14 +262,42 @@ function childEvent(activity: ActivityItem): { type: string; data: Record<string
   };
 }
 
+function childStreamEvent(activity: ActivityItem, child: { type: string; data: Record<string, unknown> }): RuntimeStreamEvent | null {
+  return runtimeStreamEvent(childRuntimeEvent(activity, child));
+}
+
+function childTypedActivity(
+  activity: ActivityItem,
+  child: { type: string; data: Record<string, unknown> },
+  streamEvent: RuntimeStreamEvent,
+): ActivityItem | null {
+  return activityFromStreamEvent(childRuntimeEvent(activity, child), streamEvent);
+}
+
+function childRuntimeEvent(activity: ActivityItem, child: { type: string; data: Record<string, unknown> }): RuntimeEvent {
+  return {
+    id: activity.id,
+    type: child.type || "subagent_event",
+    timestamp: activity.timestamp,
+    session_id: "child",
+    severity: child.type === "error" ? "error" : "info",
+    data: child.data,
+  };
+}
+
+function typedActivityRow(activity: ActivityItem): SubagentTimelineRow {
+  return {
+    id: activity.id,
+    kind: activity.kind === "permission" ? "permission" : activity.kind === "tool" ? "tool" : activity.kind === "runtime" ? "status" : "event",
+    title: activity.label,
+    summary: activity.summary,
+    content: "",
+    status: activity.status,
+  };
+}
+
 function statusFromChildToolEvent(type: string, nestedStatus: unknown, fallback: ActivityItem["status"]): ActivityItem["status"] {
-  if (nestedStatus === "running" || nestedStatus === "pending" || nestedStatus === "success" || nestedStatus === "error" || nestedStatus === "blocked" || nestedStatus === "warning" || nestedStatus === "info") {
-    return nestedStatus;
-  }
-  if (type === "tool_call_started") return "running";
-  if (type === "tool_call_error") return "error";
-  if (type === "tool_call_finished") return "success";
-  return fallback;
+  return legacyChildToolStatus(type, nestedStatus, fallback);
 }
 
 function readableChildEventType(type: string): string {
@@ -249,28 +323,7 @@ function isLowSignalStructuredActivity(activity: ActivityItem): boolean {
 }
 
 function activityKindFromStructuredCategory(category: string, type: string): ActivityItem["kind"] {
-  if (
-    category === "runtime" ||
-    category === "workspace" ||
-    category === "git" ||
-    category === "tool" ||
-    category === "permission" ||
-    category === "skill" ||
-    category === "verification" ||
-    category === "mcp" ||
-    category === "hook" ||
-    category === "context" ||
-    category === "error"
-  ) {
-    return category;
-  }
-  if (type.startsWith("tool")) return "tool";
-  if (type.startsWith("permission")) return "permission";
-  if (type.startsWith("skill")) return "skill";
-  if (type.startsWith("mcp")) return "mcp";
-  if (type.startsWith("hook")) return "hook";
-  if (type.startsWith("context")) return "context";
-  return "event";
+  return legacyActivityKindFromStructuredCategory(category, type);
 }
 
 function normalizedContent(value: string): string {

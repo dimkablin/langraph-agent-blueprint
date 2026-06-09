@@ -117,6 +117,9 @@ def _attach_tool_duration(events: list[dict], tool_call_id: str, duration_ms: fl
         data = item.get("data")
         if isinstance(data, dict) and data.get("id") == tool_call_id:
             data["duration_ms"] = duration_ms
+            stream_event = data.get("stream_event")
+            if isinstance(stream_event, dict):
+                stream_event["duration_ms"] = duration_ms
 
 
 def _error_payload(record: dict) -> dict:

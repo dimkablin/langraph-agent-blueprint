@@ -309,3 +309,91 @@ test("subagent timeline renders grouped related child activities instead of raw 
   assert.deepEqual(rows.map((row) => row.title), ["Started", "Read main.py", "Finished"]);
   assert.ok(rows.every((row) => !row.title.includes("subagent_event")));
 });
+
+test("subagent timeline consumes typed child assistant stream events without child event name heuristics", () => {
+  const rows = buildSubagentTimelineRows([
+    subagentActivity({
+      id: "typed_delta",
+      eventType: "subagent_event",
+      data: {
+        child_run_id: "child_backend",
+        child_event_type: "opaque_child_event",
+        child_event: {
+          type: "opaque_child_event",
+          data: { stream_event: { kind: "assistant_delta", message_id: "child_msg_1", delta: "Backend" } },
+        },
+      },
+    }),
+    subagentActivity({
+      id: "typed_final",
+      eventType: "subagent_event",
+      data: {
+        child_run_id: "child_backend",
+        child_event_type: "opaque_child_event",
+        child_event: {
+          type: "opaque_child_event",
+          data: { stream_event: { kind: "assistant_final", message_id: "child_msg_1", content: "Backend done" } },
+        },
+      },
+    }),
+  ]);
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].kind, "message");
+  assert.equal(rows[0].content, "Backend done");
+});
+
+test("subagent timeline consumes typed child tool lifecycle without tool event name heuristics", () => {
+  const rows = buildSubagentTimelineRows([
+    subagentActivity({
+      id: "typed_tool_started",
+      eventType: "subagent_event",
+      data: {
+        child_run_id: "child_backend",
+        child_event_type: "opaque_child_event",
+        child_event: {
+          type: "opaque_child_event",
+          data: {
+            stream_event: {
+              kind: "tool_lifecycle",
+              phase: "started",
+              tool_call_id: "read_1",
+              tool_name: "read_file",
+              title: "Read backend API",
+              args_summary: "backend/api.py",
+              path: "backend/api.py",
+            },
+          },
+        },
+      },
+    }),
+    subagentActivity({
+      id: "typed_tool_completed",
+      eventType: "subagent_event",
+      data: {
+        child_run_id: "child_backend",
+        child_event_type: "opaque_child_event",
+        child_event: {
+          type: "opaque_child_event",
+          data: {
+            stream_event: {
+              kind: "tool_lifecycle",
+              phase: "completed",
+              tool_call_id: "read_1",
+              tool_name: "read_file",
+              title: "Read backend API",
+              result_summary: "Read backend/api.py.",
+              path: "backend/api.py",
+            },
+          },
+        },
+      },
+    }),
+  ]);
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].kind, "tool");
+  assert.equal(rows[0].title, "Read backend API");
+  assert.equal(rows[0].summary, "Read backend/api.py.");
+  assert.equal(rows[0].status, "success");
+});

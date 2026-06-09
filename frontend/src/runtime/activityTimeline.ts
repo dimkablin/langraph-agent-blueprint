@@ -1,4 +1,5 @@
 import type { ActivityItem, ActivityKind } from "./reducer.ts";
+import { isLegacyToolLifecycleActivity, legacyOperationActivityTitle } from "./legacyStreamFallbacks.ts";
 
 export type ActivityTerminalBlock = {
   command: string;
@@ -191,15 +192,7 @@ function activityGroupingKey(activity: ActivityItem): string {
 }
 
 function isToolLifecycleActivity(activity: ActivityItem): boolean {
-  const category = (activity.category || activity.kind).toLowerCase();
-  if (category === "permission") {
-    return Boolean(stringValue(activity.data.tool_call_id));
-  }
-  if (category === "tool" || category === "verification") {
-    return true;
-  }
-  const operation = stringValue(activity.data.operation);
-  return operation.startsWith("shell.") || operation.startsWith("file.") || operation.startsWith("search.");
+  return isLegacyToolLifecycleActivity(activity);
 }
 
 function expandRelatedActivities(activities: ActivityItem[]): ActivityItem[] {
@@ -233,6 +226,8 @@ function preferredActivityCategory(previous: ActivityItem, activity: ActivityIte
 }
 
 function compactTitle(activity: ActivityItem): string {
+  const typedTitle = stringValue(activity.data.stream_event_kind) ? stringValue(activity.data.title) : "";
+  if (typedTitle) return typedTitle;
   const permissionTitle = permissionActivityTitle(activity);
   if (permissionTitle) return permissionTitle;
   const subagentTitle = subagentActivityTitle(activity);
@@ -293,21 +288,8 @@ function operationActivityTitle(activity: ActivityItem): string | null {
     return `${isRunning(activity) ? "Running" : "Ran"} ${command}`;
   }
 
-  const operation = stringValue(activity.data.operation);
-  const pattern = stringValue(activity.data.pattern);
-  if (operation.startsWith("search.") && pattern) {
-    const noun = operation.endsWith(".grep") ? "text for" : "files matching";
-    return `${isRunning(activity) ? "Searching" : "Searched"} ${noun} ${pattern}`;
-  }
-
-  if (operation.startsWith("file.")) {
-    const path = displayPath(activity.data.path);
-    if (!path) return null;
-    const action = operation.split(".").at(-1) || "";
-    if (action === "read") return `${isRunning(activity) ? "Reading" : "Read"} ${path}`;
-    if (action === "write") return `${isRunning(activity) ? "Writing" : "Wrote"} ${path}`;
-    if (action === "edit") return `${isRunning(activity) ? "Editing" : "Edited"} ${path}`;
-  }
+  const legacyOperationTitle = legacyOperationActivityTitle(activity, isRunning(activity));
+  if (legacyOperationTitle) return legacyOperationTitle;
 
   const workspaceName = stringValue(activity.data.project_name, activity.data.workspace_name, activity.data.name);
   if (activity.kind === "workspace" && workspaceName) {
@@ -425,21 +407,6 @@ function debugPayloadForActivity(activity: ActivityItem): Record<string, unknown
     summary: activity.summary,
     data: activity.data,
   };
-}
-
-function displayPath(value: unknown): string {
-  const path = pathString(value);
-  if (!path) return "";
-  const normalized = path.replaceAll("\\", "/");
-  return normalized.split("/").filter(Boolean).at(-1) || normalized;
-}
-
-function pathString(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (isRecord(value)) {
-    return stringValue(value.basename, value.name, value.path);
-  }
-  return "";
 }
 
 function oneLine(value: string): string {

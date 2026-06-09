@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
+from langgraph.config import get_stream_writer
+
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
 from langgraph_agent_blueprint.graph.run_control import cancellation_update
-from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, ToolCall, ToolResult, dump_model, event, tool_result_to_tool_message, validate_list
+from langgraph_agent_blueprint.models import (
+    AgentActivityEvent,
+    AgentActivitySource,
+    PermissionStateStreamEvent,
+    StreamError,
+    ToolCall,
+    ToolLifecycleStreamEvent,
+    ToolResult,
+    dump_model,
+    event,
+    stream_event_payload,
+    tool_result_to_tool_message,
+    validate_list,
+)
 from langgraph_agent_blueprint.services.permission_service import DEFAULT_SENSITIVE_ARG_KEYS, summarize_args
 from langgraph_agent_blueprint.utils.activity import safe_activity_data
 
@@ -64,7 +79,26 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
             "tool_results": [result_payload],
             "messages": [tool_result_to_tool_message(result)],
             "pending_tool_calls": [],
-            "ui_events": [event("tool_call_error", id=call.id, name=name, status="rejected", reason="disallowed_by_skill")],
+            "ui_events": [
+                event(
+                    "tool_call_error",
+                    id=call.id,
+                    name=name,
+                    status="rejected",
+                    reason="disallowed_by_skill",
+                    stream_event=stream_event_payload(
+                        ToolLifecycleStreamEvent(
+                            phase="blocked",
+                            tool_call_id=call.id,
+                            tool_name=name,
+                            title=f"{name} blocked",
+                            result_summary="Tool is not allowed in the active skill scope.",
+                            error=StreamError(type="ToolNotAllowed", message="Tool is not allowed in the active skill scope."),
+                            details={"reason": "disallowed_by_skill"},
+                        )
+                    ),
+                )
+            ],
         })
     try:
         tool = deps.tool_registry.get(name)
@@ -93,24 +127,27 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
         metadata["tool_route"] = "needs_permission"
         metadata["after_permission_route"] = execution_route
         pending = dump_model(deps.permission_service.confirmation_payload(call, tool, decision.reason))
+        permission_event = event(
+            "permission_required",
+            **pending,
+            stream_event=stream_event_payload(_permission_state_stream_event(status="required", payload=pending, reason=decision.reason)),
+            activity=_permission_activity(
+                call=call,
+                tool=tool,
+                reason=decision.reason,
+                activity_type="permission.tool.requested",
+                status="pending",
+                title="Permission required",
+                data=pending,
+            ).model_dump(mode="json"),
+        )
+        writer = _stream_writer(current)
+        if writer is not None:
+            writer(permission_event)
         update = {
             "metadata": metadata,
             "pending_confirmation": pending,
-            "ui_events": [
-                event(
-                    "permission_required",
-                    **pending,
-                    activity=_permission_activity(
-                        call=call,
-                        tool=tool,
-                        reason=decision.reason,
-                        activity_type="permission.tool.requested",
-                        status="pending",
-                        title="Permission required",
-                        data=pending,
-                    ).model_dump(mode="json"),
-                )
-            ],
+            "ui_events": [permission_event],
         }
         permission_hook_update = run_hook_point(
             deps,
@@ -138,6 +175,9 @@ def tool_router_node(state: dict, deps: AppDependencies) -> dict:
                     approved=False,
                     decision="rejected",
                     reason=decision.reason,
+                    stream_event=stream_event_payload(
+                        _permission_state_stream_event(status="blocked", payload=denied_data, reason=decision.reason)
+                    ),
                     activity=_permission_activity(
                         call=call,
                         tool=tool,
@@ -188,3 +228,29 @@ def _permission_activity_data(call: ToolCall, tool: object, reason: str) -> dict
         "args_summary": summarize_args(call.args, sensitive_keys=sensitive_keys),
         "reason": reason,
     }
+
+
+def _permission_state_stream_event(*, status: str, payload: dict, reason: str) -> PermissionStateStreamEvent:
+    return PermissionStateStreamEvent(
+        status=status,  # type: ignore[arg-type]
+        tool_call_id=str(payload.get("tool_call_id") or ""),
+        tool_name=str(payload.get("tool_name") or ""),
+        action=_optional_str(payload.get("action")),
+        risk=_optional_str(payload.get("risk")),
+        args_summary=_optional_str(payload.get("args_summary")),
+        reason=reason or _optional_str(payload.get("reason")),
+        args=payload.get("args") if isinstance(payload.get("args"), dict) else {},
+    )
+
+
+def _optional_str(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _stream_writer(state: dict) -> object | None:
+    if not state.get("metadata", {}).get("streaming_enabled"):
+        return None
+    try:
+        return get_stream_writer()
+    except RuntimeError:
+        return None

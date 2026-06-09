@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import merge_updates, run_hook_point
-from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, event
+from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, ErrorStreamEvent, event, stream_event_payload
 from langgraph_agent_blueprint.utils.activity import safe_activity_data
 
 
@@ -27,6 +27,20 @@ def error_recovery_node(state: dict, deps: AppDependencies) -> dict:
     return merge_updates(hook_update, {
         "pending_tool_calls": [],
         "final_response": final,
-        "ui_events": [event("error", **latest, activity=failed_activity.model_dump(mode="json")), event("final_response", content=final)],
+        "ui_events": [
+            event(
+                "error",
+                **latest,
+                activity=failed_activity.model_dump(mode="json"),
+                stream_event=stream_event_payload(
+                    ErrorStreamEvent(
+                        message=str(latest.get("message") or "Unknown error"),
+                        error_type=str(latest.get("type") or latest.get("error_type") or "RuntimeError"),
+                        recoverable=bool(latest.get("recoverable", True)),
+                    )
+                ),
+            ),
+            event("final_response", content=final),
+        ],
     })
 

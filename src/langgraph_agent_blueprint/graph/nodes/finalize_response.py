@@ -5,7 +5,8 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
-from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, event
+from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, AssistantFinalStreamEvent, event, stream_event_payload
+from langgraph_agent_blueprint.utils.ids import new_id
 
 
 def finalize_response_node(state: dict, deps: AppDependencies) -> dict:
@@ -32,5 +33,17 @@ def finalize_response_node(state: dict, deps: AppDependencies) -> dict:
         status="success",
         title="Run completed",
     )
-    return {"final_response": final, "metadata": metadata, "ui_events": [event("final_response", content=final, activity=activity.model_dump(mode="json"))]}
+    message_id = str(metadata.get("assistant_message_id") or new_id("assistant"))
+    return {
+        "final_response": final,
+        "metadata": metadata,
+        "ui_events": [
+            event(
+                "final_response",
+                content=final,
+                activity=activity.model_dump(mode="json"),
+                stream_event=stream_event_payload(AssistantFinalStreamEvent(message_id=message_id, content=final)),
+            )
+        ],
+    }
 

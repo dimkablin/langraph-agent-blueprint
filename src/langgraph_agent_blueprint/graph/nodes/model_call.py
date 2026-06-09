@@ -13,7 +13,21 @@ from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
 from langgraph_agent_blueprint.graph.instrumentation import duration_ms, runtime_metrics_update
 from langgraph_agent_blueprint.graph.run_control import cancellation_update
-from langgraph_agent_blueprint.models import ModelContextPart, ModelContextReport, ModelRequest, ModelResponse, ToolCall, dump_model, event, provider_tool_schemas, validate_list
+from langgraph_agent_blueprint.models import (
+    AssistantDeltaStreamEvent,
+    ModelContextPart,
+    ModelContextReport,
+    ModelRequest,
+    ModelResponse,
+    ProgressStreamEvent,
+    ToolCall,
+    dump_model,
+    event,
+    provider_tool_schemas,
+    stream_event_payload,
+    validate_list,
+)
+from langgraph_agent_blueprint.utils.ids import new_id
 
 
 def model_call_node(state: dict, deps: AppDependencies) -> dict:
@@ -49,7 +63,8 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
     request, model_context = _fit_request_to_context_window(request, deps.config.context_max_tokens, tool_schema_payload_chars)
     context_usage = _usage_from_model_context(model_context)
     model_start = perf_counter()
-    response = _generate_model_response(current, deps, request)
+    assistant_message_id = new_id("assistant")
+    response = _generate_model_response(current, deps, request, message_id=assistant_message_id)
     response = _repair_missing_subagent_tool_calls(current, deps, request, response)
     model_provider_duration_ms = duration_ms(model_start)
     cancelled = cancellation_update(current, deps, node="model_call")
@@ -63,7 +78,19 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
     model_context_payload = dump_model(model_context)
     events = [event("node_started", node="model_call"), event("model_context_prepared", node="model_call", model_context=model_context_payload)]
     if response.content:
-        events.append(event("model_message", content=response.content))
+        events.append(
+            event(
+                "model_message",
+                content=response.content,
+                stream_event=stream_event_payload(
+                    ProgressStreamEvent(
+                        message=response.content,
+                        stage="model_message",
+                        message_id=assistant_message_id,
+                    )
+                ),
+            )
+        )
     events.append(event("usage_updated", usage=usage))
     message = AIMessage(
         content=response.content,
@@ -73,7 +100,7 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
         "messages": [message],
         "pending_tool_calls": [dump_model(call) for call in tool_calls],
         "usage": usage,
-        "metadata": {**current.get("metadata", {}), "model_context": model_context_payload},
+        "metadata": {**current.get("metadata", {}), "model_context": model_context_payload, "assistant_message_id": assistant_message_id},
         "final_response": response.content if not tool_calls else None,
         "ui_events": [*events, event("node_finished", node="model_call")],
         **runtime_metrics_update(
@@ -90,7 +117,7 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
     return merge_updates(pre_update, update, post_update)
 
 
-def _generate_model_response(state: dict, deps: AppDependencies, request: ModelRequest) -> ModelResponse:
+def _generate_model_response(state: dict, deps: AppDependencies, request: ModelRequest, *, message_id: str) -> ModelResponse:
     if not state.get("metadata", {}).get("streaming_enabled"):
         return deps.model_provider.generate(request)
 
@@ -102,7 +129,17 @@ def _generate_model_response(state: dict, deps: AppDependencies, request: ModelR
             cancelled = True
             break
         if stream_event.type == "token" and stream_event.token:
-            writer(event("model_token", session_id=state["session_id"], node="model_call", token=stream_event.token))
+            writer(
+                event(
+                    "model_token",
+                    session_id=state["session_id"],
+                    node="model_call",
+                    token=stream_event.token,
+                    stream_event=stream_event_payload(
+                        AssistantDeltaStreamEvent(message_id=message_id, delta=stream_event.token)
+                    ),
+                )
+            )
         elif stream_event.type == "response" and stream_event.response is not None:
             response = stream_event.response
     if cancelled:

@@ -9,7 +9,18 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from langgraph_agent_blueprint.models import AgentActivityEvent, FileSnapshotRecord, ToolCall, ToolResult, ToolStateEffect, dump_model, event
+from langgraph_agent_blueprint.models import (
+    AgentActivityEvent,
+    FileSnapshotRecord,
+    StreamError,
+    ToolCall,
+    ToolLifecycleStreamEvent,
+    ToolResult,
+    ToolStateEffect,
+    dump_model,
+    event,
+    stream_event_payload,
+)
 from langgraph_agent_blueprint.storage import SessionStorage
 from langgraph_agent_blueprint.tools import ToolExecutionContext, ToolRegistry
 from langgraph_agent_blueprint.tools.base import freeze_context_value
@@ -198,7 +209,65 @@ class ToolExecutionService:
 
 
 def _runtime_event_with_activity(event_type: str, activity: AgentActivityEvent, **data: Any) -> dict[str, Any]:
-    return event(event_type, **data, activity=activity.model_dump(mode="json"))
+    return event(
+        event_type,
+        **data,
+        activity=activity.model_dump(mode="json"),
+        stream_event=stream_event_payload(_tool_lifecycle_stream_event(event_type, activity, data)),
+    )
+
+
+def _tool_lifecycle_stream_event(event_type: str, activity: AgentActivityEvent, data: dict[str, Any]) -> ToolLifecycleStreamEvent:
+    activity_data = dict(activity.data or {})
+    phase = _tool_lifecycle_phase(event_type, str(data.get("status") or activity.status or ""))
+    error = _tool_lifecycle_error(phase, activity, data)
+    return ToolLifecycleStreamEvent(
+        phase=phase,
+        tool_call_id=str(activity_data.get("tool_call_id") or data.get("id") or ""),
+        tool_name=str(activity_data.get("tool_name") or data.get("name") or ""),
+        title=activity.title,
+        args_summary=activity.summary if phase in {"scheduled", "started", "permission_required"} else None,
+        result_summary=activity.summary if phase in {"completed", "failed", "blocked"} else None,
+        command=_optional_str(activity_data.get("command")),
+        path=_optional_str(activity_data.get("path")),
+        exit_code=_optional_int(activity_data.get("exit_code")),
+        duration_ms=_optional_float(data.get("duration_ms") or activity_data.get("duration_ms")),
+        error=error,
+        details=activity_data,
+    )
+
+
+def _tool_lifecycle_phase(event_type: str, status: str) -> str:
+    if event_type == "tool_call_started":
+        return "started"
+    if event_type == "tool_call_finished" and status != "error":
+        return "completed"
+    if event_type == "tool_call_error":
+        return "failed"
+    if event_type == "tool_call_finished" and status == "error":
+        return "failed"
+    return "scheduled"
+
+
+def _tool_lifecycle_error(phase: str, activity: AgentActivityEvent, data: dict[str, Any]) -> StreamError | None:
+    if phase != "failed":
+        return None
+    activity_data = dict(activity.data or {})
+    error_type = str(activity_data.get("error_type") or data.get("error_type") or "ToolError")
+    message = str(activity_data.get("message") or activity.summary or data.get("reason") or "Tool call failed.")
+    return StreamError(type=error_type, message=message)
+
+
+def _optional_str(value: Any) -> str | None:
+    return str(value) if isinstance(value, str) and value else None
+
+
+def _optional_int(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _optional_float(value: Any) -> float | None:
+    return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
 
 
 def _requires_file_snapshot(tool: Any, parsed: Any) -> bool:

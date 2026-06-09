@@ -3,11 +3,14 @@ import type {
   MessageDTO,
   PermissionRequest,
   RuntimeEvent,
+  RuntimeStreamEvent,
   SessionDetailDTO,
   StreamFrame,
 } from "../api/schemas.ts";
 import { groupActivitiesForTimeline, mergeActivityForTimeline } from "./activityTimeline.ts";
 import { eventSummary, eventTitle, firstString } from "./events.ts";
+import { legacyActivityKind, legacyActivityKindFromStructuredCategory, legacyActivityStatus } from "./legacyStreamFallbacks.ts";
+import { activityFromStreamEvent, permissionRequestFromStreamEvent, runtimeStreamEvent } from "./streamEvents.ts";
 
 export type ChatMessage = {
   id: string;
@@ -179,6 +182,11 @@ export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): Run
 
   next = applyUsageFromRuntimeEvent(next, event);
 
+  const streamEvent = runtimeStreamEvent(event);
+  if (streamEvent) {
+    return applyTypedRuntimeEvent(next, event, streamEvent);
+  }
+
   if (event.type === "final_response") {
     const content = firstString(event.data.content);
     next = content ? appendAssistantMessage(next, content, event.timestamp, event.id) : next;
@@ -259,6 +267,26 @@ export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): Run
   }
 
   return appendActivity(next, event);
+}
+
+function applyTypedRuntimeEvent(state: RuntimeState, event: RuntimeEvent, streamEvent: RuntimeStreamEvent): RuntimeState {
+  if (streamEvent.kind === "assistant_delta") {
+    return appendAssistantDelta(state, streamEvent.message_id, streamEvent.delta, event.timestamp);
+  }
+  if (streamEvent.kind === "assistant_final") {
+    const next = appendAssistantFinal(state, streamEvent.message_id, streamEvent.content, event.timestamp);
+    return { ...next, finalResponse: streamEvent.content, isStreaming: false };
+  }
+
+  let next = state;
+  if (streamEvent.kind === "permission_state") {
+    next = { ...next, pendingPermission: permissionRequestFromStreamEvent(streamEvent) };
+  } else if (streamEvent.kind === "error") {
+    next = { ...next, error: streamEvent.message, isStreaming: false };
+  }
+
+  const activity = activityFromStreamEvent(event, streamEvent);
+  return activity ? appendActivityItem(next, activity, shouldShowActivityItemInTimeline(activity)) : next;
 }
 
 export function applyChatResponse(state: RuntimeState, response: {
@@ -517,6 +545,37 @@ function appendAssistantToken(state: RuntimeState, token: string, timestamp: str
   };
 }
 
+function appendAssistantDelta(state: RuntimeState, messageId: string, delta: string, timestamp: string): RuntimeState {
+  if (!delta) return state;
+  const index = state.messages.findIndex((message) => message.id === messageId);
+  if (index >= 0) {
+    const message = state.messages[index];
+    if (message.role !== "assistant") return state;
+    return replaceMessageAtIndex(state, index, { ...message, content: `${message.content}${delta}`, timestamp });
+  }
+  const message: ChatMessage = {
+    id: messageId,
+    role: "assistant",
+    content: delta,
+    timestamp,
+  };
+  return {
+    ...state,
+    messages: [...state.messages, message],
+    timeline: [...state.timeline, messageTimelineItem(message)],
+  };
+}
+
+function appendAssistantFinal(state: RuntimeState, messageId: string, content: string, timestamp: string): RuntimeState {
+  const index = state.messages.findIndex((message) => message.id === messageId);
+  if (index >= 0) {
+    const message = state.messages[index];
+    if (message.role !== "assistant") return state;
+    return replaceMessageAtIndex(state, index, { ...message, content, timestamp });
+  }
+  return appendAssistantMessage(state, content, timestamp, messageId);
+}
+
 function tokenString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
@@ -541,6 +600,16 @@ function replaceLastMessage(state: RuntimeState, message: ChatMessage): RuntimeS
     messages: [...state.messages.slice(0, -1), message],
     timeline: rebound,
   };
+}
+
+function replaceMessageAtIndex(state: RuntimeState, index: number, message: ChatMessage): RuntimeState {
+  const previousMessage = state.messages[index];
+  const messages = state.messages.map((item, itemIndex) => itemIndex === index ? message : item);
+  const timeline = state.timeline.map((item) =>
+    item.kind === "message" && item.message.id === previousMessage.id ? messageTimelineItem(message) : item
+  );
+  const rebound = previousMessage.id === message.id ? timeline : rebindActivityGroups(timeline, previousMessage.id, message.id);
+  return { ...state, messages, timeline: rebound };
 }
 
 function messageTimelineItem(message: ChatMessage): ChatTimelineItem {
@@ -699,15 +768,7 @@ function permissionFromEvent(event: RuntimeEvent): PermissionRequest {
 }
 
 function activityKind(type: string): ActivityKind {
-  if (type.startsWith("tool_call")) return "tool";
-  if (type.startsWith("permission")) return "permission";
-  if (type.startsWith("skill")) return "skill";
-  if (type.startsWith("subagent")) return "subagent";
-  if (type.startsWith("mcp")) return "mcp";
-  if (type.startsWith("hook")) return "hook";
-  if (type.startsWith("context")) return "context";
-  if (type === "error") return "error";
-  return "event";
+  return legacyActivityKind(type);
 }
 
 function activityFromRuntimeEvent(event: RuntimeEvent): ActivityItem | null {
@@ -731,18 +792,7 @@ function activityFromRuntimeEvent(event: RuntimeEvent): ActivityItem | null {
 }
 
 function activityKindFromCategory(category: string, type: string): ActivityKind {
-  if (category === "runtime") return "runtime";
-  if (category === "workspace") return "workspace";
-  if (category === "git") return "git";
-  if (category === "tool") return "tool";
-  if (category === "permission") return "permission";
-  if (category === "skill") return "skill";
-  if (category === "verification") return "verification";
-  if (category === "mcp") return "mcp";
-  if (category === "hook") return "hook";
-  if (category === "context") return "context";
-  if (category === "error") return "error";
-  return activityKind(type);
+  return legacyActivityKindFromStructuredCategory(category, type);
 }
 
 function activityStatusFromPayload(value: unknown, event: RuntimeEvent): ActivityItem["status"] {
@@ -761,11 +811,7 @@ function activityStatusFromPayload(value: unknown, event: RuntimeEvent): Activit
 }
 
 function activityStatus(event: RuntimeEvent): ActivityItem["status"] {
-  if (event.severity === "error" || event.type.endsWith("_error")) return "error";
-  if (event.severity === "warning" || event.type === "permission_required") return "warning";
-  if (event.type.endsWith("_started")) return "running";
-  if (event.type.endsWith("_finished") || event.type === "final_response" || event.type === "permission_resolved") return "success";
-  return "info";
+  return legacyActivityStatus(event);
 }
 
 function errorActivity(error: string): ActivityItem {
