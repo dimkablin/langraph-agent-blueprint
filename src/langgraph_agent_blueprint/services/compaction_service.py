@@ -66,7 +66,7 @@ class CompactionService:
                 prompt_tokens=pressure.get("prompt_tokens") if pressure else None,
                 overflow_tokens=int(pressure.get("overflow_tokens", 0)) if pressure else 0,
             )
-        if pressure and pressure["overflow_tokens"] > 0 and self._has_compactable_history(messages):
+        if pressure and pressure["overflow_tokens"] > 0 and messages:
             return CompactionDecision(
                 True,
                 "context_window",
@@ -136,10 +136,11 @@ class CompactionService:
 
         messages = list(state.get("messages", []))
         old, recent = self._split_messages_for_compaction(messages)
+        old, recent = self._fit_recent_tail_for_context_budget(state, old, recent)
         summary_token_budget = self._summary_token_budget(state, recent)
         summary = self._build_summary(old, summary_token_budget)
-        summary_message = SystemMessage(content=f"Compacted prior context:\n{summary}")
-        compacted_messages = [summary_message, *recent]
+        compacted_messages = [SystemMessage(content=f"Compacted prior context:\n{summary}"), *recent]
+        compacted_messages = self._fit_compacted_messages_to_context_budget(state, compacted_messages)
         return {
             "messages": compacted_messages,
             "todos": list(state.get("todos", [])),
@@ -199,8 +200,8 @@ class CompactionService:
             return self.max_summary_tokens
         remaining = pressure["message_budget_tokens"] - self.estimate_tokens(recent)
         if remaining <= 0:
-            return 64
-        return max(64, min(self.max_summary_tokens, remaining))
+            return 1
+        return max(1, min(self.max_summary_tokens, remaining))
 
     def _build_summary(self, messages: list[BaseMessage], token_budget: int) -> str:
         if not messages:
@@ -215,7 +216,10 @@ class CompactionService:
         summary = "\n".join(lines) or "Earlier messages contained no text content."
         if len(summary) <= max_chars:
             return summary
-        return summary[:max_chars].rstrip() + "\n[compaction summary truncated to fit context window]"
+        marker = "\n[compaction summary truncated to fit context window]"
+        if max_chars <= len(marker):
+            return marker[:max_chars]
+        return summary[: max(1, max_chars - len(marker))].rstrip() + marker
 
     def _message_summary_content(self, message: BaseMessage) -> str:
         content = str(getattr(message, "content", "") or "").replace("\r\n", "\n").strip()
@@ -236,6 +240,94 @@ class CompactionService:
     def _has_compactable_history(self, messages: list[BaseMessage]) -> bool:
         old, _recent = self._split_messages_for_compaction(messages)
         return bool(old)
+
+    def _fit_recent_tail_for_context_budget(
+        self,
+        state: dict[str, Any],
+        old: list[BaseMessage],
+        recent: list[BaseMessage],
+    ) -> tuple[list[BaseMessage], list[BaseMessage]]:
+        message_budget = self._message_budget_tokens(state)
+        if message_budget is None or message_budget <= 0 or not recent:
+            return old, recent
+        summary_reserve = min(64, max(1, message_budget // 4)) if old else 0
+        recent_budget = max(1, message_budget - summary_reserve)
+        fitted, moved = self._select_recent_tail(recent, recent_budget)
+        return [*old, *moved], fitted
+
+    def _select_recent_tail(self, messages: list[BaseMessage], token_budget: int) -> tuple[list[BaseMessage], list[BaseMessage]]:
+        selected_blocks: list[list[BaseMessage]] = []
+        remaining = max(1, token_budget)
+        start = len(messages)
+        while start > 0:
+            candidate_start = self._tool_pair_safe_keep_start(messages, start - 1)
+            block = messages[candidate_start:start]
+            block_tokens = self.estimate_tokens(block)
+            if block_tokens <= remaining:
+                selected_blocks.append(block)
+                remaining -= block_tokens
+                start = candidate_start
+                continue
+            if not selected_blocks:
+                selected_blocks.append(self._truncate_message_block_to_budget(block, remaining))
+                start = candidate_start
+            break
+        selected: list[BaseMessage] = []
+        for block in reversed(selected_blocks):
+            selected.extend(block)
+        return selected, messages[:start]
+
+    def _truncate_message_block_to_budget(self, block: list[BaseMessage], token_budget: int) -> list[BaseMessage]:
+        remaining = max(1, token_budget)
+        selected: list[BaseMessage] = []
+        for message in reversed(block):
+            tokens = self.estimate_tokens([message])
+            if tokens <= remaining:
+                selected.append(message)
+                remaining -= tokens
+                continue
+            if not selected:
+                selected.append(self._message_with_truncated_content(message, remaining))
+            break
+        return list(reversed(selected))
+
+    def _fit_compacted_messages_to_context_budget(
+        self,
+        state: dict[str, Any],
+        messages: list[BaseMessage],
+    ) -> list[BaseMessage]:
+        message_budget = self._message_budget_tokens(state)
+        if message_budget is None or self.estimate_tokens(messages) <= message_budget:
+            return messages
+        fitted, _moved = self._select_recent_tail(messages, message_budget)
+        if fitted and isinstance(fitted[0], SystemMessage):
+            return fitted
+        summary = messages[0] if messages and isinstance(messages[0], SystemMessage) else None
+        tail_budget = max(1, message_budget - self.estimate_tokens([summary]) if summary is not None else message_budget)
+        tail, _moved_tail = self._select_recent_tail(messages[1:] if summary is not None else messages, tail_budget)
+        if summary is None:
+            return tail
+        remaining_for_summary = max(1, message_budget - self.estimate_tokens(tail))
+        return [self._message_with_truncated_content(summary, remaining_for_summary), *tail]
+
+    def _message_budget_tokens(self, state: dict[str, Any]) -> int | None:
+        pressure = self.context_window_pressure(state, messages=[])
+        if not pressure:
+            return None
+        return max(1, int(pressure["message_budget_tokens"]))
+
+    def _message_with_truncated_content(self, message: BaseMessage, token_budget: int) -> BaseMessage:
+        content = self._message_summary_content(message)
+        max_chars = max(1, token_budget * 4)
+        if len(content) > max_chars:
+            marker = "\n[truncated to fit context window]"
+            if max_chars <= len(marker):
+                content = marker[:max_chars]
+            else:
+                content = content[: max(1, max_chars - len(marker))].rstrip() + marker
+        if hasattr(message, "model_copy"):
+            return message.model_copy(update={"content": content})
+        return message
 
     def _state_prompt_overhead_tokens(self, state: dict[str, Any]) -> int:
         context_status = state.get("context_status", {}) if isinstance(state.get("context_status"), dict) else {}

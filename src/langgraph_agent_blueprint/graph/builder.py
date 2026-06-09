@@ -33,15 +33,18 @@ from .nodes.permission_gate import permission_gate_node
 from .nodes.plugin_policy import plugin_policy_node
 from .nodes.persist_session import persist_session_node
 from .nodes.resolve_context import resolve_context_node
+from .nodes.subagent_permission_gate import subagent_permission_gate_node
 from .nodes.skill_router import skill_router_node
 from .nodes.tool_executor import tool_executor_node
 from .nodes.tool_router import tool_router_node
 from .routing import (
+    route_after_agent_graph,
     route_after_command,
     route_after_compact_context,
     route_after_compact_decision,
     route_after_permission,
     route_after_plugin_policy,
+    route_after_subagent_permission,
     route_after_tool_execution,
     route_after_tool_router,
 )
@@ -68,6 +71,7 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
     graph.add_node("tool_executor", timed_node("tool_executor", lambda state: tool_executor_node(state, deps)))
     graph.add_node("hook_runner", timed_node("hook_runner", lambda state: hook_runner_node(state, deps)))
     graph.add_node("agent_graph", build_agent_graph(deps).compile())
+    graph.add_node("subagent_permission_gate", timed_node("subagent_permission_gate", lambda state: subagent_permission_gate_node(state, deps)))
     graph.add_node("mcp_graph", build_mcp_graph(deps).compile())
     graph.add_node("compact_decision", timed_node("compact_decision", lambda state: compact_decision_node(state, deps)))
     graph.add_node("compact_context", timed_node("compact_context", lambda state: compact_context_node(state, deps)))
@@ -122,7 +126,16 @@ def build_main_graph(deps: AppDependencies) -> StateGraph:
         route_after_tool_execution,
         {"compact_decision": "compact_decision", "error_recovery": "error_recovery", "persist_session": "persist_session"},
     )
-    graph.add_edge("agent_graph", "compact_decision")
+    graph.add_conditional_edges(
+        "agent_graph",
+        route_after_agent_graph,
+        {"subagent_permission_gate": "subagent_permission_gate", "compact_decision": "compact_decision"},
+    )
+    graph.add_conditional_edges(
+        "subagent_permission_gate",
+        route_after_subagent_permission,
+        {"subagent_permission_gate": "subagent_permission_gate", "compact_decision": "compact_decision"},
+    )
     graph.add_edge("mcp_graph", "compact_decision")
     graph.add_edge("hook_runner", "persist_session")
     graph.add_conditional_edges(

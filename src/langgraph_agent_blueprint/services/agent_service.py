@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import copy
 from datetime import datetime, timezone
+from pathlib import Path
+from threading import Lock
 from typing import TYPE_CHECKING, Any
 
+from langgraph_agent_blueprint.graph.checkpoints import default_checkpointer
 from langgraph_agent_blueprint.graph.state import create_initial_state
 from langgraph_agent_blueprint.models import ChildRunMetadata, SubagentRequest
 from langgraph_agent_blueprint.utils.ids import new_id
@@ -18,6 +21,28 @@ class AgentService:
     """Prepare isolated child graph state for agent subgraphs."""
 
     max_depth = 1
+
+    def __init__(self) -> None:
+        self._child_checkpointer: Any | None = None
+        self._child_checkpointer_path: Path | None = None
+        self._child_checkpointer_lock = Lock()
+
+    def child_checkpointer(self, storage_dir: str | Path) -> Any:
+        """Return the shared child graph checkpointer used for nested approval resume."""
+
+        path = Path(storage_dir).resolve() / "subagent_checkpoints.sqlite3"
+        with self._child_checkpointer_lock:
+            if self._child_checkpointer is None or self._child_checkpointer_path != path:
+                self._child_checkpointer = default_checkpointer(path)
+                self._child_checkpointer_path = path
+            return self._child_checkpointer
+
+    def delete_child_thread(self, storage_dir: str | Path, thread_id: str | None) -> None:
+        """Drop a completed or rejected child checkpoint when it is no longer resumable."""
+
+        if not thread_id:
+            return
+        self.child_checkpointer(storage_dir).delete_thread(str(thread_id))
 
     def create_child_metadata(self, parent_state: dict[str, Any], request: SubagentRequest) -> ChildRunMetadata:
         """Create validated parent/child identity metadata for one child run."""

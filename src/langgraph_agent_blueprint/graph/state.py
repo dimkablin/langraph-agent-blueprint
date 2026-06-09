@@ -48,6 +48,7 @@ class AssistantState(TypedDict, total=False):
     pending_tool_calls: list[dict[str, Any]]
     tool_results: Annotated[list[dict[str, Any]], append_list]
     pending_confirmation: dict[str, Any] | None
+    pending_subagent_approval: dict[str, Any] | None
     permissions: dict[str, Any]
     permission_decisions: Annotated[list[dict[str, Any]], append_list]
     plan_mode: dict[str, Any]
@@ -110,6 +111,7 @@ def create_initial_state(
         pending_tool_calls=[],
         tool_results=[],
         pending_confirmation=None,
+        pending_subagent_approval=None,
         permissions={},
         permission_decisions=[],
         plan_mode={"enabled": False, "approved": False},

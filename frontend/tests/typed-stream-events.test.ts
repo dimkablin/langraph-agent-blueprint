@@ -106,11 +106,19 @@ test("typed permission state opens and clears the pending permission modal state
       args_summary: "{\"path\":\"README.md\"}",
       reason: "File writes require approval",
       args: { path: "README.md" },
+      scope: "subagent",
+      child_run_id: "child_1",
+      child_thread_id: "thread_child_1",
+      child_session_id: "session_child_1",
+      subagent_name: "writer",
     }),
   );
 
   assert.equal(state.pendingPermission?.tool_call_id, "write_1");
   assert.equal(state.pendingPermission?.tool_name, "write_file");
+  assert.equal(state.pendingPermission?.scope, "subagent");
+  assert.equal(state.pendingPermission?.child_thread_id, "thread_child_1");
+  assert.equal(state.pendingPermission?.subagent_name, "writer");
 
   state = applyRuntimeEvent(
     state,

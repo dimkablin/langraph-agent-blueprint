@@ -57,7 +57,7 @@ If no explicit child tool list is provided, the runtime defaults to safe read-on
 
 Child tools still enter the normal graph tool route. Read-only child tools can run normally. Side-effect tools such as `write_file`, shell, network, and MCP still require permission.
 
-Nested approval/resume is not fully implemented in Phase 5. If a child graph reaches a permission interrupt, the parent receives a structured subagent error saying that the child side effect requires approval and nested approval is unsupported for that run. The side effect is not executed.
+If a child graph reaches a permission interrupt, the parent graph stores `pending_subagent_approval`, emits a normal parent `permission_required` event with `scope="subagent"`, and interrupts the parent thread. Approval resumes the stored child thread through the subagent checkpointer, then merges the child result back as the parent `agent` tool result. Rejection finishes the child run as a controlled error without executing the side effect.
 
 ## Events And Streaming
 
@@ -101,6 +101,6 @@ The child graph is linked with metadata such as `parent_session_id`, `child_sess
 
 - Child graph execution is sequential.
 - Parallel/background subagents are future work.
-- Nested approval/resume for child side-effect tools is guarded but not resumed through the parent yet.
+- Multiple simultaneous child approvals are surfaced one at a time through the parent approval gate.
 - Timeout is modeled on `SubagentRequest`; hard cancellation of a running child thread/process is future work.
 - Task/team/remote-agent lifecycle from the source project is not fully ported yet.

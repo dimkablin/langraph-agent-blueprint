@@ -41,6 +41,18 @@ def route_after_tool_execution(state: dict[str, Any]) -> str:
     return "compact_decision"
 
 
+def route_after_agent_graph(state: dict[str, Any]) -> str:
+    if state.get("pending_subagent_approval"):
+        return "subagent_permission_gate"
+    return "compact_decision"
+
+
+def route_after_subagent_permission(state: dict[str, Any]) -> str:
+    if state.get("pending_subagent_approval"):
+        return "subagent_permission_gate"
+    return "compact_decision"
+
+
 def route_after_compact_decision(state: dict[str, Any]) -> str:
     metadata = state.get("metadata", {})
     if metadata.get("compact_route") == "compact":

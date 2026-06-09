@@ -84,6 +84,13 @@ class PermissionStateStreamEvent(FrozenRuntimeModel):
     args_summary: str | None = None
     reason: str | None = None
     args: dict[str, Any] = Field(default_factory=dict)
+    scope: Literal["tool", "subagent"] = "tool"
+    parent_session_id: str | None = None
+    parent_thread_id: str | None = None
+    child_session_id: str | None = None
+    child_thread_id: str | None = None
+    child_run_id: str | None = None
+    subagent_name: str | None = None
 
 
 class ErrorStreamEvent(FrozenRuntimeModel):

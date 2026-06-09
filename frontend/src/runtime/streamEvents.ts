@@ -79,6 +79,13 @@ export function activityFromStreamEvent(event: RuntimeEvent, streamEvent: Runtim
         args_summary: streamEvent.args_summary ?? null,
         reason: streamEvent.reason ?? null,
         args: streamEvent.args ?? {},
+        scope: streamEvent.scope ?? "tool",
+        parent_session_id: streamEvent.parent_session_id ?? null,
+        parent_thread_id: streamEvent.parent_thread_id ?? null,
+        child_session_id: streamEvent.child_session_id ?? null,
+        child_thread_id: streamEvent.child_thread_id ?? null,
+        child_run_id: streamEvent.child_run_id ?? null,
+        subagent_name: streamEvent.subagent_name ?? null,
       },
     };
   }
@@ -123,6 +130,13 @@ export function permissionRequestFromStreamEvent(streamEvent: RuntimeStreamEvent
     args_summary: streamEvent.args_summary ?? null,
     reason: streamEvent.reason ?? null,
     args: streamEvent.args ?? {},
+    scope: streamEvent.scope ?? "tool",
+    parent_session_id: streamEvent.parent_session_id ?? null,
+    parent_thread_id: streamEvent.parent_thread_id ?? null,
+    child_session_id: streamEvent.child_session_id ?? null,
+    child_thread_id: streamEvent.child_thread_id ?? null,
+    child_run_id: streamEvent.child_run_id ?? null,
+    subagent_name: streamEvent.subagent_name ?? null,
   };
 }
 

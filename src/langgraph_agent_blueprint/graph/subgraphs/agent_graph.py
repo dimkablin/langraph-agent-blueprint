@@ -11,21 +11,29 @@ from typing import Any
 
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command
 
 from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.state import AssistantState
 from langgraph_agent_blueprint.models import (
+    AgentActivityEvent,
+    AgentActivitySource,
     ChildRunMetadata,
+    PermissionDecision,
+    PermissionRequest,
+    PermissionStateStreamEvent,
     SubagentRequest,
     SubagentResult,
     ToolCall,
     ToolResult,
     dump_model,
     event,
+    stream_event_payload,
     tool_result_to_tool_message,
     validate_list,
 )
 from langgraph_agent_blueprint.tools import AgentInput
+from langgraph_agent_blueprint.utils.activity import safe_activity_data
 
 
 MAX_PARALLEL_SUBAGENT_RUNS = 4
@@ -61,6 +69,8 @@ def _agent_node(state: dict[str, Any], deps: AppDependencies) -> dict[str, Any]:
     ui_events: list[dict[str, Any]] = []
     for call in calls:
         update = _run_agent_call(state, deps, call, metadata, writer)
+        if update.get("pending_subagent_approval"):
+            return update
         metadata = dict(update.get("metadata", metadata))
         child_runs.extend(update.get("child_runs", []))
         tool_results.extend(update.get("tool_results", []))
@@ -161,7 +171,10 @@ def _run_agent_calls_concurrently(
     messages: list[Any] = []
     non_streamed_events: list[dict[str, Any]] = []
     child_run_refs = list(metadata.get("child_run_refs", []))
+    pending_update: dict[str, Any] | None = None
     for update in ordered_results:
+        if update.get("pending_subagent_approval") and pending_update is None:
+            pending_update = update
         child_runs.extend(update.get("child_runs", []))
         tool_results.extend(update.get("tool_results", []))
         messages.extend(update.get("messages", []))
@@ -174,6 +187,10 @@ def _run_agent_calls_concurrently(
             if event_id and event_id in streamed_event_ids:
                 continue
             non_streamed_events.append(item)
+    if pending_update is not None:
+        next_update = dict(pending_update)
+        next_update["ui_events"] = [*streamed_events, *non_streamed_events]
+        return next_update
     next_metadata = dict(metadata)
     next_metadata["child_run_refs"] = child_run_refs
     return {
@@ -277,8 +294,57 @@ def _run_prepared_agent_call(
         emit_stream_event(started_event)
     child_writer = emit_stream_event if writer is not None or bool(parent_metadata.get("streaming_enabled")) else None
     child_result, child_events, forwarded_events = _run_child_graph(deps, child_state, request, state, metadata, child_writer)
+    if _child_interrupted(child_result):
+        return _subagent_permission_update(
+            state,
+            deps,
+            call,
+            request,
+            metadata,
+            child_state,
+            child_result,
+            child_events,
+            forwarded_events,
+            parent_metadata,
+            started_event,
+            emit_stream_event,
+        )
+    return _finalize_prepared_agent_call(
+        state,
+        deps,
+        call,
+        request,
+        metadata,
+        parent_metadata,
+        child_result,
+        child_events,
+        forwarded_events,
+        started_event,
+        persistence_lock=persistence_lock,
+        emit_stream_event=emit_stream_event,
+    )
+
+
+def _finalize_prepared_agent_call(
+    state: dict[str, Any],
+    deps: AppDependencies,
+    call: ToolCall,
+    request: SubagentRequest,
+    metadata: ChildRunMetadata,
+    parent_metadata: dict[str, Any],
+    child_result: dict[str, Any],
+    child_events: list[dict[str, Any]],
+    forwarded_events: list[dict[str, Any]],
+    started_event: dict[str, Any] | None,
+    *,
+    persistence_lock: Lock | None = None,
+    emit_stream_event: Any | None = None,
+) -> dict[str, Any]:
     metadata, result, finished_event = _summarize_child_run(state, metadata, request, child_result)
-    emit_stream_event(finished_event)
+    if emit_stream_event is not None:
+        emit_stream_event(finished_event)
+    if metadata.status != "running":
+        deps.agent_service.delete_child_thread(deps.config.storage_dir, metadata.child_thread_id)
     metadata_payload = dump_model(metadata)
     result_payload = dump_model(result)
     child_record = {
@@ -306,6 +372,7 @@ def _run_prepared_agent_call(
         error=result.errors[0] if result.errors else None,
     )
     next_parent_metadata = dict(parent_metadata)
+    next_parent_metadata.pop("agent_route", None)
     refs = list(parent_metadata.get("child_run_refs", []))
     if metadata.child_run_id not in refs:
         refs.append(metadata.child_run_id)
@@ -350,10 +417,304 @@ def _run_prepared_agent_call(
     return {
         "metadata": next_parent_metadata,
         "child_runs": [child_record],
+        "pending_subagent_approval": None,
         "pending_tool_calls": [],
         "tool_results": [dump_model(tool_result)],
         "messages": [tool_result_to_tool_message(tool_result)],
-        "ui_events": [started_event, *forwarded_events, *persistence_events, finished_event],
+        "ui_events": [*([started_event] if started_event is not None else []), *forwarded_events, *persistence_events, finished_event],
+    }
+
+
+def resume_pending_subagent_approval(state: dict[str, Any], deps: AppDependencies, decision_payload: object) -> dict[str, Any]:
+    """Resume the child graph represented by ``pending_subagent_approval``."""
+
+    pending = state.get("pending_subagent_approval")
+    if not isinstance(pending, dict):
+        return {}
+    request = PermissionRequest.model_validate(pending.get("permission_request", {}))
+    decision = _resume_permission_decision(request, decision_payload)
+    record = _permission_decision_record(request, decision)
+    resolution_event = _subagent_permission_resolved_event(state, request, record)
+    call = ToolCall.model_validate(pending.get("agent_call", {}))
+    subagent_request = SubagentRequest.model_validate(pending.get("request", {}))
+    metadata = ChildRunMetadata.model_validate(pending.get("metadata", {}))
+    parent_metadata = dict(pending.get("parent_metadata", state.get("metadata", {})))
+    child_events_before = list(pending.get("child_events", [])) if isinstance(pending.get("child_events"), list) else []
+
+    if decision.decision == "rejected":
+        child_resolution_event = _child_permission_resolved_event(metadata, request, record)
+        child_events = [*child_events_before, child_resolution_event]
+        forwarded_events = [_forward_child_event(state, metadata, child_resolution_event)]
+        child_result = _rejected_child_result(pending, request, decision)
+        update = _finalize_prepared_agent_call(
+            state,
+            deps,
+            call,
+            subagent_request,
+            metadata,
+            parent_metadata,
+            child_result,
+            child_events,
+            forwarded_events,
+            None,
+        )
+        return {**update, "ui_events": [resolution_event, *update.get("ui_events", [])]}
+
+    child_result, new_child_events, new_forwarded_events = _resume_child_graph(
+        deps,
+        pending,
+        decision.model_dump(mode="json", exclude_none=True),
+        state,
+        metadata,
+        None,
+    )
+    child_events = [*child_events_before, *new_child_events]
+    if _child_interrupted(child_result):
+        update = _subagent_permission_update(
+            state,
+            deps,
+            call,
+            subagent_request,
+            metadata,
+            pending.get("child_state", {}),
+            child_result,
+            child_events,
+            new_forwarded_events,
+            parent_metadata,
+            None,
+            None,
+        )
+        return {**update, "ui_events": [resolution_event, *update.get("ui_events", [])]}
+    update = _finalize_prepared_agent_call(
+        state,
+        deps,
+        call,
+        subagent_request,
+        metadata,
+        parent_metadata,
+        child_result,
+        child_events,
+        new_forwarded_events,
+        None,
+    )
+    return {**update, "ui_events": [resolution_event, *update.get("ui_events", [])]}
+
+
+def _subagent_permission_update(
+    state: dict[str, Any],
+    deps: AppDependencies,
+    call: ToolCall,
+    request: SubagentRequest,
+    metadata: ChildRunMetadata,
+    child_state: dict[str, Any],
+    child_result: dict[str, Any],
+    child_events: list[dict[str, Any]],
+    forwarded_events: list[dict[str, Any]],
+    parent_metadata: dict[str, Any],
+    started_event: dict[str, Any] | None,
+    emit_stream_event: Any | None,
+) -> dict[str, Any]:
+    permission_request = _subagent_permission_request(child_result, metadata)
+    permission_event = _subagent_permission_required_event(state, permission_request)
+    if emit_stream_event is not None:
+        emit_stream_event(permission_event)
+    next_parent_metadata = dict(parent_metadata)
+    next_parent_metadata["agent_route"] = "needs_subagent_permission"
+    pending = {
+        "agent_call": dump_model(call),
+        "request": dump_model(request),
+        "metadata": dump_model(metadata),
+        "child_state": child_state,
+        "child_events": child_events,
+        "parent_metadata": next_parent_metadata,
+        "permission_request": permission_request,
+    }
+    return {
+        "metadata": next_parent_metadata,
+        "pending_subagent_approval": pending,
+        "ui_events": [*([started_event] if started_event is not None else []), *forwarded_events, permission_event],
+    }
+
+
+def _child_interrupted(child_result: dict[str, Any]) -> bool:
+    return bool(child_result.get("__interrupt__"))
+
+
+def _subagent_permission_request(child_result: dict[str, Any], metadata: ChildRunMetadata) -> dict[str, Any]:
+    payload = _interrupt_value(child_result)
+    if not payload:
+        payload = child_result.get("pending_confirmation", {}) if isinstance(child_result.get("pending_confirmation"), dict) else {}
+    payload = dict(payload)
+    payload.update(
+        {
+            "scope": "subagent",
+            "parent_session_id": metadata.parent_session_id,
+            "parent_thread_id": metadata.parent_thread_id,
+            "child_session_id": metadata.child_session_id,
+            "child_thread_id": metadata.child_thread_id,
+            "child_run_id": metadata.child_run_id,
+            "subagent_name": metadata.name,
+        }
+    )
+    return dump_model(PermissionRequest.model_validate(payload))
+
+
+def _interrupt_value(child_result: dict[str, Any]) -> dict[str, Any]:
+    interrupts = child_result.get("__interrupt__")
+    if not isinstance(interrupts, list) or not interrupts:
+        return {}
+    first = interrupts[0]
+    value = getattr(first, "value", None)
+    if isinstance(value, dict):
+        return value
+    if isinstance(first, dict):
+        nested = first.get("value")
+        return nested if isinstance(nested, dict) else first
+    return {}
+
+
+def _subagent_permission_required_event(parent_state: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    request = PermissionRequest.model_validate(payload)
+    return event(
+        "permission_required",
+        session_id=parent_state.get("session_id"),
+        **payload,
+        stream_event=stream_event_payload(_permission_state_stream_event(request, status="required")),
+        activity=_subagent_permission_activity(request, status="pending", title="Subagent permission required").model_dump(mode="json"),
+    )
+
+
+def _subagent_permission_resolved_event(parent_state: dict[str, Any], request: PermissionRequest, record: dict[str, Any]) -> dict[str, Any]:
+    status = "approved" if record["approved"] else "rejected"
+    return event(
+        "permission_resolved",
+        session_id=parent_state.get("session_id"),
+        **record,
+        scope=request.scope,
+        parent_session_id=request.parent_session_id,
+        parent_thread_id=request.parent_thread_id,
+        child_session_id=request.child_session_id,
+        child_thread_id=request.child_thread_id,
+        child_run_id=request.child_run_id,
+        subagent_name=request.subagent_name,
+        stream_event=stream_event_payload(_permission_state_stream_event(request, status=status, record=record)),
+        activity=_subagent_permission_activity(
+            request,
+            status="success" if record["approved"] else "blocked",
+            title="Subagent permission approved" if record["approved"] else "Subagent permission rejected",
+            decision=record.get("decision"),
+            reason=record.get("reason"),
+        ).model_dump(mode="json"),
+    )
+
+
+def _child_permission_resolved_event(metadata: ChildRunMetadata, request: PermissionRequest, record: dict[str, Any]) -> dict[str, Any]:
+    return event(
+        "permission_resolved",
+        session_id=metadata.child_session_id,
+        **record,
+        stream_event=stream_event_payload(_permission_state_stream_event(request, status="rejected", record=record)),
+    )
+
+
+def _permission_state_stream_event(
+    request: PermissionRequest,
+    *,
+    status: str,
+    record: dict[str, Any] | None = None,
+) -> PermissionStateStreamEvent:
+    reason = (record or {}).get("reason") or request.reason
+    return PermissionStateStreamEvent(
+        status=status,  # type: ignore[arg-type]
+        tool_call_id=request.tool_call_id,
+        tool_name=request.tool_name,
+        action=request.action,
+        risk=request.risk,
+        args_summary=request.args_summary,
+        reason=str(reason) if reason else None,
+        args=request.args or {},
+        scope=request.scope,
+        parent_session_id=request.parent_session_id,
+        parent_thread_id=request.parent_thread_id,
+        child_session_id=request.child_session_id,
+        child_thread_id=request.child_thread_id,
+        child_run_id=request.child_run_id,
+        subagent_name=request.subagent_name,
+    )
+
+
+def _subagent_permission_activity(
+    request: PermissionRequest,
+    *,
+    status: str,
+    title: str,
+    decision: str | None = None,
+    reason: str | None = None,
+) -> AgentActivityEvent:
+    summary = reason or request.reason or request.args_summary
+    return AgentActivityEvent(
+        id=f"activity_{request.child_run_id or request.tool_call_id}_{request.tool_call_id}_{status}",
+        type="permission.subagent",
+        source=AgentActivitySource(kind="permission", name=request.tool_name, component="AgentService"),
+        category="permission",
+        status=status,  # type: ignore[arg-type]
+        title=title,
+        summary=summary,
+        data=safe_activity_data(
+            {
+                "tool_call_id": request.tool_call_id,
+                "tool_name": request.tool_name,
+                "action": request.action,
+                "risk": request.risk,
+                "args_summary": request.args_summary,
+                "reason": summary,
+                "decision": decision,
+                "scope": request.scope,
+                "child_run_id": request.child_run_id,
+                "child_session_id": request.child_session_id,
+                "child_thread_id": request.child_thread_id,
+                "subagent_name": request.subagent_name,
+            }
+        ),
+    )
+
+
+def _resume_permission_decision(request: PermissionRequest, decision: object) -> PermissionDecision:
+    if isinstance(decision, dict) and "decision" in decision:
+        return PermissionDecision.model_validate({"tool_call_id": request.tool_call_id, **decision})
+    if isinstance(decision, dict):
+        approved = bool(decision.get("approved"))
+        return PermissionDecision(
+            tool_call_id=request.tool_call_id,
+            decision="approved" if approved else "rejected",
+            reason=decision.get("reason"),
+            remember=bool(decision.get("remember", False)),
+        )
+    return PermissionDecision(tool_call_id=request.tool_call_id, decision="approved" if bool(decision) else "rejected")
+
+
+def _permission_decision_record(request: PermissionRequest, decision: PermissionDecision) -> dict[str, Any]:
+    approved = decision.decision == "approved"
+    return {
+        "tool_call_id": request.tool_call_id,
+        "tool_name": request.tool_name,
+        "approved": approved,
+        "decision": decision.decision,
+        "reason": decision.reason,
+        "remember": decision.remember,
+    }
+
+
+def _rejected_child_result(pending: dict[str, Any], request: PermissionRequest, decision: PermissionDecision) -> dict[str, Any]:
+    child_state = pending.get("child_state", {}) if isinstance(pending.get("child_state"), dict) else {}
+    child_metadata = child_state.get("metadata", {}) if isinstance(child_state.get("metadata"), dict) else {}
+    summary = f"Subagent tool call '{request.tool_name}' was rejected by user. No child side effect was executed."
+    return {
+        "final_response": summary,
+        "errors": [{"type": "SubagentPermissionRejected", "message": summary, "reason": decision.reason}],
+        "metadata": {"allowed_tools_override": child_metadata.get("allowed_tools_override", [])},
+        "tool_results": [],
+        "artifacts": [],
     }
 
 
@@ -381,9 +742,8 @@ def _run_child_graph(
     """Run the same compiled main graph for an isolated child state."""
 
     from langgraph_agent_blueprint.graph.builder import build_main_graph
-    from langgraph_agent_blueprint.graph.checkpoints import default_checkpointer
 
-    app = build_main_graph(deps).compile(checkpointer=default_checkpointer())
+    app = build_main_graph(deps).compile(checkpointer=deps.agent_service.child_checkpointer(deps.config.storage_dir))
     config = {
         "configurable": {"thread_id": child_state["thread_id"]},
         "recursion_limit": max(12, request.max_turns * 8),
@@ -413,6 +773,57 @@ def _run_child_graph(
         if previous_count is None:
             previous_count = len(events)
             continue
+        for item in events[previous_count:]:
+            child_events.append(item)
+            forwarded = _forward_child_event(parent_state, metadata, item)
+            forwarded_events.append(forwarded)
+            writer(forwarded)
+        previous_count = len(events)
+    return final_chunk or {}, child_events, forwarded_events
+
+
+def _resume_child_graph(
+    deps: AppDependencies,
+    pending: dict[str, Any],
+    decision: dict[str, Any],
+    parent_state: dict[str, Any],
+    metadata: ChildRunMetadata,
+    writer: Any | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Resume an interrupted child graph and return only child events added after the pending approval."""
+
+    from langgraph_agent_blueprint.graph.builder import build_main_graph
+
+    request = SubagentRequest.model_validate(pending.get("request", {}))
+    previous_events = list(pending.get("child_events", [])) if isinstance(pending.get("child_events"), list) else []
+    previous_count = len(previous_events)
+    app = build_main_graph(deps).compile(checkpointer=deps.agent_service.child_checkpointer(deps.config.storage_dir))
+    config = {
+        "configurable": {"thread_id": metadata.child_thread_id},
+        "recursion_limit": max(12, request.max_turns * 8),
+    }
+    if writer is None:
+        result = app.invoke(Command(resume=decision), config)
+        child_result = result if isinstance(result, dict) else {"final_response": str(result)}
+        events = child_result.get("ui_events", []) if isinstance(child_result, dict) else []
+        child_events = events[previous_count:]
+        return child_result, child_events, [_forward_child_event(parent_state, metadata, item) for item in child_events]
+    final_chunk: dict[str, Any] | None = None
+    child_events: list[dict[str, Any]] = []
+    forwarded_events: list[dict[str, Any]] = []
+    for raw_chunk in app.stream(Command(resume=decision), config, stream_mode=["custom", "values"]):
+        mode, chunk = raw_chunk if isinstance(raw_chunk, tuple) and len(raw_chunk) == 2 else ("values", raw_chunk)
+        if mode == "custom":
+            if isinstance(chunk, dict) and "type" in chunk and "data" in chunk:
+                child_events.append(chunk)
+                forwarded = _forward_child_event(parent_state, metadata, chunk)
+                forwarded_events.append(forwarded)
+                writer(forwarded)
+            continue
+        if not isinstance(chunk, dict):
+            continue
+        final_chunk = chunk
+        events = chunk.get("ui_events", [])
         for item in events[previous_count:]:
             child_events.append(item)
             forwarded = _forward_child_event(parent_state, metadata, item)

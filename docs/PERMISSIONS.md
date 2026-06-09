@@ -23,6 +23,8 @@ Policy:
 
 Human approval uses LangGraph interrupt/resume. `pending_confirmation` is stored in graph state before `permission_gate` interrupts.
 
+Subagent side effects use the same parent-facing approval UI. When a child graph interrupts for permission, the parent stores `pending_subagent_approval`, emits `permission_required` with `scope="subagent"` and child run ids, then resumes the child thread after approval. A rejection is recorded as a child run error and does not execute the child side effect.
+
 When Langfuse observability is enabled, permission lifecycle events are traced as redacted RuntimeEvent-derived events. Observability cannot approve, reject, or skip permissions.
 
 ## Hooks

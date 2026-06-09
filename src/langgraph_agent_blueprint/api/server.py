@@ -120,6 +120,9 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             except ConversationAccessError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
         result = runtime.resume(request.thread_id, request.decision_payload(), session_id=request.session_id)
+        permission_required = None
+        if "__interrupt__" in result:
+            permission_required = result["__interrupt__"][0].value
         if conversation_service is not None and conversation is not None and (result.get("final_response") is not None or result.get("ui_events")):
             final_response = result.get("final_response")
             conversation_service.append_turn(
@@ -138,7 +141,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 redactor=runtime.dependencies.observability_service.redact_payload,
             ),
             usage=result.get("usage", {}) or {},
-            permission_required=None,
+            permission_required=permission_required,
         )
 
     api.include_router(sessions_router)

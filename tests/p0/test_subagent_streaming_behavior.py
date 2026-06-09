@@ -373,7 +373,7 @@ def test_subagent_default_tool_scope_blocks_child_write_tool(runtime_factory, ap
     assert not (temp_project / "child.txt").exists()
 
 
-def test_subagent_side_effect_approval_is_reported_as_nested_approval_error(runtime_factory, temp_project) -> None:
+def test_subagent_side_effect_approval_interrupts_parent_and_resumes_child(runtime_factory, temp_project) -> None:
     runtime = runtime_factory(
         project_root=temp_project,
         chat_model=ChildWriteAttemptModel(request_allowed_write=True),
@@ -389,11 +389,64 @@ def test_subagent_side_effect_approval_is_reported_as_nested_approval_error(runt
         )
     )
 
-    errors = [item for item in events if item["type"] == "subagent_error"]
+    permission_events = [item for item in events if item["type"] == "permission_required"]
 
-    assert errors
-    assert "nested approval is not supported" in str(errors[-1]["data"].get("summary", "")).lower()
+    assert permission_events
+    permission = permission_events[-1]["data"]
+    assert permission["scope"] == "subagent"
+    assert permission["child_thread_id"]
+    assert permission["child_session_id"]
     assert not (temp_project / "child.txt").exists()
+
+    result = runtime.resume(
+        "thread_subagent_nested_approval_123",
+        {
+            "tool_call_id": permission["tool_call_id"],
+            "decision": "approved",
+            "reason": "approved by test user",
+        },
+        session_id="session_subagent_nested_approval_123",
+    )
+
+    assert "__interrupt__" not in result
+    assert result["final_response"] == "Parent observed child result."
+    assert (temp_project / "child.txt").read_text(encoding="utf-8") == "child wrote this\n"
+    assert any(item["type"] == "permission_resolved" and item["data"].get("approved") is True for item in result["ui_events"])
+    assert any(item["type"] == "subagent_finished" for item in result["ui_events"])
+
+
+def test_subagent_side_effect_rejection_finishes_child_without_execution(runtime_factory, temp_project) -> None:
+    runtime = runtime_factory(
+        project_root=temp_project,
+        chat_model=ChildWriteAttemptModel(request_allowed_write=True),
+        permissions=PermissionService("default"),
+    )
+
+    events = list(
+        runtime.stream(
+            "Ask a child to write with write_file allowed.",
+            project_root=temp_project,
+            thread_id="thread_subagent_rejected_approval_123",
+            session_id="session_subagent_rejected_approval_123",
+        )
+    )
+    permission = [item for item in events if item["type"] == "permission_required"][-1]["data"]
+
+    result = runtime.resume(
+        "thread_subagent_rejected_approval_123",
+        {
+            "tool_call_id": permission["tool_call_id"],
+            "decision": "rejected",
+            "reason": "rejected by test user",
+        },
+        session_id="session_subagent_rejected_approval_123",
+    )
+
+    assert "__interrupt__" not in result
+    assert result["final_response"] == "Parent observed child result."
+    assert not (temp_project / "child.txt").exists()
+    assert any(item["type"] == "permission_resolved" and item["data"].get("approved") is False for item in result["ui_events"])
+    assert any(item["type"] == "subagent_error" for item in result["ui_events"])
 
 
 def test_subagent_inherits_runtime_permission_mode_for_allowed_side_effects(runtime_factory, temp_project) -> None:

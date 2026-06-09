@@ -55,6 +55,13 @@ export type RuntimeStreamEvent =
       args_summary?: string | null;
       reason?: string | null;
       args?: Record<string, unknown>;
+      scope?: "tool" | "subagent";
+      parent_session_id?: string | null;
+      parent_thread_id?: string | null;
+      child_session_id?: string | null;
+      child_thread_id?: string | null;
+      child_run_id?: string | null;
+      subagent_name?: string | null;
     }
   | { kind: "error"; message: string; error_type?: string | null; recoverable?: boolean | null }
   | { kind: "artifact"; artifact_id: string; artifact_kind: string; uri?: string | null; title?: string | null; metadata?: Record<string, unknown> };
@@ -90,6 +97,13 @@ export type PermissionRequest = {
   args_summary?: string | null;
   reason?: string | null;
   args?: Record<string, unknown>;
+  scope?: "tool" | "subagent";
+  parent_session_id?: string | null;
+  parent_thread_id?: string | null;
+  child_session_id?: string | null;
+  child_thread_id?: string | null;
+  child_run_id?: string | null;
+  subagent_name?: string | null;
 };
 
 export type PermissionDecisionDTO = {

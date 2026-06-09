@@ -764,6 +764,13 @@ function permissionFromEvent(event: RuntimeEvent): PermissionRequest {
     args_summary: stringOrNull(event.data.args_summary),
     reason: stringOrNull(event.data.reason),
     args: isRecord(event.data.args) ? event.data.args : {},
+    scope: event.data.scope === "subagent" ? "subagent" : "tool",
+    parent_session_id: stringOrNull(event.data.parent_session_id),
+    parent_thread_id: stringOrNull(event.data.parent_thread_id),
+    child_session_id: stringOrNull(event.data.child_session_id),
+    child_thread_id: stringOrNull(event.data.child_thread_id),
+    child_run_id: stringOrNull(event.data.child_run_id),
+    subagent_name: stringOrNull(event.data.subagent_name),
   };
 }
 
