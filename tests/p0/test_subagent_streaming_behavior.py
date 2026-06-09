@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from time import monotonic, sleep
 from typing import Any
 
 from langchain_core.messages import AIMessage
 
 from langgraph_agent_blueprint.api.serializers import child_run_list_item_dto, session_detail_dto
-from langgraph_agent_blueprint.models import ModelRequest, ModelResponse, ModelStreamEvent, Usage
+from langgraph_agent_blueprint.models import ChildRunMetadata, ModelRequest, ModelResponse, ModelStreamEvent, Usage
 from langgraph_agent_blueprint.services.permission_service import PermissionService
 
 
@@ -414,6 +415,76 @@ def test_subagent_side_effect_approval_interrupts_parent_and_resumes_child(runti
     assert (temp_project / "child.txt").read_text(encoding="utf-8") == "child wrote this\n"
     assert any(item["type"] == "permission_resolved" and item["data"].get("approved") is True for item in result["ui_events"])
     assert any(item["type"] == "subagent_finished" for item in result["ui_events"])
+
+
+def test_subagent_child_resume_repairs_required_state_channels(monkeypatch, tmp_path) -> None:
+    from langgraph_agent_blueprint.graph import builder as builder_module
+    from langgraph_agent_blueprint.graph.subgraphs.agent_graph import _resume_child_graph
+
+    captured: dict[str, Any] = {}
+
+    class FakeCompiledGraph:
+        def invoke(self, command, config):
+            captured["command"] = command
+            captured["config"] = config
+            return {"final_response": "child resumed", "ui_events": []}
+
+    class FakeGraphBuilder:
+        def compile(self, checkpointer=None):
+            captured["checkpointer"] = checkpointer
+            return FakeCompiledGraph()
+
+    monkeypatch.setattr(builder_module, "build_main_graph", lambda deps: FakeGraphBuilder())
+
+    metadata = ChildRunMetadata(
+        child_run_id="child_resume_123",
+        parent_session_id="session_parent_123",
+        parent_thread_id="thread_parent_123",
+        child_session_id="session_child_123",
+        child_thread_id="thread_child_123",
+        name="writer",
+        status="running",
+        started_at="2026-06-09T00:00:00Z",
+        metadata={"agent_call_id": "writer_agent"},
+    )
+    pending = {
+        "request": {"prompt": "Write child file", "name": "writer", "max_turns": 3},
+        "child_state": {
+            "session_id": metadata.child_session_id,
+            "thread_id": metadata.child_thread_id,
+            "project_root": str(tmp_path),
+            "project_id": "project_123",
+            "workspace": {"root_path": str(tmp_path)},
+            "cwd": str(tmp_path),
+            "input_text": "Write child file",
+            "input_kind": "headless",
+            "metadata": {"is_subagent": True, "subagent_depth": 1},
+        },
+        "child_events": [],
+    }
+    deps = SimpleNamespace(
+        config=SimpleNamespace(storage_dir=tmp_path),
+        agent_service=SimpleNamespace(child_checkpointer=lambda storage_dir: "child-checkpointer"),
+    )
+
+    _resume_child_graph(
+        deps,
+        pending,
+        {"tool_call_id": "child_write", "decision": "approved"},
+        {"session_id": metadata.parent_session_id},
+        metadata,
+        None,
+    )
+
+    command = captured["command"]
+    assert command.resume == {"tool_call_id": "child_write", "decision": "approved"}
+    assert command.update["session_id"] == metadata.child_session_id
+    assert command.update["thread_id"] == metadata.child_thread_id
+    assert command.update["project_root"] == str(tmp_path)
+    assert command.update["cwd"] == str(tmp_path)
+    assert command.update["metadata"]["child_session_id"] == metadata.child_session_id
+    assert command.update["metadata"]["child_thread_id"] == metadata.child_thread_id
+    assert captured["config"]["configurable"]["thread_id"] == metadata.child_thread_id
 
 
 def test_subagent_side_effect_rejection_finishes_child_without_execution(runtime_factory, temp_project) -> None:

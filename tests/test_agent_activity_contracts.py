@@ -10,9 +10,13 @@ import pytest
 from pydantic import ValidationError
 
 from langgraph_agent_blueprint.models import AgentActivityEvent, AgentActivitySource, ToolActivitySpec
-from langgraph_agent_blueprint.models.prompts import BASE_SYSTEM_PROMPT
-from langgraph_agent_blueprint.services import AgentService
+from langgraph_agent_blueprint.models.prompts import BASE_SYSTEM_PROMPT, build_system_context
+from langgraph_agent_blueprint.services import AgentService, FileService, NotebookService, SearchService, ShellService
 from langgraph_agent_blueprint.tools.agent_tools import AgentInput, AgentTool
+from langgraph_agent_blueprint.tools.file_tools import FileEditTool, FileReadTool, FileWriteTool
+from langgraph_agent_blueprint.tools.notebook_tools import NotebookEditTool, NotebookReadTool
+from langgraph_agent_blueprint.tools.search_tools import GlobTool, GrepTool
+from langgraph_agent_blueprint.tools.shell_tools import BashTool, PowerShellTool
 
 
 def test_activity_event_type_is_open_namespaced_string() -> None:
@@ -81,6 +85,57 @@ def test_system_prompt_requires_agent_tool_calls_for_subagent_requests() -> None
     assert "allowedtools" in prompt
     assert "call the `agent` tool once" in prompt
     assert "final answer is allowed only after required tool calls" in prompt
+
+
+def test_system_context_defines_project_relative_path_contract() -> None:
+    context = build_system_context(
+        "/workspace/docker-selection-smoke/calculator",
+        "",
+        "Tools: read_file, glob",
+        "Skills: ",
+        "",
+    ).lower()
+
+    assert "project root: /workspace/docker-selection-smoke/calculator" in context
+    assert "authoritative workspace root" in context
+    assert "project-relative" in context
+    assert "do not prefix" in context
+    assert "calculator/backend" in context
+    assert "backend/requirements.txt" in context
+
+
+def test_file_tool_schema_tells_models_to_use_workspace_relative_paths(tmp_path: Path) -> None:
+    metadata = FileReadTool(FileService(tmp_path)).metadata()
+    path_description = metadata["input_schema"]["properties"]["path"]["description"].lower()
+
+    assert "project-relative" in path_description
+    assert "workspace root" in path_description
+    assert "do not prefix" in path_description
+
+
+def test_local_tool_schemas_share_project_relative_path_contract(tmp_path: Path) -> None:
+    file_service = FileService(tmp_path)
+    notebook_service = NotebookService(file_service)
+    search_service = SearchService()
+    shell_service = ShellService(tmp_path)
+    tool_fields = [
+        (FileReadTool(file_service), "path"),
+        (FileWriteTool(file_service), "path"),
+        (FileEditTool(file_service), "path"),
+        (GlobTool(search_service), "path"),
+        (GrepTool(search_service), "path"),
+        (NotebookReadTool(notebook_service), "path"),
+        (NotebookEditTool(notebook_service), "path"),
+        (BashTool(shell_service), "cwd"),
+        (PowerShellTool(shell_service), "cwd"),
+    ]
+
+    for tool, field_name in tool_fields:
+        metadata = tool.metadata()
+        description = metadata["input_schema"]["properties"][field_name]["description"].lower()
+        assert "project-relative" in description, f"{tool.name}.{field_name} is missing project-relative contract"
+        assert "workspace root" in description, f"{tool.name}.{field_name} is missing workspace root contract"
+        assert "do not prefix" in description, f"{tool.name}.{field_name} is missing repeated-root warning"
 
 
 def test_tool_executor_does_not_map_tool_names_to_activity_types() -> None:

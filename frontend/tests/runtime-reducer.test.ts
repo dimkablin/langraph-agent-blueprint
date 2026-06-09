@@ -13,7 +13,9 @@ import {
 } from "../src/runtime/reducer.ts";
 import type { RuntimeEvent, StreamFrame } from "../src/api/schemas.ts";
 
-function event(type: string, data: Record<string, unknown> = {}, id = `event_${type}`): RuntimeEvent {
+let eventCounter = 0;
+
+function event(type: string, data: Record<string, unknown> = {}, id = `event_${type}_${++eventCounter}`): RuntimeEvent {
   return {
     id,
     type,
@@ -144,6 +146,101 @@ test("approval response with explicit null permission clears modal state", () =>
   });
 
   assert.equal(resolved.pendingPermission, null);
+});
+
+test("approval response replaying prior stream events does not duplicate rendered assistant text", () => {
+  const priorEvents = [
+    event("model_token", { token: "Сначала я проверю проект." }, "token_before_tool"),
+    event("model_message", { content: "Сначала я проверю проект." }, "message_before_tool"),
+    event("tool_call_finished", {
+      activity: {
+        id: "activity_ls",
+        type: "tool.bash.completed",
+        source: { kind: "tool", name: "bash" },
+        category: "tool",
+        status: "success",
+        title: "Ran command",
+        summary: "Command exited with code 0.",
+        data: { tool_call_id: "call_ls", tool_name: "bash", operation: "shell.run", command: "ls", exit_code: 0 },
+      },
+    }, "event_ls"),
+    event("model_token", { token: "Теперь нужен approve." }, "token_before_permission"),
+    event("model_message", { content: "Теперь нужен approve." }, "message_before_permission"),
+    event("permission_required", {
+      tool_call_id: "call_write",
+      tool_name: "write_file",
+      action: "write",
+      risk: "medium",
+      args: { path: "created.txt", content: "hello" },
+    }, "event_permission_required"),
+  ];
+  let state = applyFrames([
+    ...priorEvents.map((item) => ({ type: "event" as const, event: item })),
+    { type: "done", session_id: "session_1", thread_id: "thread_1" },
+  ]);
+
+  state = applyChatResponse(state, {
+    session_id: "session_1",
+    thread_id: "thread_1",
+    final_response: "Готово после approve.",
+    events: [
+      ...priorEvents,
+      event("permission_resolved", { tool_call_id: "call_write", decision: "approved" }, "event_permission_resolved"),
+      event("final_response", { content: "Готово после approve." }, "event_final_after_approval"),
+    ],
+    permission_required: null,
+  });
+
+  assert.deepEqual(state.messages.map((message) => message.content), [
+    "Сначала я проверю проект.",
+    "Теперь нужен approve.",
+    "Готово после approve.",
+  ]);
+  assert.equal(state.pendingPermission, null);
+  assert.equal(state.finalResponse, "Готово после approve.");
+});
+
+test("assistant model messages are not included in visible activity groups", () => {
+  const state = applyFrames([
+    eventFrame("model_message", {
+      content: "Привет! Сначала проанализирую структуру проекта, чтобы понять, из чего он состоит.",
+    }, "assistant_preface"),
+    eventFrame("tool_call_finished", {
+      activity: {
+        id: "activity_find",
+        type: "tool.glob.completed",
+        source: { kind: "tool", name: "glob" },
+        category: "tool",
+        status: "success",
+        title: "Find files completed",
+        summary: "Found 2 file match(es).",
+        data: { tool_call_id: "call_find", tool_name: "glob", operation: "search.glob", pattern: "**/*" },
+      },
+    }, "find_done"),
+    eventFrame("tool_call_finished", {
+      activity: {
+        id: "activity_read",
+        type: "tool.read_file.completed",
+        source: { kind: "tool", name: "read_file" },
+        category: "tool",
+        status: "success",
+        title: "Read file completed",
+        summary: "Read README.md.",
+        data: { tool_call_id: "call_read", tool_name: "read_file", operation: "file.read", path: "README.md" },
+      },
+    }, "read_done"),
+  ]);
+
+  const activityGroups = state.timeline.filter((item) => item.kind === "activity");
+
+  assert.equal(activityGroups.length, 1);
+  assert.deepEqual(
+    activityGroups.flatMap((item) => item.kind === "activity" ? item.activities.map((activity) => activity.eventType) : []),
+    ["tool.glob.completed", "tool.read_file.completed"],
+  );
+  assert.ok(!activityGroups.some((item) =>
+    item.kind === "activity" && item.activities.some((activity) => activity.summary.includes("Привет!")),
+  ));
 });
 
 test("context events populate runtime context state", () => {

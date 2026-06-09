@@ -802,8 +802,9 @@ def _resume_child_graph(
         "configurable": {"thread_id": metadata.child_thread_id},
         "recursion_limit": max(12, request.max_turns * 8),
     }
+    resume_command = Command(resume=decision, update=_child_resume_state_update(pending, parent_state, metadata))
     if writer is None:
-        result = app.invoke(Command(resume=decision), config)
+        result = app.invoke(resume_command, config)
         child_result = result if isinstance(result, dict) else {"final_response": str(result)}
         events = child_result.get("ui_events", []) if isinstance(child_result, dict) else []
         child_events = events[previous_count:]
@@ -814,7 +815,7 @@ def _resume_child_graph(
     final_chunk: dict[str, Any] | None = None
     child_events: list[dict[str, Any]] = []
     forwarded_events: list[dict[str, Any]] = []
-    for raw_chunk in app.stream(Command(resume=decision), config, stream_mode=["custom", "values"]):
+    for raw_chunk in app.stream(resume_command, config, stream_mode=["custom", "values"]):
         mode, chunk = raw_chunk if isinstance(raw_chunk, tuple) and len(raw_chunk) == 2 else ("values", raw_chunk)
         if mode == "custom":
             if isinstance(chunk, dict) and "type" in chunk and "data" in chunk:
@@ -836,6 +837,41 @@ def _resume_child_graph(
             writer(forwarded)
         previous_count = len(events)
     return final_chunk or {}, child_events, forwarded_events
+
+
+def _child_resume_state_update(pending: dict[str, Any], parent_state: dict[str, Any], metadata: ChildRunMetadata) -> dict[str, Any]:
+    child_state = pending.get("child_state", {}) if isinstance(pending.get("child_state"), dict) else {}
+    request = pending.get("request", {}) if isinstance(pending.get("request"), dict) else {}
+    child_metadata = child_state.get("metadata", {}) if isinstance(child_state.get("metadata"), dict) else {}
+    metadata_update = {
+        **metadata.metadata,
+        **child_metadata,
+        "is_subagent": True,
+        "child_run_id": metadata.child_run_id,
+        "child_session_id": metadata.child_session_id,
+        "child_thread_id": metadata.child_thread_id,
+        "parent_session_id": metadata.parent_session_id,
+        "parent_thread_id": metadata.parent_thread_id,
+        "subagent_name": metadata.name,
+        "subagent_purpose": metadata.purpose,
+    }
+    update: dict[str, Any] = {
+        "session_id": metadata.child_session_id,
+        "thread_id": metadata.child_thread_id,
+        "project_root": _resume_value(child_state, parent_state, "project_root"),
+        "project_id": _resume_value(child_state, parent_state, "project_id"),
+        "workspace": _resume_value(child_state, parent_state, "workspace"),
+        "cwd": _resume_value(child_state, parent_state, "cwd"),
+        "input_text": child_state.get("input_text") or request.get("prompt"),
+        "input_kind": child_state.get("input_kind") or "headless",
+        "metadata": {key: value for key, value in metadata_update.items() if value is not None},
+    }
+    return {key: value for key, value in update.items() if value is not None}
+
+
+def _resume_value(child_state: dict[str, Any], parent_state: dict[str, Any], key: str) -> Any:
+    value = child_state.get(key)
+    return parent_state.get(key) if value is None else value
 
 
 def _forward_child_event(parent_state: dict[str, Any], metadata: ChildRunMetadata, child_event: dict[str, Any], *, sequence: int) -> dict[str, Any]:

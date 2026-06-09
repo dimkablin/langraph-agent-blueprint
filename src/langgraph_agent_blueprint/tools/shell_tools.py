@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from langgraph_agent_blueprint.models import ToolActivitySpec, ToolPermissionMetadata, ToolRuntimeMetadata
 from langgraph_agent_blueprint.services import ShellService
 from langgraph_agent_blueprint.utils.activity import activity_text_summary
+from langgraph_agent_blueprint.utils.path_contract import PROJECT_RELATIVE_CWD_DESCRIPTION
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class ShellInput(BaseModel):
     """Pydantic input schema for the shell operation."""
-    command: str
-    cwd: str | None = None
+    command: str = Field(description="Shell command to execute.")
+    cwd: str | None = Field(default=None, description=PROJECT_RELATIVE_CWD_DESCRIPTION)
 
 
 class ShellOutput(ToolOutput):

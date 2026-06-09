@@ -50,6 +50,32 @@ test("typed assistant stream events build one assistant message and ignore dupli
   assert.equal(state.isStreaming, false);
 });
 
+test("model message progress payload is rendered as assistant text rather than activity", () => {
+  const state = applyRuntimeEvent(
+    createInitialRuntimeState(),
+    {
+      id: "model_progress_legacy",
+      type: "model_message",
+      timestamp: "2026-05-08T00:00:00Z",
+      session_id: "session_1",
+      severity: "info",
+      data: {
+        content: "Привет! Сначала проанализирую структуру проекта.",
+        stream_event: {
+          kind: "progress",
+          message: "Привет! Сначала проанализирую структуру проекта.",
+          stage: "model_message",
+          message_id: "assistant_legacy",
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(state.messages.map((message) => message.content), ["Привет! Сначала проанализирую структуру проекта."]);
+  assert.equal(state.timeline.some((item) => item.kind === "activity"), false);
+  assert.equal(state.activities.some((activity) => activity.summary.includes("Привет!")), false);
+});
+
 test("typed tool lifecycle events render one structured timeline block without magic event names", () => {
   let state = { ...createInitialRuntimeState(), isStreaming: true };
 

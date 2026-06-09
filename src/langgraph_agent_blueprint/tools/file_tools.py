@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from langgraph_agent_blueprint.models import AgentActivityRef, ToolActivitySpec, ToolPermissionMetadata, ToolRuntimeMetadata
 from langgraph_agent_blueprint.services import FileService
 from langgraph_agent_blueprint.utils.activity import safe_display_path
+from langgraph_agent_blueprint.utils.path_contract import PROJECT_RELATIVE_PATH_DESCRIPTION
 from langgraph_agent_blueprint.utils.truncation import truncate_text
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput
@@ -14,9 +15,9 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 class FileReadInput(BaseModel):
     """Pydantic input schema for the file read operation."""
-    path: str
-    offset: int | None = None
-    limit: int | None = None
+    path: str = Field(description=PROJECT_RELATIVE_PATH_DESCRIPTION)
+    offset: int | None = Field(default=None, description="Optional zero-based line offset to start reading from.")
+    limit: int | None = Field(default=None, description="Optional maximum number of lines to read.")
 
 
 class FileReadOutput(ToolOutput):
@@ -86,8 +87,8 @@ class FileReadTool(BaseTool[FileReadInput, FileReadOutput]):
 
 class FileWriteInput(BaseModel):
     """Pydantic input schema for the file write operation."""
-    path: str
-    content: str = ""
+    path: str = Field(description=PROJECT_RELATIVE_PATH_DESCRIPTION)
+    content: str = Field(default="", description="Complete file content to write.")
 
 
 class FileWriteOutput(ToolOutput):
@@ -153,10 +154,10 @@ class FileWriteTool(BaseTool[FileWriteInput, FileWriteOutput]):
 
 class FileEditInput(BaseModel):
     """Pydantic input schema for the file edit operation."""
-    path: str
-    old_text: str
-    new_text: str
-    allow_unread: bool = False
+    path: str = Field(description=PROJECT_RELATIVE_PATH_DESCRIPTION)
+    old_text: str = Field(description="Exact text currently present in the file.")
+    new_text: str = Field(description="Replacement text to write in place of old_text.")
+    allow_unread: bool = Field(default=False, description="Allow editing a file that has not been read in this run.")
 
 
 class FileEditOutput(ToolOutput):

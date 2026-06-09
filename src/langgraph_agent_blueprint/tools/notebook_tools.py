@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from langgraph_agent_blueprint.models import ToolPermissionMetadata, ToolRuntimeMetadata
 from langgraph_agent_blueprint.services import FileService, NotebookService
+from langgraph_agent_blueprint.utils.path_contract import PROJECT_RELATIVE_PATH_DESCRIPTION
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 
 class NotebookReadInput(BaseModel):
     """Pydantic input schema for the notebook read operation."""
-    path: str
+    path: str = Field(description=PROJECT_RELATIVE_PATH_DESCRIPTION)
 
 
 class NotebookReadOutput(ToolOutput):
@@ -39,9 +40,9 @@ class NotebookReadTool(BaseTool[NotebookReadInput, NotebookReadOutput]):
 
 class NotebookEditInput(BaseModel):
     """Pydantic input schema for the notebook edit operation."""
-    path: str
-    index: int
-    source: str
+    path: str = Field(description=PROJECT_RELATIVE_PATH_DESCRIPTION)
+    index: int = Field(description="Zero-based notebook cell index to edit.")
+    source: str = Field(description="Replacement source for the notebook cell.")
 
 
 class NotebookEditOutput(ToolOutput):

@@ -19,7 +19,6 @@ from langgraph_agent_blueprint.models import (
     ModelContextReport,
     ModelRequest,
     ModelResponse,
-    ProgressStreamEvent,
     ToolCall,
     dump_model,
     event,
@@ -78,19 +77,7 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
     model_context_payload = dump_model(model_context)
     events = [event("node_started", node="model_call"), event("model_context_prepared", node="model_call", model_context=model_context_payload)]
     if response.content:
-        events.append(
-            event(
-                "model_message",
-                content=response.content,
-                stream_event=stream_event_payload(
-                    ProgressStreamEvent(
-                        message=response.content,
-                        stage="model_message",
-                        message_id=assistant_message_id,
-                    )
-                ),
-            )
-        )
+        events.append(event("model_message", content=response.content))
     events.append(event("usage_updated", usage=usage))
     message = AIMessage(
         content=response.content,

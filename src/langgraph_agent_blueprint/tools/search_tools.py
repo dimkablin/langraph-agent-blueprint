@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from langgraph_agent_blueprint.models import ToolActivitySpec, ToolPermissionMetadata, ToolRuntimeMetadata
 from langgraph_agent_blueprint.services import SearchService
+from langgraph_agent_blueprint.utils.path_contract import PROJECT_RELATIVE_DIRECTORY_DESCRIPTION
 from langgraph_agent_blueprint.utils.paths import resolve_under_root
 
 from .base import BaseTool, ToolExecutionContext, ToolOutput
@@ -13,8 +14,8 @@ from .base import BaseTool, ToolExecutionContext, ToolOutput
 
 class GlobInput(BaseModel):
     """Pydantic input schema for the glob operation."""
-    pattern: str
-    path: str | None = None
+    pattern: str = Field(description="Glob pattern to match under the workspace root or optional path.")
+    path: str | None = Field(default=None, description=PROJECT_RELATIVE_DIRECTORY_DESCRIPTION)
 
 
 class GlobOutput(ToolOutput):
@@ -60,11 +61,11 @@ class GlobTool(BaseTool[GlobInput, GlobOutput]):
 
 class GrepInput(BaseModel):
     """Pydantic input schema for the grep operation."""
-    pattern: str
-    path: str | None = None
-    include: str | None = None
-    exclude: str | None = None
-    max_results: int = 100
+    pattern: str = Field(description="Text or regular expression pattern to search for.")
+    path: str | None = Field(default=None, description=PROJECT_RELATIVE_DIRECTORY_DESCRIPTION)
+    include: str | None = Field(default=None, description="Optional glob pattern for files to include.")
+    exclude: str | None = Field(default=None, description="Optional glob pattern for files to exclude.")
+    max_results: int = Field(default=100, description="Maximum number of matches to return.")
 
 
 class GrepOutput(ToolOutput):

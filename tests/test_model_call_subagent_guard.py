@@ -77,6 +77,18 @@ def test_model_call_does_not_repair_plain_final_text(tmp_path: Path) -> None:
     assert update["pending_tool_calls"] == []
 
 
+def test_model_call_message_event_is_not_reported_as_progress_activity(tmp_path: Path) -> None:
+    deps = build_dependencies(_config(tmp_path))
+    provider = PlainTextProvider()
+    deps.model_provider = provider  # type: ignore[assignment]
+
+    update = model_call_node(_state(tmp_path), deps)
+
+    model_messages = [item for item in update["ui_events"] if item["type"] == "model_message"]
+    assert model_messages
+    assert "stream_event" not in model_messages[0]["data"]
+
+
 def test_model_call_trims_old_history_before_provider_request(tmp_path: Path) -> None:
     deps = build_dependencies(
         AppConfig(

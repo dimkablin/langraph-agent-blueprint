@@ -89,6 +89,7 @@ export type RuntimeState = {
   finalResponse: string | null;
   error: string | null;
   isStreaming: boolean;
+  processedEventIds: string[];
 };
 
 const STREAMING_DRAFT_ID_PREFIX = "draft:";
@@ -96,6 +97,7 @@ const INTERNAL_COMPACTION_PREFIX = "Compacted prior context:";
 const TOOL_MESSAGE_ROLE = "tool";
 const TOOL_MESSAGE_TYPE = "ToolMessage";
 const ASSISTANT_DTO_ROLES = new Set<string>(["ai", "assistant"]);
+const MAX_PROCESSED_EVENT_IDS = 2000;
 
 export function createInitialRuntimeState(): RuntimeState {
   return {
@@ -117,6 +119,7 @@ export function createInitialRuntimeState(): RuntimeState {
     finalResponse: null,
     error: null,
     isStreaming: false,
+    processedEventIds: [],
   };
 }
 
@@ -175,6 +178,13 @@ export function clearPendingPermission(state: RuntimeState): RuntimeState {
 }
 
 export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): RuntimeState {
+  if (isProcessedRuntimeEvent(state, event.id)) {
+    return state;
+  }
+  return markRuntimeEventProcessed(applyRuntimeEventOnce(state, event), event.id);
+}
+
+function applyRuntimeEventOnce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
   let next: RuntimeState = {
     ...state,
     sessionId: event.session_id && event.session_id !== "unknown" ? event.session_id : state.sessionId,
@@ -270,6 +280,11 @@ export function applyRuntimeEvent(state: RuntimeState, event: RuntimeEvent): Run
 }
 
 function applyTypedRuntimeEvent(state: RuntimeState, event: RuntimeEvent, streamEvent: RuntimeStreamEvent): RuntimeState {
+  if (streamEvent.kind === "progress" && event.type === "model_message" && streamEvent.stage === "model_message") {
+    const content = firstString(event.data.content, streamEvent.message);
+    const messageId = streamEvent.message_id || event.id;
+    return content ? appendAssistantMessage(state, content, event.timestamp, messageId) : state;
+  }
   if (streamEvent.kind === "assistant_delta") {
     return appendAssistantDelta(state, streamEvent.message_id, streamEvent.delta, event.timestamp);
   }
@@ -338,6 +353,7 @@ export function applySessionDetail(state: RuntimeState, detail: SessionDetailDTO
     pendingPermission: null,
     error: null,
     isStreaming: false,
+    processedEventIds: detail.events.map((event) => event.id).filter(Boolean),
   };
 }
 
@@ -363,6 +379,7 @@ function restoreSessionTimelineFromEvents(state: RuntimeState, detail: SessionDe
     finalResponse: null,
     error: null,
     isStreaming: false,
+    processedEventIds: [],
   };
   for (const event of detail.events) {
     if (event.type === "model_token") {
@@ -415,6 +432,20 @@ function appendActivity(state: RuntimeState, event: RuntimeEvent): RuntimeState 
 function applyUsageFromRuntimeEvent(state: RuntimeState, event: RuntimeEvent): RuntimeState {
   const usage = isRecord(event.data?.usage) ? event.data.usage : event.type === "usage_updated" ? event.data : null;
   return usage ? { ...state, usage: mergeUsage(state.usage, usage) } : state;
+}
+
+function isProcessedRuntimeEvent(state: RuntimeState, eventId: string): boolean {
+  return Boolean(eventId) && state.processedEventIds.includes(eventId);
+}
+
+function markRuntimeEventProcessed(state: RuntimeState, eventId: string): RuntimeState {
+  if (!eventId || state.processedEventIds.includes(eventId)) {
+    return state;
+  }
+  return {
+    ...state,
+    processedEventIds: [...state.processedEventIds, eventId].slice(-MAX_PROCESSED_EVENT_IDS),
+  };
 }
 
 function mergeUsage(existing: Record<string, unknown>, update: Record<string, unknown>): Record<string, unknown> {

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from langgraph_agent_blueprint.utils.path_contract import build_path_use_contract
+
 
 BASE_SYSTEM_PROMPT = """You are a coding assistant running inside a local project.
 Use tools when they are useful, respect permissions, keep responses concise, and preserve user intent.
@@ -30,6 +32,7 @@ def build_system_context(
     parts = [
         BASE_SYSTEM_PROMPT,
         f"Project root: {project_root}",
+        build_path_use_contract(project_root),
         memory_context,
         plugin_context,
         tools_summary,
