@@ -158,6 +158,7 @@ def build_dependencies(config: AppConfig | None = None) -> AppDependencies:
         compaction_service=CompactionService(
             max_tokens_before_compact=config.auto_compact_threshold,
             keep_recent=config.max_recent_messages_after_compact,
+            context_window_max_tokens=config.context_max_tokens,
         ),
         hook_registry=hook_registry,
         hook_service=HookService(hook_registry),

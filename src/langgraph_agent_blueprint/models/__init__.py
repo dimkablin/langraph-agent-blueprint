@@ -18,7 +18,7 @@ from .context import (
 from .evals import EvalExpectations, EvalReport, EvalRunResult, EvalScenario, EvalStep
 from .events import RuntimeEvent, make_event
 from .hooks import HookContext, HookContribution, HookInvocation, HookPoint, HookResult, HookRunSummary, HookRuntimeMetadata
-from .llm import ModelRequest, ModelResponse, ModelStreamEvent
+from .llm import ModelRequest, ModelResponse, ModelStreamEvent, provider_tool_schemas
 from .mcp import (
     MCPConnectionState,
     MCPHttpConfig,
@@ -163,4 +163,5 @@ __all__ = [
     "normalize_provider_tool_calls",
     "tool_result_to_tool_message",
     "validate_list",
+    "provider_tool_schemas",
 ]

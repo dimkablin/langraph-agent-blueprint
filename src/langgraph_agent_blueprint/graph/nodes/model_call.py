@@ -13,7 +13,7 @@ from langgraph_agent_blueprint.dependencies import AppDependencies
 from langgraph_agent_blueprint.graph.hooks import hook_blocked, merge_updates, run_hook_point, state_with_update
 from langgraph_agent_blueprint.graph.instrumentation import duration_ms, runtime_metrics_update
 from langgraph_agent_blueprint.graph.run_control import cancellation_update
-from langgraph_agent_blueprint.models import ModelContextPart, ModelContextReport, ModelRequest, ModelResponse, ToolCall, dump_model, event, validate_list
+from langgraph_agent_blueprint.models import ModelContextPart, ModelContextReport, ModelRequest, ModelResponse, ToolCall, dump_model, event, provider_tool_schemas, validate_list
 
 
 def model_call_node(state: dict, deps: AppDependencies) -> dict:
@@ -36,7 +36,7 @@ def model_call_node(state: dict, deps: AppDependencies) -> dict:
     allowed_tools = current.get("metadata", {}).get("allowed_tools_override")
     if allowed_tools:
         available_tools = {name: meta for name, meta in available_tools.items() if name in set(allowed_tools)}
-    tool_schema_payload_chars = _json_size(available_tools)
+    tool_schema_payload_chars = _json_size(provider_tool_schemas(available_tools))
     request = ModelRequest(
         messages=current.get("messages", []),
         system_context=current.get("context_status", {}).get("system_context", ""),
@@ -253,7 +253,9 @@ def _fit_messages_to_budget(messages: list[Any], token_budget: int | None) -> tu
     if token_budget is None:
         return list(messages), False
     if token_budget <= 0:
-        return list(messages), bool(messages)
+        if not messages:
+            return [], False
+        return [_message_with_content(messages[-1], _truncate_text_payload(getattr(messages[-1], "content", ""), 1))], True
 
     selected: list[Any] = []
     remaining = token_budget
@@ -301,7 +303,7 @@ def _model_context_report(
             )
         )
     if request.tools:
-        content = _json_text(request.tools)
+        content = _json_text(provider_tool_schemas(request.tools))
         parts.append(
             ModelContextPart(
                 kind="tools",

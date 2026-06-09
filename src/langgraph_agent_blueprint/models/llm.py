@@ -41,3 +41,28 @@ def message_text(messages: list[BaseMessage]) -> str:
 
     return "\n".join(str(getattr(message, "content", "")) for message in messages)
 
+
+def provider_tool_schemas(tools: object) -> list[dict[str, Any]]:
+    """Return the provider-facing function-tool schema payload for context accounting."""
+
+    if not isinstance(tools, dict):
+        return []
+    schemas: list[dict[str, Any]] = []
+    for name, metadata in sorted(tools.items()):
+        if not isinstance(metadata, dict):
+            metadata = {}
+        input_schema = metadata.get("input_schema") or {"type": "object", "properties": {}}
+        if not isinstance(input_schema, dict):
+            input_schema = {"type": "object", "properties": {}}
+        schemas.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": str(name),
+                    "description": str(metadata.get("description") or ""),
+                    "parameters": input_schema,
+                },
+            }
+        )
+    return schemas
+

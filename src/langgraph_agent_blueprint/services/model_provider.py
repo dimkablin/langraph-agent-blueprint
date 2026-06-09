@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolM
 from langchain_core.messages.utils import message_chunk_to_message
 
 from langgraph_agent_blueprint.config import AppConfig
-from langgraph_agent_blueprint.models import ModelRequest, ModelResponse, ModelStreamEvent, ToolCall, Usage, dump_model, normalize_provider_tool_calls
+from langgraph_agent_blueprint.models import ModelRequest, ModelResponse, ModelStreamEvent, ToolCall, Usage, dump_model, normalize_provider_tool_calls, provider_tool_schemas
 from langgraph_agent_blueprint.utils.ids import new_id
 
 
@@ -197,22 +197,7 @@ class ModelProviderService:
     def _langchain_tool_schemas(tools: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert internal ToolRegistry metadata into LangChain/OpenAI-style tool schemas."""
 
-        schemas: list[dict[str, Any]] = []
-        for name, metadata in sorted(tools.items()):
-            input_schema = metadata.get("input_schema") or {"type": "object", "properties": {}}
-            if not isinstance(input_schema, dict):
-                input_schema = {"type": "object", "properties": {}}
-            schemas.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": name,
-                        "description": str(metadata.get("description") or ""),
-                        "parameters": input_schema,
-                    },
-                }
-            )
-        return schemas
+        return provider_tool_schemas(tools)
 
     @staticmethod
     def _normalize_tool_calls(tool_calls: list[Any]) -> list[dict[str, Any]]:

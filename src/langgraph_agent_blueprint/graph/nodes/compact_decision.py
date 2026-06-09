@@ -24,6 +24,9 @@ def compact_decision_node(state: dict, deps: AppDependencies) -> dict:
                 reason=decision.reason,
                 message_count=decision.message_count,
                 estimated_tokens=decision.estimated_tokens,
+                context_window_tokens=decision.context_window_tokens,
+                prompt_tokens=decision.prompt_tokens,
+                overflow_tokens=decision.overflow_tokens,
             )
         ],
     }
