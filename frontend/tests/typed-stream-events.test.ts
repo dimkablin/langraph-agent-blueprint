@@ -4,6 +4,7 @@ import test from "node:test";
 import type { RuntimeEvent, StreamFrame } from "../src/api/schemas.ts";
 import { buildActivityEntries } from "../src/runtime/activityTimeline.ts";
 import { applyRuntimeEvent, applyStreamFrame, createInitialRuntimeState } from "../src/runtime/reducer.ts";
+import { buildSubagentTimelineRows } from "../src/runtime/subagentTimeline.ts";
 
 function typedEvent(id: string, streamEvent: Record<string, unknown>): RuntimeEvent {
   return {
@@ -133,3 +134,83 @@ test("typed permission state opens and clears the pending permission modal state
 
   assert.equal(state.pendingPermission, null);
 });
+
+test("typed subagent stream events use stable run ids and dedupe by sequence", () => {
+  let state = createInitialRuntimeState();
+
+  const subagentPayload = {
+    kind: "subagent",
+    phase: "event",
+    subagent_id: "backend_agent",
+    run_id: "child_backend",
+    sequence: 2,
+    name: "backend",
+    child_event_type: "model_token",
+    child_event: { type: "model_token", data: { token: "Backend" } },
+    child_stream_event: { kind: "assistant_delta", message_id: "child_msg_1", delta: "Backend" },
+  };
+
+  state = applyRuntimeEvent(state, typedEvent("subagent_event_1", subagentPayload));
+  state = applyRuntimeEvent(state, typedEvent("subagent_event_duplicate", subagentPayload));
+
+  assert.equal(state.activities.length, 1);
+  assert.equal(state.activities[0].id, "subagent:child_backend:2");
+  assert.equal(state.activities[0].eventType, "subagent_event");
+  assert.equal(state.activities[0].data.subagent_id, "backend_agent");
+  assert.equal(state.activities[0].data.run_id, "child_backend");
+  assert.equal(state.activities[0].data.sequence, 2);
+  assert.deepEqual(state.activities[0].data.child_stream_event, { kind: "assistant_delta", message_id: "child_msg_1", delta: "Backend" });
+});
+
+test("interleaved typed subagent streams stay separated in the shared timeline", () => {
+  let state = createInitialRuntimeState();
+  const streamEvents = [
+    subagentEvent("backend_agent", "child_backend", 0, "started", { name: "backend" }),
+    subagentEvent("frontend_agent", "child_frontend", 0, "started", { name: "frontend" }),
+    subagentEvent("backend_agent", "child_backend", 1, "event", {
+      name: "backend",
+      child_event_type: "model_message",
+      child_stream_event: { kind: "assistant_final", message_id: "backend_msg", content: "Backend done" },
+    }),
+    subagentEvent("frontend_agent", "child_frontend", 1, "event", {
+      name: "frontend",
+      child_event_type: "model_message",
+      child_stream_event: { kind: "assistant_final", message_id: "frontend_msg", content: "Frontend done" },
+    }),
+    subagentEvent("backend_agent", "child_backend", 2, "finished", { name: "backend", summary: "Backend done" }),
+    subagentEvent("frontend_agent", "child_frontend", 2, "finished", { name: "frontend", summary: "Frontend done" }),
+  ];
+
+  for (const [index, streamEvent] of streamEvents.entries()) {
+    state = applyRuntimeEvent(state, typedEvent(`subagent_${index}`, streamEvent));
+  }
+
+  const entries = buildActivityEntries(state.activities);
+  const backend = entries.find((entry) => entry.activity.data.run_id === "child_backend");
+  const frontend = entries.find((entry) => entry.activity.data.run_id === "child_frontend");
+
+  assert.equal(entries.length, 2);
+  assert.ok(backend);
+  assert.ok(frontend);
+  assert.deepEqual(backend.activities.map((activity) => activity.data.sequence), [0, 1, 2]);
+  assert.deepEqual(frontend.activities.map((activity) => activity.data.sequence), [0, 1, 2]);
+  assert.equal(buildSubagentTimelineRows(backend.activities).find((row) => row.kind === "message")?.content, "Backend done");
+  assert.equal(buildSubagentTimelineRows(frontend.activities).find((row) => row.kind === "message")?.content, "Frontend done");
+});
+
+function subagentEvent(
+  subagentId: string,
+  runId: string,
+  sequence: number,
+  phase: "started" | "event" | "finished" | "error" | "cancelled" | "timeout",
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    kind: "subagent",
+    phase,
+    subagent_id: subagentId,
+    run_id: runId,
+    sequence,
+    ...overrides,
+  };
+}

@@ -205,6 +205,7 @@ def test_stream_forwards_each_subagent_run_and_child_tokens(runtime_factory, app
     assert event_types.count("subagent_started") == 2
     assert event_types.count("subagent_finished") == 2
     assert any(item["type"] == "final_response" and item["data"].get("content") == "Both subagents finished." for item in events)
+    _assert_typed_subagent_streams_are_ordered(events)
 
 
 def test_stream_starts_multiple_subagents_before_first_child_finishes(runtime_factory, approving_permissions, temp_project) -> None:
@@ -446,7 +447,13 @@ def test_subagent_side_effect_rejection_finishes_child_without_execution(runtime
     assert result["final_response"] == "Parent observed child result."
     assert not (temp_project / "child.txt").exists()
     assert any(item["type"] == "permission_resolved" and item["data"].get("approved") is False for item in result["ui_events"])
-    assert any(item["type"] == "subagent_error" for item in result["ui_events"])
+    subagent_errors = [item for item in result["ui_events"] if item["type"] == "subagent_error"]
+    assert subagent_errors
+    error_stream = subagent_errors[-1]["data"].get("stream_event", {})
+    assert error_stream.get("kind") == "subagent"
+    assert error_stream.get("phase") == "error"
+    assert error_stream.get("run_id") == subagent_errors[-1]["data"].get("child_run_id")
+    assert error_stream.get("error", {}).get("type") == "SubagentPermissionRejected"
 
 
 def test_subagent_inherits_runtime_permission_mode_for_allowed_side_effects(runtime_factory, temp_project) -> None:
@@ -558,3 +565,28 @@ def _latest_human_text(request: ModelRequest) -> str:
 
 def _tool_result_count(request: ModelRequest) -> int:
     return sum(1 for message in request.messages if getattr(message, "type", "") == "tool")
+
+
+def _assert_typed_subagent_streams_are_ordered(events: list[dict[str, Any]]) -> None:
+    subagent_events = [
+        item
+        for item in events
+        if item["type"] in {"subagent_started", "subagent_event", "subagent_finished", "subagent_error", "subagent_cancelled", "subagent_timeout"}
+    ]
+    by_run: dict[str, list[dict[str, Any]]] = {}
+    for item in subagent_events:
+        stream_event = item.get("data", {}).get("stream_event", {})
+        assert stream_event.get("kind") == "subagent"
+        assert stream_event.get("run_id") == item.get("data", {}).get("child_run_id")
+        assert stream_event.get("subagent_id")
+        assert isinstance(stream_event.get("sequence"), int)
+        by_run.setdefault(stream_event["run_id"], []).append(stream_event)
+
+    assert len(by_run) == 2
+    for run_id, items in by_run.items():
+        sequences = [item["sequence"] for item in items]
+        assert sequences == sorted(sequences), run_id
+        assert sequences == list(dict.fromkeys(sequences)), run_id
+        assert sequences[0] == 0
+        assert {item["phase"] for item in items} >= {"started", "finished"}
+        assert len({item["subagent_id"] for item in items}) == 1

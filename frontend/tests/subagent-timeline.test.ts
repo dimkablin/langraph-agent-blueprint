@@ -397,3 +397,45 @@ test("subagent timeline consumes typed child tool lifecycle without tool event n
   assert.equal(rows[0].summary, "Read backend/api.py.");
   assert.equal(rows[0].status, "success");
 });
+
+test("subagent timeline orders typed child events by sequence within one run", () => {
+  const rows = buildSubagentTimelineRows([
+    subagentActivity({
+      id: "finish",
+      eventType: "subagent_finished",
+      status: "success",
+      data: { run_id: "child_backend", child_run_id: "child_backend", sequence: 3, name: "backend", summary: "Backend done." },
+    }),
+    subagentActivity({
+      id: "typed_final",
+      eventType: "subagent_event",
+      data: {
+        run_id: "child_backend",
+        child_run_id: "child_backend",
+        sequence: 2,
+        child_event_type: "opaque_child_event",
+        child_stream_event: { kind: "assistant_final", message_id: "child_msg_1", content: "Backend done" },
+      },
+    }),
+    subagentActivity({
+      id: "start",
+      eventType: "subagent_started",
+      status: "running",
+      data: { run_id: "child_backend", child_run_id: "child_backend", sequence: 0, name: "backend" },
+    }),
+    subagentActivity({
+      id: "typed_delta",
+      eventType: "subagent_event",
+      data: {
+        run_id: "child_backend",
+        child_run_id: "child_backend",
+        sequence: 1,
+        child_event_type: "opaque_child_event",
+        child_stream_event: { kind: "assistant_delta", message_id: "child_msg_1", delta: "Backend" },
+      },
+    }),
+  ]);
+
+  assert.deepEqual(rows.map((row) => row.title), ["Started", "Final response", "Finished"]);
+  assert.equal(rows[1].content, "Backend done");
+});

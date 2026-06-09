@@ -61,6 +61,7 @@ from .stream_events import (
     ProgressStreamEvent,
     RuntimeStreamEvent,
     StreamError,
+    SubagentStreamEvent,
     ToolLifecycleStreamEvent,
     stream_event_payload,
 )
@@ -164,6 +165,7 @@ __all__ = [
     "StreamEvent",
     "SubagentRequest",
     "SubagentResult",
+    "SubagentStreamEvent",
     "ToolCall",
     "ToolCallRecord",
     "ToolActivitySpec",

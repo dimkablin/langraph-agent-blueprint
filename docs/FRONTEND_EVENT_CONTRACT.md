@@ -131,14 +131,16 @@ Privacy: context events should not include huge fragment content or full local a
 
 | Event type | Data shape observed | UI use | Stable? | Missing fields | Rendering suggestion |
 | --- | --- | --- | --- | --- | --- |
-| `subagent_started` | `child_run_id`, parent/child ids, name/purpose/status | Child run timeline | stable | display index | Parent timeline row and child-run card |
-| `subagent_event` | forwarded child event summary with `child_run_id` | Child progress | partial | original event type/id standardized | Nested timeline row |
-| `subagent_finished` | `child_run_id`, status, summary | Child result | stable | result ref | Collapsible child run summary |
-| `subagent_error` | `child_run_id` or call id, reason/error | Child failure | stable | normalized error code | Warning/error child card |
+| `subagent_started` | `child_run_id`, `subagent_id`, `run_id`, `sequence=0`, parent/child ids, name/purpose/status, typed `stream_event.kind="subagent"` | Child run timeline | stable | none | Parent timeline row and child-run card |
+| `subagent_event` | forwarded child event with `subagent_id`, `run_id`, per-run `sequence`, `child_event_type`, `child_event`, optional `child_stream_event`, typed `stream_event.kind="subagent"` | Child progress | stable | none | Nested timeline row ordered by sequence |
+| `subagent_finished` | `child_run_id`, `subagent_id`, `run_id`, final `sequence`, status, summary, typed `stream_event.kind="subagent"` | Child result | stable | result ref | Collapsible child run summary |
+| `subagent_error` | `child_run_id`/`run_id`, `subagent_id`, final `sequence`, normalized error in typed `stream_event` | Child failure | stable | none | Warning/error child card |
 | `subagent_timeout` | child ids/status | Timeout | stable | timeout seconds | Warning child card |
 | `subagent_cancelled` | child ids/status | Cancelled | stable | cancellation source | Neutral child card |
 
-Known limitation: nested approval/resume for side-effect child runs is not fully implemented. The UI should render the structured subagent error rather than showing an approval modal for an unsupported nested checkpoint.
+Ordering contract: the parent stream may interleave events from parallel subagents, but every subagent lifecycle/child event carries a monotonic per-run `sequence`. Frontend grouping must use `run_id`/`child_run_id` and sort child detail rows by `sequence`; dedupe should use `run_id + sequence`, not the raw child event id.
+
+Subagent side-effect approval is parent-owned. Child permission requests surface as normal `permission_required` events with `scope="subagent"` and child ids; approval resumes the child thread, rejection records a child error without executing the side effect.
 
 ## Memory, Todo, Compaction, Export
 

@@ -83,7 +83,7 @@ Implemented subgraph builders:
 - `memory_graph`
 - `compaction_graph`
 
-`agent_graph` is no longer a synthetic child-result placeholder. It executes a child graph with separate session/thread ids, narrowed allowed tools, parent/child metadata, and controlled result merge back into the parent tool-message loop. Nested side-effect approvals are guarded: child write/shell/network/MCP calls do not bypass `PermissionService`; unsupported nested approval returns a structured subagent error.
+`agent_graph` is no longer a synthetic child-result placeholder. It executes a child graph with separate session/thread ids, narrowed allowed tools, parent/child metadata, typed subagent stream envelopes, and controlled result merge back into the parent tool-message loop. Child write/shell/network/MCP calls do not bypass `PermissionService`; child permission interrupts are surfaced through the parent approval gate and then resume or reject the stored child thread.
 
 ## Context Providers
 

@@ -195,12 +195,25 @@ export function buildSubagentTimelineRows(activities: ActivityItem[]): SubagentT
 }
 
 function flattenSubagentActivities(activities: ActivityItem[]): ActivityItem[] {
-  return activities.flatMap((activity) => {
+  const flattened = activities.flatMap((activity) => {
     if (activity.relatedActivities?.length) {
       return activity.relatedActivities;
     }
     return [activity];
   });
+  return flattened.map((activity, index) => ({ activity, index })).sort((left, right) => {
+    const leftRun = stringValue(left.activity.data.run_id, left.activity.data.child_run_id);
+    const rightRun = stringValue(right.activity.data.run_id, right.activity.data.child_run_id);
+    if (leftRun && rightRun && leftRun !== rightRun) {
+      return left.index - right.index;
+    }
+    const leftSequence = numberValue(left.activity.data.sequence);
+    const rightSequence = numberValue(right.activity.data.sequence);
+    if (leftSequence !== undefined && rightSequence !== undefined && leftSequence !== rightSequence) {
+      return leftSequence - rightSequence;
+    }
+    return left.index - right.index;
+  }).map((item) => item.activity);
 }
 
 function statusRow(activity: ActivityItem, title: string, summary: string): SubagentTimelineRow {
@@ -263,6 +276,10 @@ function childEvent(activity: ActivityItem): { type: string; data: Record<string
 }
 
 function childStreamEvent(activity: ActivityItem, child: { type: string; data: Record<string, unknown> }): RuntimeStreamEvent | null {
+  const direct = recordValue(activity.data.child_stream_event);
+  if (direct.kind) {
+    return direct as RuntimeStreamEvent;
+  }
   return runtimeStreamEvent(childRuntimeEvent(activity, child));
 }
 
@@ -346,4 +363,8 @@ function stringValue(...values: unknown[]): string {
 
 function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

@@ -63,6 +63,27 @@ export type RuntimeStreamEvent =
       child_run_id?: string | null;
       subagent_name?: string | null;
     }
+  | {
+      kind: "subagent";
+      phase: "started" | "event" | "finished" | "error" | "cancelled" | "timeout";
+      subagent_id: string;
+      run_id: string;
+      sequence: number;
+      parent_session_id?: string | null;
+      parent_thread_id?: string | null;
+      child_session_id?: string | null;
+      child_thread_id?: string | null;
+      agent_call_id?: string | null;
+      name?: string | null;
+      purpose?: string | null;
+      status?: string | null;
+      summary?: string | null;
+      child_event_id?: string | null;
+      child_event_type?: string | null;
+      child_event?: Record<string, unknown>;
+      child_stream_event?: Record<string, unknown>;
+      error?: { type: string; message: string } | null;
+    }
   | { kind: "error"; message: string; error_type?: string | null; recoverable?: boolean | null }
   | { kind: "artifact"; artifact_id: string; artifact_kind: string; uri?: string | null; title?: string | null; metadata?: Record<string, unknown> };
 

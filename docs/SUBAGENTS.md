@@ -70,7 +70,9 @@ Subagent events are normal `RuntimeEvent` records:
 - `subagent_cancelled`
 - `subagent_timeout`
 
-The parent stream includes subagent lifecycle events with `child_run_id`, parent/child session ids, child thread id, name, purpose, status, and summary. Child graph events are forwarded as `subagent_event` summaries so CLI/API can show progress without directly consuming the child checkpoint.
+The parent stream includes subagent lifecycle events with `child_run_id`, `subagent_id`, `run_id`, parent/child session ids, child thread id, name, purpose, status, summary, and a typed `stream_event.kind="subagent"` payload. Child graph events are forwarded as `subagent_event` records with the same typed envelope plus legacy `child_event` fields so CLI/API can show progress without directly consuming the child checkpoint.
+
+Parallel subagents may interleave in the parent stream. Each subagent run carries its own monotonic `sequence`, starting with `0` for `subagent_started`; consumers group by `run_id`/`child_run_id` and order child detail rows by `sequence`.
 
 ## Persistence
 

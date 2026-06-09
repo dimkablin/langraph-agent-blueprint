@@ -89,6 +89,50 @@ export function activityFromStreamEvent(event: RuntimeEvent, streamEvent: Runtim
       },
     };
   }
+  if (streamEvent.kind === "subagent") {
+    const childEvent = recordValue(streamEvent.child_event);
+    const childStreamEvent = recordValue(streamEvent.child_stream_event);
+    const childData = recordValue(childEvent.data);
+    const childEventType = streamEvent.child_event_type || stringValue(childEvent.type) || (childStreamEvent.kind ? "typed_child_event" : "");
+    const normalizedChildEvent =
+      Object.keys(childEvent).length > 0
+        ? childEvent
+        : childEventType || Object.keys(childStreamEvent).length > 0
+          ? { type: childEventType || "typed_child_event", data: { stream_event: childStreamEvent } }
+          : {};
+    return {
+      id: `subagent:${streamEvent.run_id}:${streamEvent.sequence}`,
+      kind: "subagent",
+      label: subagentLabel(streamEvent),
+      summary: streamEvent.summary || stringValue(childData.content, childData.summary, childData.message) || "",
+      status: subagentStatus(streamEvent),
+      timestamp: event.timestamp,
+      eventType: subagentEventType(streamEvent.phase),
+      category: "subagent",
+      data: {
+        stream_event_kind: streamEvent.kind,
+        phase: streamEvent.phase,
+        subagent_id: streamEvent.subagent_id,
+        run_id: streamEvent.run_id,
+        child_run_id: streamEvent.run_id,
+        sequence: streamEvent.sequence,
+        parent_session_id: streamEvent.parent_session_id ?? null,
+        parent_thread_id: streamEvent.parent_thread_id ?? null,
+        child_session_id: streamEvent.child_session_id ?? null,
+        child_thread_id: streamEvent.child_thread_id ?? null,
+        agent_call_id: streamEvent.agent_call_id ?? null,
+        name: streamEvent.name ?? null,
+        purpose: streamEvent.purpose ?? null,
+        status: streamEvent.status ?? null,
+        summary: streamEvent.summary ?? null,
+        child_event_id: (streamEvent.child_event_id ?? stringValue(childEvent.id)) || null,
+        child_event_type: childEventType || null,
+        child_event: normalizedChildEvent,
+        child_stream_event: childStreamEvent,
+        error: streamEvent.error ?? null,
+      },
+    };
+  }
   if (streamEvent.kind === "error") {
     return {
       id: event.id,
@@ -160,6 +204,32 @@ function permissionLabel(streamEvent: Extract<RuntimeStreamEvent, { kind: "permi
   if (streamEvent.status === "approved") return "Permission approved";
   if (streamEvent.status === "rejected") return "Permission rejected";
   return "Permission blocked";
+}
+
+function subagentEventType(phase: Extract<RuntimeStreamEvent, { kind: "subagent" }>["phase"]): string {
+  if (phase === "started") return "subagent_started";
+  if (phase === "finished") return "subagent_finished";
+  if (phase === "error") return "subagent_error";
+  if (phase === "cancelled") return "subagent_cancelled";
+  if (phase === "timeout") return "subagent_timeout";
+  return "subagent_event";
+}
+
+function subagentStatus(streamEvent: Extract<RuntimeStreamEvent, { kind: "subagent" }>): ActivityItem["status"] {
+  if (streamEvent.phase === "started") return "running";
+  if (streamEvent.phase === "finished") return "success";
+  if (streamEvent.phase === "error" || streamEvent.phase === "timeout") return "error";
+  if (streamEvent.phase === "cancelled") return "blocked";
+  if (streamEvent.error) return "error";
+  return "info";
+}
+
+function subagentLabel(streamEvent: Extract<RuntimeStreamEvent, { kind: "subagent" }>): string {
+  const name = streamEvent.name || streamEvent.run_id;
+  if (streamEvent.phase === "started") return `Subagent started: ${name}`;
+  if (streamEvent.phase === "finished") return `Subagent finished: ${name}`;
+  if (streamEvent.phase === "error") return `Subagent failed: ${name}`;
+  return `Subagent event: ${name}`;
 }
 
 function recordValue(value: unknown): Record<string, unknown> {

@@ -22,8 +22,10 @@ from langgraph_agent_blueprint.models import (
     PermissionDecision,
     PermissionRequest,
     PermissionStateStreamEvent,
+    StreamError,
     SubagentRequest,
     SubagentResult,
+    SubagentStreamEvent,
     ToolCall,
     ToolResult,
     dump_model,
@@ -219,21 +221,11 @@ def _prepare_agent_call(
     try:
         current_state = {**state, "metadata": parent_metadata}
         metadata = deps.agent_service.create_child_metadata(current_state, request)
+        metadata = metadata.model_copy(update={"metadata": {**metadata.metadata, "agent_call_id": call.id}})
         child_state = deps.agent_service.create_child_state(current_state, request, metadata, deps.tool_registry)
     except Exception as exc:
         raise _AgentCallPreparationError(f"Could not create subagent state: {exc}", "SubagentStateError") from exc
-    started_event = event(
-        "subagent_started",
-        session_id=state.get("session_id"),
-        child_run_id=metadata.child_run_id,
-        parent_session_id=metadata.parent_session_id,
-        child_session_id=metadata.child_session_id,
-        child_thread_id=metadata.child_thread_id,
-        agent_call_id=call.id,
-        name=metadata.name,
-        purpose=metadata.purpose,
-        status="running",
-    )
+    started_event = _subagent_lifecycle_event(state, metadata, "subagent_started", sequence=0, status="running")
     return _PreparedAgentCall(
         call=call,
         request=request,
@@ -340,9 +332,7 @@ def _finalize_prepared_agent_call(
     persistence_lock: Lock | None = None,
     emit_stream_event: Any | None = None,
 ) -> dict[str, Any]:
-    metadata, result, finished_event = _summarize_child_run(state, metadata, request, child_result)
-    if emit_stream_event is not None:
-        emit_stream_event(finished_event)
+    metadata, result, finished_event_type = _summarize_child_run(state, metadata, request, child_result)
     if metadata.status != "running":
         deps.agent_service.delete_child_thread(deps.config.storage_dir, metadata.child_thread_id)
     metadata_payload = dump_model(metadata)
@@ -383,14 +373,12 @@ def _finalize_prepared_agent_call(
             deps.session_storage.append_tool_call(state["project_root"], state["session_id"], dump_model(tool_result))
     except Exception as exc:
         persistence_events.append(
-            event(
-                "subagent_event",
-                session_id=state.get("session_id"),
-                severity="warning",
-                child_run_id=metadata.child_run_id,
-                child_event_type="agent_tool_result_persistence_error",
-                error_type=exc.__class__.__name__,
-                message=str(exc),
+            _subagent_persistence_event(
+                state,
+                metadata,
+                "agent_tool_result_persistence_error",
+                exc,
+                sequence=len(child_events) + len(persistence_events) + 1,
             )
         )
     try:
@@ -404,16 +392,23 @@ def _finalize_prepared_agent_call(
             )
     except Exception as exc:
         persistence_events.append(
-            event(
-                "subagent_event",
-                session_id=state.get("session_id"),
-                severity="warning",
-                child_run_id=metadata.child_run_id,
-                child_event_type="child_run_persistence_error",
-                error_type=exc.__class__.__name__,
-                message=str(exc),
+            _subagent_persistence_event(
+                state,
+                metadata,
+                "child_run_persistence_error",
+                exc,
+                sequence=len(child_events) + len(persistence_events) + 1,
             )
         )
+    finished_event = _finished_event(
+        state,
+        metadata,
+        result,
+        finished_event_type,
+        sequence=len(child_events) + len(persistence_events) + 1,
+    )
+    if emit_stream_event is not None:
+        emit_stream_event(finished_event)
     return {
         "metadata": next_parent_metadata,
         "child_runs": [child_record],
@@ -444,7 +439,7 @@ def resume_pending_subagent_approval(state: dict[str, Any], deps: AppDependencie
     if decision.decision == "rejected":
         child_resolution_event = _child_permission_resolved_event(metadata, request, record)
         child_events = [*child_events_before, child_resolution_event]
-        forwarded_events = [_forward_child_event(state, metadata, child_resolution_event)]
+        forwarded_events = [_forward_child_event(state, metadata, child_resolution_event, sequence=len(child_events_before) + 1)]
         child_result = _rejected_child_result(pending, request, decision)
         update = _finalize_prepared_agent_call(
             state,
@@ -752,7 +747,10 @@ def _run_child_graph(
         result = app.invoke(child_state, config)
         child_result = result if isinstance(result, dict) else {"final_response": str(result)}
         child_events = child_result.get("ui_events", []) if isinstance(child_result, dict) else []
-        return child_result, child_events, [_forward_child_event(parent_state, metadata, item) for item in child_events]
+        return child_result, child_events, [
+            _forward_child_event(parent_state, metadata, item, sequence=index)
+            for index, item in enumerate(child_events, start=1)
+        ]
     final_chunk: dict[str, Any] | None = None
     previous_count: int | None = None
     child_events: list[dict[str, Any]] = []
@@ -761,8 +759,9 @@ def _run_child_graph(
         mode, chunk = raw_chunk if isinstance(raw_chunk, tuple) and len(raw_chunk) == 2 else ("values", raw_chunk)
         if mode == "custom":
             if isinstance(chunk, dict) and "type" in chunk and "data" in chunk:
+                sequence = len(child_events) + 1
                 child_events.append(chunk)
-                forwarded = _forward_child_event(parent_state, metadata, chunk)
+                forwarded = _forward_child_event(parent_state, metadata, chunk, sequence=sequence)
                 forwarded_events.append(forwarded)
                 writer(forwarded)
             continue
@@ -774,8 +773,9 @@ def _run_child_graph(
             previous_count = len(events)
             continue
         for item in events[previous_count:]:
+            sequence = len(child_events) + 1
             child_events.append(item)
-            forwarded = _forward_child_event(parent_state, metadata, item)
+            forwarded = _forward_child_event(parent_state, metadata, item, sequence=sequence)
             forwarded_events.append(forwarded)
             writer(forwarded)
         previous_count = len(events)
@@ -807,7 +807,10 @@ def _resume_child_graph(
         child_result = result if isinstance(result, dict) else {"final_response": str(result)}
         events = child_result.get("ui_events", []) if isinstance(child_result, dict) else []
         child_events = events[previous_count:]
-        return child_result, child_events, [_forward_child_event(parent_state, metadata, item) for item in child_events]
+        return child_result, child_events, [
+            _forward_child_event(parent_state, metadata, item, sequence=index)
+            for index, item in enumerate(child_events, start=previous_count + 1)
+        ]
     final_chunk: dict[str, Any] | None = None
     child_events: list[dict[str, Any]] = []
     forwarded_events: list[dict[str, Any]] = []
@@ -815,8 +818,9 @@ def _resume_child_graph(
         mode, chunk = raw_chunk if isinstance(raw_chunk, tuple) and len(raw_chunk) == 2 else ("values", raw_chunk)
         if mode == "custom":
             if isinstance(chunk, dict) and "type" in chunk and "data" in chunk:
+                sequence = len(previous_events) + len(child_events) + 1
                 child_events.append(chunk)
-                forwarded = _forward_child_event(parent_state, metadata, chunk)
+                forwarded = _forward_child_event(parent_state, metadata, chunk, sequence=sequence)
                 forwarded_events.append(forwarded)
                 writer(forwarded)
             continue
@@ -825,22 +829,190 @@ def _resume_child_graph(
         final_chunk = chunk
         events = chunk.get("ui_events", [])
         for item in events[previous_count:]:
+            sequence = len(previous_events) + len(child_events) + 1
             child_events.append(item)
-            forwarded = _forward_child_event(parent_state, metadata, item)
+            forwarded = _forward_child_event(parent_state, metadata, item, sequence=sequence)
             forwarded_events.append(forwarded)
             writer(forwarded)
         previous_count = len(events)
     return final_chunk or {}, child_events, forwarded_events
 
 
-def _forward_child_event(parent_state: dict[str, Any], metadata: ChildRunMetadata, child_event: dict[str, Any]) -> dict[str, Any]:
+def _forward_child_event(parent_state: dict[str, Any], metadata: ChildRunMetadata, child_event: dict[str, Any], *, sequence: int) -> dict[str, Any]:
+    child_event_type = str(child_event.get("type") or "")
     return event(
         "subagent_event",
         session_id=parent_state.get("session_id"),
         child_run_id=metadata.child_run_id,
-        child_event_type=child_event.get("type"),
+        subagent_id=_subagent_id(metadata),
+        run_id=metadata.child_run_id,
+        sequence=sequence,
+        parent_session_id=metadata.parent_session_id,
+        parent_thread_id=metadata.parent_thread_id,
+        child_session_id=metadata.child_session_id,
+        child_thread_id=metadata.child_thread_id,
+        agent_call_id=_agent_call_id(metadata),
+        name=metadata.name,
+        purpose=metadata.purpose,
+        child_event_id=child_event.get("id"),
+        child_event_type=child_event_type,
         child_event=child_event,
+        stream_event=stream_event_payload(
+            _subagent_stream_event(
+                metadata,
+                phase="event",
+                sequence=sequence,
+                child_event=child_event,
+                child_event_type=child_event_type,
+            )
+        ),
     )
+
+
+def _subagent_persistence_event(
+    parent_state: dict[str, Any],
+    metadata: ChildRunMetadata,
+    event_type: str,
+    exc: Exception,
+    *,
+    sequence: int,
+) -> dict[str, Any]:
+    child_event = event(
+        "error",
+        session_id=metadata.child_session_id,
+        severity="warning",
+        error_type=exc.__class__.__name__,
+        message=str(exc),
+    )
+    return event(
+        "subagent_event",
+        session_id=parent_state.get("session_id"),
+        severity="warning",
+        child_run_id=metadata.child_run_id,
+        subagent_id=_subagent_id(metadata),
+        run_id=metadata.child_run_id,
+        sequence=sequence,
+        parent_session_id=metadata.parent_session_id,
+        parent_thread_id=metadata.parent_thread_id,
+        child_session_id=metadata.child_session_id,
+        child_thread_id=metadata.child_thread_id,
+        agent_call_id=_agent_call_id(metadata),
+        name=metadata.name,
+        purpose=metadata.purpose,
+        child_event_id=child_event.get("id"),
+        child_event_type=event_type,
+        child_event=child_event,
+        error_type=exc.__class__.__name__,
+        message=str(exc),
+        stream_event=stream_event_payload(
+            _subagent_stream_event(
+                metadata,
+                phase="event",
+                sequence=sequence,
+                child_event=child_event,
+                child_event_type=event_type,
+                error=StreamError(type=exc.__class__.__name__, message=str(exc)),
+            )
+        ),
+    )
+
+
+def _subagent_lifecycle_event(
+    parent_state: dict[str, Any],
+    metadata: ChildRunMetadata,
+    event_type: str,
+    *,
+    sequence: int,
+    status: str,
+    summary: str | None = None,
+    error: StreamError | None = None,
+) -> dict[str, Any]:
+    return event(
+        event_type,
+        session_id=parent_state.get("session_id"),
+        child_run_id=metadata.child_run_id,
+        subagent_id=_subagent_id(metadata),
+        run_id=metadata.child_run_id,
+        sequence=sequence,
+        parent_session_id=metadata.parent_session_id,
+        parent_thread_id=metadata.parent_thread_id,
+        child_session_id=metadata.child_session_id,
+        child_thread_id=metadata.child_thread_id,
+        agent_call_id=_agent_call_id(metadata),
+        name=metadata.name,
+        purpose=metadata.purpose,
+        status=status,
+        summary=summary,
+        stream_event=stream_event_payload(
+            _subagent_stream_event(
+                metadata,
+                phase=_subagent_phase(event_type),
+                sequence=sequence,
+                status=status,
+                summary=summary,
+                error=error,
+            )
+        ),
+    )
+
+
+def _subagent_stream_event(
+    metadata: ChildRunMetadata,
+    *,
+    phase: str,
+    sequence: int,
+    status: str | None = None,
+    summary: str | None = None,
+    child_event: dict[str, Any] | None = None,
+    child_event_type: str | None = None,
+    error: StreamError | None = None,
+) -> SubagentStreamEvent:
+    child_event = child_event or {}
+    child_data = child_event.get("data") if isinstance(child_event.get("data"), dict) else {}
+    child_stream_event = child_data.get("stream_event") if isinstance(child_data, dict) and isinstance(child_data.get("stream_event"), dict) else {}
+    return SubagentStreamEvent(
+        phase=phase,  # type: ignore[arg-type]
+        subagent_id=_subagent_id(metadata),
+        run_id=metadata.child_run_id,
+        sequence=sequence,
+        parent_session_id=metadata.parent_session_id,
+        parent_thread_id=metadata.parent_thread_id,
+        child_session_id=metadata.child_session_id,
+        child_thread_id=metadata.child_thread_id,
+        agent_call_id=_agent_call_id(metadata),
+        name=metadata.name,
+        purpose=metadata.purpose,
+        status=status,
+        summary=summary,
+        child_event_id=str(child_event.get("id")) if child_event.get("id") else None,
+        child_event_type=child_event_type,
+        child_event=child_event,
+        child_stream_event=child_stream_event,
+        error=error,
+    )
+
+
+def _subagent_phase(event_type: str) -> str:
+    if event_type == "subagent_started":
+        return "started"
+    if event_type == "subagent_finished":
+        return "finished"
+    if event_type == "subagent_cancelled":
+        return "cancelled"
+    if event_type == "subagent_timeout":
+        return "timeout"
+    if event_type == "subagent_error":
+        return "error"
+    return "event"
+
+
+def _subagent_id(metadata: ChildRunMetadata) -> str:
+    return str(metadata.metadata.get("agent_call_id") or metadata.child_run_id)
+
+
+def _agent_call_id(metadata: ChildRunMetadata) -> str | None:
+    value = metadata.metadata.get("agent_call_id")
+    return str(value) if value else None
 
 
 def _stream_writer(state: dict[str, Any]) -> Any | None:
@@ -857,11 +1029,11 @@ def _summarize_child_run(
     metadata: ChildRunMetadata,
     request: SubagentRequest,
     child_result: dict[str, Any],
-) -> tuple[ChildRunMetadata, SubagentResult, dict[str, Any]]:
+) -> tuple[ChildRunMetadata, SubagentResult, str]:
     completed_at = datetime.now(timezone.utc).isoformat()
     interrupt_payload = child_result.get("__interrupt__")
     if interrupt_payload:
-        summary = "Subagent side-effect tool call requires approval; nested approval is not supported in this run."
+        summary = "Subagent permission interrupt reached finalization before parent approval routing."
         updated_metadata = metadata.model_copy(
             update={
                 "status": "failed",
@@ -873,10 +1045,10 @@ def _summarize_child_run(
             child_run_id=metadata.child_run_id,
             status="error",
             summary=summary,
-            errors=[{"type": "NestedApprovalUnsupported", "message": summary}],
+            errors=[{"type": "SubagentApprovalRoutingError", "message": summary}],
             metadata={"name": request.name, "interrupted": True},
         )
-        return updated_metadata, result, _finished_event(parent_state, updated_metadata, result, "subagent_error")
+        return updated_metadata, result, "subagent_error"
     errors = child_result.get("errors", []) if isinstance(child_result.get("errors"), list) else []
     status = "failed" if errors else "completed"
     result_status = "error" if errors else "ok"
@@ -899,22 +1071,39 @@ def _summarize_child_run(
         errors=errors,
         metadata={"name": request.name},
     )
-    return updated_metadata, result, _finished_event(parent_state, updated_metadata, result, "subagent_finished" if result_status == "ok" else "subagent_error")
+    return updated_metadata, result, "subagent_finished" if result_status == "ok" else "subagent_error"
 
 
-def _finished_event(parent_state: dict[str, Any], metadata: ChildRunMetadata, result: SubagentResult, event_type: str) -> dict[str, Any]:
-    return event(
+def _finished_event(
+    parent_state: dict[str, Any],
+    metadata: ChildRunMetadata,
+    result: SubagentResult,
+    event_type: str,
+    *,
+    sequence: int,
+) -> dict[str, Any]:
+    error_payload = None
+    if result.errors:
+        first_error = result.errors[0]
+        if isinstance(first_error, dict):
+            error_payload = StreamError(
+                type=str(first_error.get("type") or "SubagentError"),
+                message=str(first_error.get("message") or result.summary),
+            )
+    payload = _subagent_lifecycle_event(
+        parent_state,
+        metadata,
         event_type,
-        session_id=parent_state.get("session_id"),
-        child_run_id=metadata.child_run_id,
-        parent_session_id=metadata.parent_session_id,
-        child_session_id=metadata.child_session_id,
-        child_thread_id=metadata.child_thread_id,
-        name=metadata.name,
-        purpose=metadata.purpose,
+        sequence=sequence,
         status=metadata.status,
         summary=result.summary,
+        error=error_payload,
     )
+    if result.errors:
+        data = payload.get("data", {})
+        if isinstance(data, dict):
+            data["error"] = result.errors[0]
+    return payload
 
 
 def _last_tool_result_content(child_result: dict[str, Any]) -> str:

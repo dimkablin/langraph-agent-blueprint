@@ -15,11 +15,13 @@ StreamEventKind = Literal[
     "progress",
     "tool_lifecycle",
     "permission_state",
+    "subagent",
     "error",
     "artifact",
 ]
 ToolLifecyclePhase = Literal["scheduled", "started", "completed", "failed", "blocked", "permission_required"]
 PermissionStateStatus = Literal["required", "approved", "rejected", "blocked"]
+SubagentPhase = Literal["started", "event", "finished", "error", "cancelled", "timeout"]
 
 
 class AssistantDeltaStreamEvent(FrozenRuntimeModel):
@@ -93,6 +95,30 @@ class PermissionStateStreamEvent(FrozenRuntimeModel):
     subagent_name: str | None = None
 
 
+class SubagentStreamEvent(FrozenRuntimeModel):
+    """Typed parent-stream envelope for one subagent lifecycle or child event."""
+
+    kind: Literal["subagent"] = "subagent"
+    phase: SubagentPhase
+    subagent_id: str
+    run_id: str
+    sequence: int
+    parent_session_id: str | None = None
+    parent_thread_id: str | None = None
+    child_session_id: str | None = None
+    child_thread_id: str | None = None
+    agent_call_id: str | None = None
+    name: str | None = None
+    purpose: str | None = None
+    status: str | None = None
+    summary: str | None = None
+    child_event_id: str | None = None
+    child_event_type: str | None = None
+    child_event: dict[str, Any] = Field(default_factory=dict)
+    child_stream_event: dict[str, Any] = Field(default_factory=dict)
+    error: StreamError | None = None
+
+
 class ErrorStreamEvent(FrozenRuntimeModel):
     """Runtime error event rendered from typed data rather than event-name heuristics."""
 
@@ -119,6 +145,7 @@ RuntimeStreamEvent = Annotated[
     | ProgressStreamEvent
     | ToolLifecycleStreamEvent
     | PermissionStateStreamEvent
+    | SubagentStreamEvent
     | ErrorStreamEvent
     | ArtifactStreamEvent,
     Field(discriminator="kind"),
